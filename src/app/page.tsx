@@ -32,6 +32,10 @@ import FraisScolaritePage from "../module/Paiements/Paiements";
 import GestionProfesseurs from "../module/Professeur/Professeur";
 import NewYearModal from "../module/AnneeAcademique/ConfigurationAn ee";
 import GestionEmployer from "../module/Employer/Employer";
+import Image from "next/image";
+import CalendrierScolaire from "@/module/Calendrier/Calendrier";
+import Rapport from "@/module/Rapport/Rapport";
+import AdminSettingsPage from "@/module/Parametre/Parametre";
 
 interface User {
   name: string;
@@ -82,10 +86,9 @@ const Dashboard: React.FC = () => {
 
   // Données de démonstration
   const currentUser: User = {
-    name: "Marie Dubois",
-    role: "Administratrice",
-    avatar:
-      "https://images.unsplash.com/photo-1494790108755-2616b9d93217?w=150&h=150&fit=crop&crop=face",
+    name: "Brenord Fritzly",
+    role: "Administrateur",
+    avatar: "/profil.jpg",
   };
 
   const notifications: Notification[] = [
@@ -254,46 +257,11 @@ const Dashboard: React.FC = () => {
       case "Paiements":
         return <FraisScolaritePage isDarkMode={isDarkMode} />;
       case "Rapports":
-        return (
-          <div className={`p-6 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-            <h3 className="text-2xl font-bold mb-4">
-              Rapports et Statistiques
-            </h3>
-            <div
-              className={`p-6 rounded-xl shadow-lg ${
-                isDarkMode ? "bg-gray-800" : "bg-white"
-              }`}
-            >
-              <p>Module de rapports en développement...</p>
-            </div>
-          </div>
-        );
+        return <Rapport darkMode={isDarkMode} />;
       case "Calendrier":
-        return (
-          <div className={`p-6 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-            <h3 className="text-2xl font-bold mb-4">Calendrier Scolaire</h3>
-            <div
-              className={`p-6 rounded-xl shadow-lg ${
-                isDarkMode ? "bg-gray-800" : "bg-white"
-              }`}
-            >
-              <p>Module de calendrier en développement...</p>
-            </div>
-          </div>
-        );
+        return <CalendrierScolaire darkMode={isDarkMode} />;
       case "Paramètres":
-        return (
-          <div className={`p-6 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-            <h3 className="text-2xl font-bold mb-4">Paramètres du Système</h3>
-            <div
-              className={`p-6 rounded-xl shadow-lg ${
-                isDarkMode ? "bg-gray-800" : "bg-white"
-              }`}
-            >
-              <p>Module de paramètres en développement...</p>
-            </div>
-          </div>
-        );
+        return <AdminSettingsPage isDarkMode={isDarkMode} />;
       default:
         return <TableauDeBord isDarkMode={isDarkMode} />;
     }
@@ -324,9 +292,7 @@ const Dashboard: React.FC = () => {
           }`}
         >
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 via-blue-500 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg transform hover:scale-105 transition-transform duration-200">
-              <span className="text-white font-bold text-xl">E</span>
-            </div>
+            <Image src="/logo.png" alt="Logo" width={50} height={50} />
             {!sidebarCollapsed && (
               <div>
                 <h1
@@ -334,7 +300,7 @@ const Dashboard: React.FC = () => {
                     isDarkMode ? "text-white" : "text-gray-800"
                   }`}
                 >
-                  EduManage
+                  SIGEP
                 </h1>
                 <p
                   className={`text-sm ${
@@ -404,20 +370,7 @@ const Dashboard: React.FC = () => {
         </nav>
 
         {/* Bouton déconnexion */}
-        <div className="absolute bottom-6 left-4 right-4">
-          <button
-            className={`flex items-center w-full px-4 py-3 rounded-xl transition-all duration-300 hover:transform hover:scale-105 group ${
-              isDarkMode
-                ? "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-red-600/80 hover:to-red-500/80 hover:shadow-lg hover:shadow-red-500/25"
-                : "text-gray-600 hover:text-white hover:bg-gradient-to-r hover:from-red-600 hover:to-red-500 hover:shadow-lg hover:shadow-red-500/25"
-            }`}
-          >
-            <LogOut className="w-5 h-5 flex-shrink-0 transition-transform duration-200 group-hover:scale-110" />
-            {!sidebarCollapsed && (
-              <span className="ml-3 font-medium">Déconnexion</span>
-            )}
-          </button>
-        </div>
+        <div className="absolute bottom-6 left-4 right-4"></div>
       </aside>
 
       {/* Contenu principal */}

@@ -11,10 +11,12 @@ import {
   Users,
   CheckCircle,
   AlertTriangle,
+  Filter,
+  Briefcase,
 } from "lucide-react";
 
 // Types
-interface Professeur {
+interface Employe {
   id: string;
   code: string;
   nom: string;
@@ -23,60 +25,98 @@ interface Professeur {
   telephone: string;
   adresse: string;
   dateEmbauche: string;
-  matieres: string;
-  classes: string;
+  typeEmploye: TypeEmploye;
+  departement: string;
+  responsabilites: string;
   diplomes: string;
   statut: "actif" | "inactif";
 }
+
+type TypeEmploye =
+  | "secretaire"
+  | "censeur"
+  | "surveillant"
+  | "gradient"
+  | "econome"
+  | "directeur"
+  | "directeur_pedagogique";
 
 interface Props {
   isDarkMode?: boolean;
 }
 
+const TYPE_EMPLOYE_OPTIONS = [
+  { value: "secretaire", label: "Secrétaire" },
+  { value: "censeur", label: "Censeur" },
+  { value: "surveillant", label: "Surveillant" },
+  { value: "gradient", label: "Gradient" },
+  { value: "econome", label: "Économe" },
+  { value: "directeur", label: "Directeur" },
+  { value: "directeur_pedagogique", label: "Directeur Pédagogique" },
+];
+
 const GestionEmployer = ({ isDarkMode = false }: Props) => {
-  // État des professeurs
-  const [professeurs, setProfesseurs] = useState<Professeur[]>([
+  // État des employés
+  const [employes, setEmployes] = useState<Employe[]>([
     {
       id: "1",
-      code: "PROF001",
+      code: "EMP001",
       nom: "Dupont",
       prenom: "Jean",
       email: "jean.dupont@institut.edu",
       telephone: "+509 1234-5678",
       adresse: "123 Rue des Écoles, Port-au-Prince",
       dateEmbauche: "2020-09-01",
-      matieres: "Mathématiques, Physique",
-      classes: "9ème AF, Seconde",
-      diplomes: "Licence en Mathématiques",
+      typeEmploye: "directeur",
+      departement: "Direction Générale",
+      responsabilites: "Supervision générale, gestion administrative",
+      diplomes: "Master en Administration",
       statut: "actif",
     },
     {
       id: "2",
-      code: "PROF002",
+      code: "EMP002",
       nom: "Martin",
       prenom: "Marie",
       email: "marie.martin@institut.edu",
       telephone: "+509 8765-4321",
       adresse: "456 Avenue de l'Éducation, Port-au-Prince",
       dateEmbauche: "2019-08-15",
-      matieres: "Français, Histoire-Géographie",
-      classes: "7ème AF, 8ème AF",
-      diplomes: "Licence en Lettres Modernes",
+      typeEmploye: "secretaire",
+      departement: "Administration",
+      responsabilites: "Gestion des dossiers, accueil, correspondance",
+      diplomes: "Licence en Secrétariat",
       statut: "actif",
     },
     {
       id: "3",
-      code: "PROF003",
+      code: "EMP003",
       nom: "Bernard",
       prenom: "Pierre",
       email: "pierre.bernard@institut.edu",
       telephone: "+509 9876-5432",
       adresse: "789 Boulevard des Sciences, Port-au-Prince",
       dateEmbauche: "2021-01-10",
-      matieres: "Anglais",
-      classes: "9ème AF, Première, Terminale",
-      diplomes: "Master en Langues Étrangères",
+      typeEmploye: "surveillant",
+      departement: "Vie Scolaire",
+      responsabilites: "Surveillance des élèves, discipline",
+      diplomes: "Baccalauréat",
       statut: "inactif",
+    },
+    {
+      id: "4",
+      code: "EMP004",
+      nom: "Rousseau",
+      prenom: "Sophie",
+      email: "sophie.rousseau@institut.edu",
+      telephone: "+509 3456-7890",
+      adresse: "321 Rue de la Pédagogie, Port-au-Prince",
+      dateEmbauche: "2018-03-20",
+      typeEmploye: "directeur_pedagogique",
+      departement: "Pédagogie",
+      responsabilites: "Coordination pédagogique, formation des enseignants",
+      diplomes: "Master en Sciences de l'Éducation",
+      statut: "actif",
     },
   ]);
 
@@ -85,11 +125,12 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
   const [modalType, setModalType] = useState<
     "add" | "edit" | "view" | "delete"
   >("add");
-  const [selectedProf, setSelectedProf] = useState<Professeur | null>(null);
+  const [selectedEmploye, setSelectedEmploye] = useState<Employe | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterType, setFilterType] = useState<TypeEmploye | "tous">("tous");
 
   // État du formulaire
-  const [formData, setFormData] = useState<Omit<Professeur, "id">>({
+  const [formData, setFormData] = useState<Omit<Employe, "id">>({
     code: "",
     nom: "",
     prenom: "",
@@ -97,14 +138,14 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
     telephone: "",
     adresse: "",
     dateEmbauche: "",
-    matieres: "",
-    classes: "",
+    typeEmploye: "secretaire",
+    departement: "",
+    responsabilites: "",
     diplomes: "",
     statut: "actif",
   });
 
   // Styles conditionnels
-
   const baseClasses = isDarkMode
     ? "min-h-screen bg-gray-900 text-white"
     : "min-h-screen bg-gray-50 text-gray-900";
@@ -137,6 +178,41 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
 
   const tableBorderClasses = isDarkMode ? "divide-gray-700" : "divide-gray-200";
 
+  // Utilitaires
+  const getTypeEmployeLabel = (type: TypeEmploye) => {
+    return (
+      TYPE_EMPLOYE_OPTIONS.find((option) => option.value === type)?.label ||
+      type
+    );
+  };
+
+  const getTypeEmployeColor = (type: TypeEmploye) => {
+    const colors = {
+      directeur: isDarkMode
+        ? "bg-purple-900 text-purple-300"
+        : "bg-purple-100 text-purple-800",
+      directeur_pedagogique: isDarkMode
+        ? "bg-indigo-900 text-indigo-300"
+        : "bg-indigo-100 text-indigo-800",
+      censeur: isDarkMode
+        ? "bg-orange-900 text-orange-300"
+        : "bg-orange-100 text-orange-800",
+      econome: isDarkMode
+        ? "bg-yellow-900 text-yellow-300"
+        : "bg-yellow-100 text-yellow-800",
+      secretaire: isDarkMode
+        ? "bg-green-900 text-green-300"
+        : "bg-green-100 text-green-800",
+      surveillant: isDarkMode
+        ? "bg-blue-900 text-blue-300"
+        : "bg-blue-100 text-blue-800",
+      gradient: isDarkMode
+        ? "bg-gray-700 text-gray-300"
+        : "bg-gray-100 text-gray-800",
+    };
+    return colors[type];
+  };
+
   // Réinitialiser le formulaire
   const resetForm = () => {
     setFormData({
@@ -147,35 +223,36 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
       telephone: "",
       adresse: "",
       dateEmbauche: "",
-      matieres: "",
-      classes: "",
+      typeEmploye: "secretaire",
+      departement: "",
+      responsabilites: "",
       diplomes: "",
       statut: "actif",
     });
   };
 
-  // Générer un nouveau code professeur
-  const generateProfCode = () => {
-    const lastCode = professeurs.reduce((max, prof) => {
-      const num = parseInt(prof.code.slice(-3));
+  // Générer un nouveau code employé
+  const generateEmpCode = () => {
+    const lastCode = employes.reduce((max, emp) => {
+      const num = parseInt(emp.code.slice(-3));
       return num > max ? num : max;
     }, 0);
-    return `PROF${String(lastCode + 1).padStart(3, "0")}`;
+    return `EMP${String(lastCode + 1).padStart(3, "0")}`;
   };
 
   // Ouvrir modal
   const openModal = (
     type: "add" | "edit" | "view" | "delete",
-    prof: Professeur | null = null
+    emp: Employe | null = null
   ) => {
     setModalType(type);
-    setSelectedProf(prof);
+    setSelectedEmploye(emp);
 
     if (type === "add") {
       resetForm();
-      setFormData((prev) => ({ ...prev, code: generateProfCode() }));
-    } else if (type === "edit" && prof) {
-      setFormData({ ...prof });
+      setFormData((prev) => ({ ...prev, code: generateEmpCode() }));
+    } else if (type === "edit" && emp) {
+      setFormData({ ...emp });
     }
 
     setShowModal(true);
@@ -184,7 +261,7 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
   // Fermer modal
   const closeModal = () => {
     setShowModal(false);
-    setSelectedProf(null);
+    setSelectedEmploye(null);
     resetForm();
   };
 
@@ -198,58 +275,65 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
     }
 
     if (modalType === "add") {
-      if (professeurs.some((p) => p.code === formData.code)) {
-        alert("Ce code professeur existe déjà");
+      if (employes.some((e) => e.code === formData.code)) {
+        alert("Ce code employé existe déjà");
         return;
       }
 
-      const nouveauProf: Professeur = {
+      const nouvelEmploye: Employe = {
         ...formData,
         id: Date.now().toString(),
       };
 
-      setProfesseurs((prev) => [...prev, nouveauProf]);
-      alert("Professeur ajouté avec succès!");
-    } else if (modalType === "edit" && selectedProf) {
-      setProfesseurs((prev) =>
-        prev.map((p) =>
-          p.id === selectedProf.id ? { ...formData, id: selectedProf.id } : p
+      setEmployes((prev) => [...prev, nouvelEmploye]);
+      alert("Employé ajouté avec succès!");
+    } else if (modalType === "edit" && selectedEmploye) {
+      setEmployes((prev) =>
+        prev.map((e) =>
+          e.id === selectedEmploye.id
+            ? { ...formData, id: selectedEmploye.id }
+            : e
         )
       );
-      alert("Professeur modifié avec succès!");
+      alert("Employé modifié avec succès!");
     }
 
     closeModal();
   };
 
-  // Supprimer professeur
+  // Supprimer employé
   const handleDelete = () => {
-    if (!selectedProf) return;
+    if (!selectedEmploye) return;
 
-    setProfesseurs((prev) => prev.filter((p) => p.id !== selectedProf.id));
-    alert("Professeur supprimé avec succès!");
+    setEmployes((prev) => prev.filter((e) => e.id !== selectedEmploye.id));
+    alert("Employé supprimé avec succès!");
     closeModal();
   };
 
   // Gérer les changements d'input
   const handleInputChange = (
-    field: keyof Omit<Professeur, "id">,
+    field: keyof Omit<Employe, "id">,
     value: string
   ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Filtrer les professeurs
-  const filteredProfesseurs = professeurs.filter((prof) => {
-    if (searchTerm === "") return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      prof.nom.toLowerCase().includes(search) ||
-      prof.prenom.toLowerCase().includes(search) ||
-      prof.code.toLowerCase().includes(search) ||
-      prof.email.toLowerCase().includes(search) ||
-      prof.matieres.toLowerCase().includes(search)
-    );
+  // Filtrer les employés
+  const filteredEmployes = employes.filter((emp) => {
+    const matchSearch =
+      searchTerm === "" ||
+      emp.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getTypeEmployeLabel(emp.typeEmploye)
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      emp.departement.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchFilter = filterType === "tous" || emp.typeEmploye === filterType;
+
+    return matchSearch && matchFilter;
   });
 
   return (
@@ -257,24 +341,46 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
       <div className="max-w-7xl mx-auto">
         {/* En-tête */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Gestion des Professeurs</h1>
+          <h1 className="text-3xl font-bold mb-2">Gestion des Employés</h1>
           <p className={isDarkMode ? "text-gray-300" : "text-gray-600"}>
-            Système de gestion du personnel enseignant - SIGEP
+            Système de gestion des Employés Scolaires - SIGEP
           </p>
         </div>
 
         {/* Barre d'actions */}
         <div className={`${cardClasses} rounded-lg shadow-sm border p-6 mb-6`}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Rechercher un professeur..."
-                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+            <div className="flex flex-col sm:flex-row gap-4 flex-1">
+              {/* Recherche */}
+              <div className="relative flex-1 max-w-md">
+                <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Rechercher un employé..."
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              {/* Filtre par type */}
+              <div className="relative min-w-[200px]">
+                <Filter className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+                <select
+                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={filterType}
+                  onChange={(e) =>
+                    setFilterType(e.target.value as TypeEmploye | "tous")
+                  }
+                >
+                  <option value="tous">Tous les types</option>
+                  {TYPE_EMPLOYE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <button
@@ -282,13 +388,13 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
               className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors`}
             >
               <Plus className="h-4 w-4" />
-              Ajouter un Professeur
+              Ajouter un Employé
             </button>
           </div>
         </div>
 
         {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
           <div className={`${cardClasses} p-6 rounded-lg shadow-sm border`}>
             <div className="flex items-center">
               <div
@@ -308,9 +414,9 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                     isDarkMode ? "text-gray-300" : "text-gray-600"
                   }`}
                 >
-                  Total Professeurs
+                  Total Employés
                 </p>
-                <p className="text-2xl font-bold">{professeurs.length}</p>
+                <p className="text-2xl font-bold">{employes.length}</p>
               </div>
             </div>
           </div>
@@ -337,7 +443,7 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                   Actifs
                 </p>
                 <p className="text-2xl font-bold">
-                  {professeurs.filter((p) => p.statut === "actif").length}
+                  {employes.filter((e) => e.statut === "actif").length}
                 </p>
               </div>
             </div>
@@ -365,21 +471,49 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                   Inactifs
                 </p>
                 <p className="text-2xl font-bold">
-                  {professeurs.filter((p) => p.statut === "inactif").length}
+                  {employes.filter((e) => e.statut === "inactif").length}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${cardClasses} p-6 rounded-lg shadow-sm border`}>
+            <div className="flex items-center">
+              <div
+                className={`p-2 rounded-lg ${
+                  isDarkMode ? "bg-purple-900" : "bg-purple-100"
+                }`}
+              >
+                <Briefcase
+                  className={`h-6 w-6 ${
+                    isDarkMode ? "text-purple-300" : "text-purple-600"
+                  }`}
+                />
+              </div>
+              <div className="ml-4">
+                <p
+                  className={`text-sm font-medium ${
+                    isDarkMode ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
+                  Types de postes
+                </p>
+                <p className="text-2xl font-bold">
+                  {new Set(employes.map((e) => e.typeEmploye)).size}
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Liste des professeurs */}
+        {/* Liste des employés */}
         <div className={`${cardClasses} rounded-lg shadow-sm border`}>
           <div className="p-6">
             <h2 className="text-lg font-semibold mb-4">
-              Liste des Professeurs ({filteredProfesseurs.length})
+              Liste des Employés ({filteredEmployes.length})
             </h2>
 
-            {filteredProfesseurs.length === 0 ? (
+            {filteredEmployes.length === 0 ? (
               <div className="text-center py-12">
                 <User
                   className={`h-16 w-16 mx-auto mb-4 ${
@@ -387,7 +521,7 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                   }`}
                 />
                 <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
-                  Aucun professeur trouvé
+                  Aucun employé trouvé
                 </p>
               </div>
             ) : (
@@ -396,13 +530,16 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                   <thead className={tableHeaderClasses}>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Professeur
+                        Employé
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Contact
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Matières
+                        Poste
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                        Département
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Statut
@@ -413,8 +550,8 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                     </tr>
                   </thead>
                   <tbody className={`divide-y ${tableBorderClasses}`}>
-                    {filteredProfesseurs.map((prof) => (
-                      <tr key={prof.id} className={tableRowClasses}>
+                    {filteredEmployes.map((emp) => (
+                      <tr key={emp.id} className={tableRowClasses}>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="flex-shrink-0 h-10 w-10">
@@ -434,42 +571,44 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                             </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium">
-                                {prof.prenom} {prof.nom}
+                                {emp.prenom} {emp.nom}
                               </div>
                               <div
                                 className={`text-sm ${
                                   isDarkMode ? "text-gray-400" : "text-gray-500"
                                 }`}
                               >
-                                {prof.code}
+                                {emp.code}
                               </div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm">{prof.email}</div>
+                          <div className="text-sm">{emp.email}</div>
                           <div
                             className={`text-sm ${
                               isDarkMode ? "text-gray-400" : "text-gray-500"
                             }`}
                           >
-                            {prof.telephone}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm">{prof.matieres}</div>
-                          <div
-                            className={`text-sm ${
-                              isDarkMode ? "text-gray-400" : "text-gray-500"
-                            }`}
-                          >
-                            {prof.classes}
+                            {emp.telephone}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeEmployeColor(
+                              emp.typeEmploye
+                            )}`}
+                          >
+                            {getTypeEmployeLabel(emp.typeEmploye)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm">{emp.departement}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              prof.statut === "actif"
+                              emp.statut === "actif"
                                 ? isDarkMode
                                   ? "bg-green-900 text-green-300"
                                   : "bg-green-100 text-green-800"
@@ -478,13 +617,13 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                                 : "bg-red-100 text-red-800"
                             }`}
                           >
-                            {prof.statut === "actif" ? "Actif" : "Inactif"}
+                            {emp.statut === "actif" ? "Actif" : "Inactif"}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => openModal("view", prof)}
+                              onClick={() => openModal("view", emp)}
                               className={`${
                                 isDarkMode
                                   ? "text-gray-400 hover:text-gray-200"
@@ -495,14 +634,14 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                               <Eye className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => openModal("edit", prof)}
+                              onClick={() => openModal("edit", emp)}
                               className="text-blue-600 hover:text-blue-900 p-1"
                               title="Modifier"
                             >
                               <Edit className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => openModal("delete", prof)}
+                              onClick={() => openModal("delete", emp)}
                               className="text-red-600 hover:text-red-900 p-1"
                               title="Supprimer"
                             >
@@ -529,9 +668,9 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                 {/* En-tête du modal */}
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold">
-                    {modalType === "add" && "Ajouter un Professeur"}
-                    {modalType === "edit" && "Modifier le Professeur"}
-                    {modalType === "view" && "Détails du Professeur"}
+                    {modalType === "add" && "Ajouter un Employé"}
+                    {modalType === "edit" && "Modifier l'Employé"}
+                    {modalType === "view" && "Détails de l'Employé"}
                     {modalType === "delete" && "Confirmer la Suppression"}
                   </h3>
                   <button
@@ -555,9 +694,9 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                         isDarkMode ? "text-gray-300" : "text-gray-700"
                       }`}
                     >
-                      Êtes-vous sûr de vouloir supprimer le professeur{" "}
+                      Êtes-vous sûr de vouloir supprimer l'employé{" "}
                       <strong>
-                        {selectedProf?.prenom} {selectedProf?.nom}
+                        {selectedEmploye?.prenom} {selectedEmploye?.nom}
                       </strong>{" "}
                       ? Cette action est irréversible.
                     </p>
@@ -581,51 +720,56 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <p>
-                          <strong>Code:</strong> {selectedProf?.code}
+                          <strong>Code:</strong> {selectedEmploye?.code}
                         </p>
                         <p>
-                          <strong>Nom:</strong> {selectedProf?.nom}
+                          <strong>Nom:</strong> {selectedEmploye?.nom}
                         </p>
                         <p>
-                          <strong>Prénom:</strong> {selectedProf?.prenom}
+                          <strong>Prénom:</strong> {selectedEmploye?.prenom}
                         </p>
                         <p>
-                          <strong>Email:</strong> {selectedProf?.email}
+                          <strong>Email:</strong> {selectedEmploye?.email}
                         </p>
                         <p>
-                          <strong>Téléphone:</strong> {selectedProf?.telephone}
+                          <strong>Téléphone:</strong>{" "}
+                          {selectedEmploye?.telephone}
+                        </p>
+                        <p>
+                          <strong>Type d'employé:</strong>{" "}
+                          {selectedEmploye &&
+                            getTypeEmployeLabel(selectedEmploye.typeEmploye)}
                         </p>
                       </div>
                       <div className="space-y-2">
                         <p>
                           <strong>Date d'embauche:</strong>{" "}
-                          {new Date(
-                            selectedProf?.dateEmbauche || ""
-                          ).toLocaleDateString()}
+                          {selectedEmploye?.dateEmbauche &&
+                            new Date(
+                              selectedEmploye.dateEmbauche
+                            ).toLocaleDateString()}
                         </p>
                         <p>
-                          <strong>Statut:</strong> {selectedProf?.statut}
+                          <strong>Statut:</strong> {selectedEmploye?.statut}
                         </p>
                         <p>
-                          <strong>Adresse:</strong> {selectedProf?.adresse}
+                          <strong>Département:</strong>{" "}
+                          {selectedEmploye?.departement}
+                        </p>
+                        <p>
+                          <strong>Adresse:</strong> {selectedEmploye?.adresse}
                         </p>
                       </div>
                     </div>
                     <div>
                       <p>
-                        <strong>Matières enseignées:</strong>{" "}
-                        {selectedProf?.matieres}
+                        <strong>Responsabilités:</strong>{" "}
+                        {selectedEmploye?.responsabilites}
                       </p>
                     </div>
                     <div>
                       <p>
-                        <strong>Classes assignées:</strong>{" "}
-                        {selectedProf?.classes}
-                      </p>
-                    </div>
-                    <div>
-                      <p>
-                        <strong>Diplômes:</strong> {selectedProf?.diplomes}
+                        <strong>Diplômes:</strong> {selectedEmploye?.diplomes}
                       </p>
                     </div>
                   </div>
@@ -638,7 +782,7 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Code Professeur *
+                          Code Employé *
                         </label>
                         <input
                           type="text"
@@ -657,20 +801,23 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Statut *
+                          Type d'employé *
                         </label>
                         <select
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.statut}
+                          value={formData.typeEmploye}
                           onChange={(e) =>
                             handleInputChange(
-                              "statut",
-                              e.target.value as "actif" | "inactif"
+                              "typeEmploye",
+                              e.target.value as TypeEmploye
                             )
                           }
                         >
-                          <option value="actif">Actif</option>
-                          <option value="inactif">Inactif</option>
+                          {TYPE_EMPLOYE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
@@ -746,22 +893,46 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                         />
                       </div>
 
-                      <div className="md:col-span-2">
+                      <div>
                         <label
                           className={`block text-sm font-medium mb-1 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Adresse
+                          Département
                         </label>
                         <input
                           type="text"
+                          placeholder="Ex: Administration, Pédagogie..."
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.adresse}
+                          value={formData.departement}
                           onChange={(e) =>
-                            handleInputChange("adresse", e.target.value)
+                            handleInputChange("departement", e.target.value)
                           }
                         />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-1 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Statut *
+                        </label>
+                        <select
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                          value={formData.statut}
+                          onChange={(e) =>
+                            handleInputChange(
+                              "statut",
+                              e.target.value as "actif" | "inactif"
+                            )
+                          }
+                        >
+                          <option value="actif">Actif</option>
+                          <option value="inactif">Inactif</option>
+                        </select>
                       </div>
 
                       <div>
@@ -782,40 +953,39 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                         />
                       </div>
 
-                      <div>
+                      <div className="md:col-span-2">
                         <label
                           className={`block text-sm font-medium mb-1 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Matières enseignées
+                          Adresse
                         </label>
                         <input
                           type="text"
-                          placeholder="Ex: Mathématiques, Physique"
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.matieres}
+                          value={formData.adresse}
                           onChange={(e) =>
-                            handleInputChange("matieres", e.target.value)
+                            handleInputChange("adresse", e.target.value)
                           }
                         />
                       </div>
 
-                      <div>
+                      <div className="md:col-span-2">
                         <label
                           className={`block text-sm font-medium mb-1 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Classes assignées
+                          Responsabilités
                         </label>
-                        <input
-                          type="text"
-                          placeholder="Ex: 9ème AF, Seconde"
+                        <textarea
+                          rows={2}
+                          placeholder="Décrivez les principales responsabilités..."
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.classes}
+                          value={formData.responsabilites}
                           onChange={(e) =>
-                            handleInputChange("classes", e.target.value)
+                            handleInputChange("responsabilites", e.target.value)
                           }
                         />
                       </div>

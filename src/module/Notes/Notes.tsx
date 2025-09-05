@@ -146,7 +146,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
   // États d'interface
   const [activeTab, setActiveTab] = useState<
-    "saisie" | "consultation" | "bulletins"
+    "saisie" | "consultation" | "bulletins" | "resultat"
   >("saisie");
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -186,6 +186,11 @@ const NotesPage = ({ isDarkMode }: Props) => {
     useState("");
   const [searchStudentsForReleve, setSearchStudentsForReleve] = useState("");
 
+  // États de pagination
+  const [currentPageConsultation, setCurrentPageConsultation] = useState(1);
+  const [currentPageResultat, setCurrentPageResultat] = useState(1);
+  const [itemsPerPage] = useState(10);
+
   // Fonctions utilitaires
   const getNoteColor = (note: number) => {
     return note < 50
@@ -193,6 +198,101 @@ const NotesPage = ({ isDarkMode }: Props) => {
       : isDarkMode
       ? "text-white"
       : "text-gray-900";
+  };
+
+  // Fonctions de pagination
+  const getPaginatedData = (
+    data: any[],
+    currentPage: number,
+    itemsPerPage: number
+  ) => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (totalItems: number, itemsPerPage: number) => {
+    return Math.ceil(totalItems / itemsPerPage);
+  };
+
+  const PaginationComponent = ({
+    currentPage,
+    totalPages,
+    onPageChange,
+    totalItems,
+  }: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    totalItems: number;
+  }) => {
+    if (totalPages <= 1) return null;
+
+    const startItem = (currentPage - 1) * itemsPerPage + 1;
+    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+    return (
+      <div
+        className={`flex items-center justify-between mt-4 ${
+          isDarkMode ? "text-gray-300" : "text-gray-700"
+        }`}
+      >
+        <div className="text-sm">
+          Affichage de {startItem} à {endItem} sur {totalItems} résultats
+        </div>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className={`px-3 py-1 text-sm border rounded ${
+              currentPage === 1
+                ? isDarkMode
+                  ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                  : "border-gray-300 text-gray-400 cursor-not-allowed"
+                : isDarkMode
+                ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Précédent
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              onClick={() => onPageChange(page)}
+              className={`px-3 py-1 text-sm border rounded ${
+                page === currentPage
+                  ? isDarkMode
+                    ? "bg-blue-600 border-blue-600 text-white"
+                    : "bg-blue-600 border-blue-600 text-white"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {page}
+            </button>
+          ))}
+
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className={`px-3 py-1 text-sm border rounded ${
+              currentPage === totalPages
+                ? isDarkMode
+                  ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                  : "border-gray-300 text-gray-400 cursor-not-allowed"
+                : isDarkMode
+                ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            Suivant
+          </button>
+        </div>
+      </div>
+    );
   };
 
   const getMoyenneColor = (moyenne: number) => {
@@ -279,7 +379,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
       .filter((moyenne) => moyenne > 0);
 
     if (moyennesTrimestres.length === 0) return 0;
-    return moyennesTrimestres.reduce((sum, moyenne) => sum + moyenne, 0)/3;
+    return moyennesTrimestres.reduce((sum, moyenne) => sum + moyenne, 0) / 3;
   };
 
   // Gestion du formulaire de notes
@@ -381,7 +481,11 @@ const NotesPage = ({ isDarkMode }: Props) => {
     }
 
     // Toujours générer dans une seule fenêtre, un bulletin par page
-    const allBulletinsWindow = window.open("", "_blank", "width=1000,height=800");
+    const allBulletinsWindow = window.open(
+      "",
+      "_blank",
+      "width=1000,height=800"
+    );
     if (!allBulletinsWindow) return;
 
     const allBulletinsHTML = `
@@ -390,7 +494,9 @@ const NotesPage = ({ isDarkMode }: Props) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Bulletins - ${selectedStudentsForBulletin.length} élève(s)</title>
+        <title>Bulletins - ${
+          selectedStudentsForBulletin.length
+        } élève(s)</title>
         <style>
           * {
             margin: 0;
@@ -583,12 +689,14 @@ const NotesPage = ({ isDarkMode }: Props) => {
       </head>
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer Tous</button>
-        ${selectedStudentsForBulletin.map((studentId) => {
-          const student = students.find((s) => s.id === studentId);
-          if (!student) return '';
-          
-          return generateSingleBulletinHTML(student, selectedTrimestres);
-        }).join('')}
+        ${selectedStudentsForBulletin
+          .map((studentId) => {
+            const student = students.find((s) => s.id === studentId);
+            if (!student) return "";
+
+            return generateSingleBulletinHTML(student, selectedTrimestres);
+          })
+          .join("")}
       </body>
       </html>
     `;
@@ -785,12 +893,14 @@ const NotesPage = ({ isDarkMode }: Props) => {
       </head>
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer Tous</button>
-        ${selectedStudentsForReleve.map((studentId) => {
-          const student = students.find((s) => s.id === studentId);
-          if (!student) return '';
-          
-          return generateSingleReleveHTML(student, trimestres);
-        }).join('')}
+        ${selectedStudentsForReleve
+          .map((studentId) => {
+            const student = students.find((s) => s.id === studentId);
+            if (!student) return "";
+
+            return generateSingleReleveHTML(student, trimestres);
+          })
+          .join("")}
       </body>
       </html>
     `;
@@ -1521,7 +1631,11 @@ const NotesPage = ({ isDarkMode }: Props) => {
       return;
     }
 
-    const allBulletinsWindow = window.open("", "_blank", "width=1000,height=800");
+    const allBulletinsWindow = window.open(
+      "",
+      "_blank",
+      "width=1000,height=800"
+    );
     if (!allBulletinsWindow) return;
 
     const allBulletinsHTML = `
@@ -1578,12 +1692,14 @@ const NotesPage = ({ isDarkMode }: Props) => {
       </head>
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer Tous</button>
-        ${selectedStudentsForBulletin.map((studentId) => {
-          const student = students.find((s) => s.id === studentId);
-          if (!student) return '';
-          
-          return generateSingleBulletinHTML(student, selectedTrimestres);
-        }).join('')}
+        ${selectedStudentsForBulletin
+          .map((studentId) => {
+            const student = students.find((s) => s.id === studentId);
+            if (!student) return "";
+
+            return generateSingleBulletinHTML(student, selectedTrimestres);
+          })
+          .join("")}
       </body>
       </html>
     `;
@@ -1593,7 +1709,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
   };
 
   // Fonction pour générer le HTML d'un seul bulletin avec tous les styles
-  const generateSingleBulletinHTML = (student: Student, trimestres: number[]) => {
+  const generateSingleBulletinHTML = (
+    student: Student,
+    trimestres: number[]
+  ) => {
     return `
       <div class="bulletin-container">
         <div class="page">
@@ -2092,6 +2211,21 @@ const NotesPage = ({ isDarkMode }: Props) => {
     }
   }, [selectedMatiere, selectedTrimestre, activeStudents, notes]);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPageConsultation(1);
+  }, [
+    searchTerm,
+    filterMatiere,
+    filterTrimestre,
+    selectedClasse,
+    selectedSalle,
+  ]);
+
+  useEffect(() => {
+    setCurrentPageResultat(1);
+  }, [searchTerm, selectedClasse, selectedSalle]);
+
   // Styles conditionnels
   const baseClasses = isDarkMode
     ? "min-h-screen bg-gray-900 text-white"
@@ -2162,6 +2296,15 @@ const NotesPage = ({ isDarkMode }: Props) => {
           >
             <FileText className="h-4 w-4 inline mr-2" />
             Bulletins & Relevés
+          </button>
+          <button
+            onClick={() => setActiveTab("resultat")}
+            className={`px-6 py-3 font-medium rounded-t-lg transition-colors ${
+              activeTab === "resultat" ? tabActiveClasses : tabInactiveClasses
+            }`}
+          >
+            <Award className="h-4 w-4 inline mr-2" />
+            Résultat
           </button>
         </div>
 
@@ -2498,133 +2641,154 @@ const NotesPage = ({ isDarkMode }: Props) => {
               )}
 
               {/* Tableau des notes */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}>
-                    <tr>
-                      <th
-                        className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                          isDarkMode ? "text-gray-300" : "text-gray-500"
-                        }`}
-                      >
-                        Élève
-                      </th>
-                      <th
-                        className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                          isDarkMode ? "text-gray-300" : "text-gray-500"
-                        }`}
-                      >
-                        Matière
-                      </th>
-                      <th
-                        className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                          isDarkMode ? "text-gray-300" : "text-gray-500"
-                        }`}
-                      >
-                        Trimestre
-                      </th>
-                      <th
-                        className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                          isDarkMode ? "text-gray-300" : "text-gray-500"
-                        }`}
-                      >
-                        Note
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody
-                    className={`divide-y ${
-                      isDarkMode ? "divide-gray-700" : "divide-gray-200"
-                    }`}
-                  >
-                    {notes
-                      .filter((note) => {
-                        const student = students.find(
-                          (s) => s.id === note.studentId
-                        );
-                        if (!student) return false;
+              {(() => {
+                const filteredNotes = notes.filter((note) => {
+                  const student = students.find((s) => s.id === note.studentId);
+                  if (!student) return false;
 
-                        if (
-                          selectedClasse &&
-                          student.classesDemandee !== selectedClasse
-                        )
-                          return false;
-                        if (selectedSalle && student.salle !== selectedSalle)
-                          return false;
-                        if (filterMatiere && note.matiere !== filterMatiere)
-                          return false;
-                        if (
-                          filterTrimestre &&
-                          note.trimestre.toString() !== filterTrimestre
-                        )
-                          return false;
+                  if (
+                    selectedClasse &&
+                    student.classesDemandee !== selectedClasse
+                  )
+                    return false;
+                  if (selectedSalle && student.salle !== selectedSalle)
+                    return false;
+                  if (filterMatiere && note.matiere !== filterMatiere)
+                    return false;
+                  if (
+                    filterTrimestre &&
+                    note.trimestre.toString() !== filterTrimestre
+                  )
+                    return false;
 
-                        if (searchTerm) {
-                          const searchLower = searchTerm.toLowerCase();
-                          return (
-                            student.nom.toLowerCase().includes(searchLower) ||
-                            student.prenom
-                              .toLowerCase()
-                              .includes(searchLower) ||
-                            student.code.toLowerCase().includes(searchLower)
-                          );
-                        }
+                  if (searchTerm) {
+                    const searchLower = searchTerm.toLowerCase();
+                    return (
+                      student.nom.toLowerCase().includes(searchLower) ||
+                      student.prenom.toLowerCase().includes(searchLower) ||
+                      student.code.toLowerCase().includes(searchLower)
+                    );
+                  }
 
-                        return true;
-                      })
-                      .map((note) => {
-                        const student = students.find(
-                          (s) => s.id === note.studentId
-                        );
-                        if (!student) return null;
+                  return true;
+                });
 
-                        return (
-                          <tr
-                            key={note.id}
-                            className={
-                              isDarkMode
-                                ? "hover:bg-gray-700"
-                                : "hover:bg-gray-50"
-                            }
-                          >
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div>
-                                <div className="text-sm font-medium">
-                                  {student.prenom} {student.nom}
-                                </div>
-                                <div
-                                  className={`text-sm ${
-                                    isDarkMode
-                                      ? "text-gray-400"
-                                      : "text-gray-500"
-                                  }`}
-                                >
-                                  {student.code} • {student.classesDemandee} -{" "}
-                                  {student.salle}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {note.matiere}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {note.trimestre}er Trimestre
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span
-                                className={`text-sm font-medium ${getNoteColor(
-                                  note.note
-                                )}`}
-                              >
-                                {note.note}/100
-                              </span>
-                            </td>
+                const paginatedNotes = getPaginatedData(
+                  filteredNotes,
+                  currentPageConsultation,
+                  itemsPerPage
+                );
+                const totalPages = getTotalPages(
+                  filteredNotes.length,
+                  itemsPerPage
+                );
+
+                return (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead
+                          className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}
+                        >
+                          <tr>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Élève
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Matière
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Trimestre
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Note
+                            </th>
                           </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
+                        </thead>
+                        <tbody
+                          className={`divide-y ${
+                            isDarkMode ? "divide-gray-700" : "divide-gray-200"
+                          }`}
+                        >
+                          {paginatedNotes.map((note) => {
+                            const student = students.find(
+                              (s) => s.id === note.studentId
+                            );
+                            if (!student) return null;
+
+                            return (
+                              <tr
+                                key={note.id}
+                                className={
+                                  isDarkMode
+                                    ? "hover:bg-gray-700"
+                                    : "hover:bg-gray-50"
+                                }
+                              >
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {student.prenom} {student.nom}
+                                    </div>
+                                    <div
+                                      className={`text-sm ${
+                                        isDarkMode
+                                          ? "text-gray-400"
+                                          : "text-gray-500"
+                                      }`}
+                                    >
+                                      {student.code} • {student.classesDemandee}{" "}
+                                      - {student.salle}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                  {note.matiere}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                  {note.trimestre}er Trimestre
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span
+                                    className={`text-sm font-medium ${getNoteColor(
+                                      note.note
+                                    )}`}
+                                  >
+                                    {note.note}/100
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <PaginationComponent
+                      currentPage={currentPageConsultation}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPageConsultation}
+                      totalItems={filteredNotes.length}
+                    />
+                  </>
+                );
+              })()}
 
               {notes.length === 0 && (
                 <div className="text-center py-12">
@@ -2669,7 +2833,6 @@ const NotesPage = ({ isDarkMode }: Props) => {
                       >
                         Par élève(s) et trimestre(s)
                       </p>
-
                     </div>
                   </div>
 
@@ -3225,6 +3388,345 @@ const NotesPage = ({ isDarkMode }: Props) => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "resultat" && (
+          <div className={`${cardClasses} rounded-lg shadow-sm border`}>
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-6">
+                Résultat de fin d'année
+              </h2>
+
+              {/* Filtres Résultat */}
+              <div
+                className={`mb-6 p-4 border rounded-lg ${
+                  isDarkMode ? "border-gray-600" : "border-gray-200"
+                }`}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Rechercher un élève
+                    </label>
+                    <div className="relative">
+                      <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Nom, prénom ou code..."
+                        className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Classe
+                    </label>
+                    <select
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                      value={selectedClasse}
+                      onChange={(e) => {
+                        setSelectedClasse(e.target.value);
+                        setSelectedSalle("");
+                      }}
+                    >
+                      <option value="">Toutes les classes</option>
+                      {classes.map((classe) => (
+                        <option key={classe} value={classe}>
+                          {classe}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Salle
+                    </label>
+                    <select
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                      value={selectedSalle}
+                      onChange={(e) => setSelectedSalle(e.target.value)}
+                      disabled={!selectedClasse}
+                    >
+                      <option value="">Toutes les salles</option>
+                      {selectedClasse &&
+                        sallesByClass[selectedClasse]?.map((salle) => (
+                          <option key={salle} value={salle}>
+                            {salle}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tableau des résultats */}
+              {(() => {
+                const filteredStudents = activeStudents.filter((student) => {
+                  if (!searchTerm) return true;
+                  const s = searchTerm.toLowerCase();
+                  return (
+                    student.nom.toLowerCase().includes(s) ||
+                    student.prenom.toLowerCase().includes(s) ||
+                    student.code.toLowerCase().includes(s)
+                  );
+                });
+
+                const paginatedStudents = getPaginatedData(
+                  filteredStudents,
+                  currentPageResultat,
+                  itemsPerPage
+                );
+                const totalPages = getTotalPages(
+                  filteredStudents.length,
+                  itemsPerPage
+                );
+
+                return (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full">
+                        <thead
+                          className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}
+                        >
+                          <tr>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Élève
+                            </th>
+                            {matieres.map((m) => (
+                              <th
+                                key={m.id}
+                                className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                  isDarkMode ? "text-gray-300" : "text-gray-500"
+                                }`}
+                              >
+                                {m.nom}
+                              </th>
+                            ))}
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Moy. T1
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Moy. T2
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Moy. T3
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Moy. annuelle
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Observation
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                              }`}
+                            >
+                              Décision fin d'année
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody
+                          className={`divide-y ${
+                            isDarkMode ? "divide-gray-700" : "divide-gray-200"
+                          }`}
+                        >
+                          {paginatedStudents.map((student) => {
+                            const trimestres = [1, 2, 3];
+                            const moyenneT1 = calculateMoyenneGeneraleTrimestre(
+                              student.id,
+                              1
+                            );
+                            const moyenneT2 = calculateMoyenneGeneraleTrimestre(
+                              student.id,
+                              2
+                            );
+                            const moyenneT3 = calculateMoyenneGeneraleTrimestre(
+                              student.id,
+                              3
+                            );
+                            const moyenneAnnuelle =
+                              calculateMoyenneGeneraleAnnuelle(
+                                student.id,
+                                trimestres
+                              );
+
+                            const observationResultat =
+                              moyenneAnnuelle >= 5.5
+                                ? "Réussit"
+                                : moyenneAnnuelle >= 3.0
+                                ? "Redoubler"
+                                : "Échouer";
+
+                            return (
+                              <tr
+                                key={student.id}
+                                className={
+                                  isDarkMode
+                                    ? "hover:bg-gray-700"
+                                    : "hover:bg-gray-50"
+                                }
+                              >
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {student.prenom} {student.nom}
+                                    </div>
+                                    <div
+                                      className={`text-sm ${
+                                        isDarkMode
+                                          ? "text-gray-400"
+                                          : "text-gray-500"
+                                      }`}
+                                    >
+                                      {student.code} • {student.classesDemandee}{" "}
+                                      - {student.salle}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {matieres.map((m) => {
+                                  const notesTrimestres = trimestres
+                                    .map((t) =>
+                                      getNoteMatiereTrimestre(
+                                        student.id,
+                                        m.nom,
+                                        t
+                                      )
+                                    )
+                                    .filter((n) => n !== null) as number[];
+                                  const moyenneMatiere =
+                                    notesTrimestres.length > 0
+                                      ? notesTrimestres.reduce(
+                                          (sum, n) => sum + n,
+                                          0
+                                        ) / notesTrimestres.length
+                                      : null;
+                                  return (
+                                    <td
+                                      key={m.id}
+                                      className="px-6 py-4 whitespace-nowrap text-sm"
+                                    >
+                                      {moyenneMatiere !== null
+                                        ? moyenneMatiere.toFixed(0)
+                                        : "-"}
+                                    </td>
+                                  );
+                                })}
+
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span
+                                    className={`text-sm font-medium ${getMoyenneColor(
+                                      moyenneT1
+                                    )}`}
+                                  >
+                                    {moyenneT1.toFixed(2)}/10
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span
+                                    className={`text-sm font-medium ${getMoyenneColor(
+                                      moyenneT2
+                                    )}`}
+                                  >
+                                    {moyenneT2.toFixed(2)}/10
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span
+                                    className={`text-sm font-medium ${getMoyenneColor(
+                                      moyenneT3
+                                    )}`}
+                                  >
+                                    {moyenneT3.toFixed(2)}/10
+                                  </span>
+                                </td>
+
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span
+                                    className={`text-sm font-medium ${getMoyenneColor(
+                                      moyenneAnnuelle
+                                    )}`}
+                                  >
+                                    {moyenneAnnuelle.toFixed(2)}/10
+                                  </span>
+                                </td>
+
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                  {observationResultat}
+                                </td>
+
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <select
+                                    className={`px-3 py-2 border rounded-lg ${inputClasses}`}
+                                    defaultValue=""
+                                  >
+                                    <option value="" disabled>
+                                      Choisir une décision
+                                    </option>
+                                    <option value="ADMIS">Admis</option>
+                                    <option value="REDOUBLER">Redoubler</option>
+                                    <option value="EXPULSER">Expulser</option>
+                                  </select>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <PaginationComponent
+                      currentPage={currentPageResultat}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPageResultat}
+                      totalItems={filteredStudents.length}
+                    />
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}

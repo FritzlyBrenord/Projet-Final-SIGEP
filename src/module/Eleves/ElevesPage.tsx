@@ -17,6 +17,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import ReenrollmentModal from "./Reinscription/Reinscription";
+import ExportModal from "./ExportModal";
 
 // Types TypeScript
 interface Student {
@@ -147,6 +148,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [showReinscriptionModal, setShowReinscriptionModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Formulaire
   const [formData, setFormData] = useState<Partial<Student>>({
@@ -503,16 +505,19 @@ const ElevesPage = ({ isDarkMode }: Props) => {
               <Plus className="h-4 w-4" />
               Ajouter un élève
             </button>
-            <button
-              onClick={() => setShowReinscriptionModal(true)}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-            >
-              <GraduationCap className="h-4 w-4" />
-              Réinscription
-            </button>
 
             <div className="flex gap-2">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors">
+              <button
+                onClick={() => setShowReinscriptionModal(true)}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <GraduationCap className="h-4 w-4" />
+                Réinscription
+              </button>
+              <button 
+                onClick={() => setShowExportModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+              >
                 <Download className="h-4 w-4" />
                 Exporter
               </button>
@@ -1498,6 +1503,13 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       <ReenrollmentModal
         isOpen={showReinscriptionModal}
         onClose={() => setShowReinscriptionModal(false)}
+        isDarkMode={isDarkMode}
+      />
+
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        students={students}
         isDarkMode={isDarkMode}
       />
     </div>

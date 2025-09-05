@@ -11,35 +11,26 @@ import {
   Clock,
   CheckCircle,
   GraduationCap,
+  BookOpen,
+  School,
+  Award,
+  Calendar,
 } from "lucide-react";
 import React from "react";
-
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
   Legend,
-  ArcElement,
-  PointElement,
-  LineElement,
-  Filler,
-} from "chart.js";
-import { Bar, Doughnut, Line } from "react-chartjs-2";
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  PointElement,
-  LineElement,
-  Filler
-);
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+
 interface StatsCard {
   title: string;
   value: string;
@@ -48,139 +39,61 @@ interface StatsCard {
   illustration: React.ReactNode;
   color: string;
 }
+
 interface Props {
   isDarkMode: boolean;
 }
 
 const TableauDeBord = ({ isDarkMode }: Props) => {
-  // Illustrations SVG améliorées
+  // Illustrations académiques élégantes
   const StudentGirlIllustration = () => (
     <div className="relative">
-      <svg width="64" height="64" viewBox="0 0 64 64" className="text-pink-500">
-        <circle cx="32" cy="20" r="12" fill="currentColor" opacity="0.8" />
-        <path
-          d="M12 52c0-11 9-20 20-20s20 9 20 20"
-          fill="currentColor"
-          opacity="0.6"
-        />
-        <rect
-          x="20"
-          y="8"
-          width="24"
-          height="16"
-          rx="4"
-          fill="currentColor"
-          opacity="0.9"
-        />
-        <circle cx="26" cy="16" r="2" fill="white" />
-        <circle cx="38" cy="16" r="2" fill="white" />
-        <path
-          d="M28 20c2 2 6 2 8 0"
-          stroke="white"
-          strokeWidth="2"
-          fill="none"
-          strokeLinecap="round"
-        />
-      </svg>
-      <div className="absolute -top-1 -right-1 w-4 h-4 bg-pink-100 dark:bg-pink-900 rounded-full flex items-center justify-center">
-        <span className="text-xs text-pink-600 dark:text-pink-300">♀</span>
+      <div className="w-16 h-16 bg-gradient-to-br from-rose-500 to-pink-600 rounded-2xl flex items-center justify-center shadow-lg">
+        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
+          <span className="text-2xl">👩‍🎓</span>
+        </div>
+      </div>
+      <div className="absolute -top-1 -right-1 w-6 h-6 bg-rose-100 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+        <span className="text-xs text-rose-600 font-bold">♀</span>
       </div>
     </div>
   );
 
   const StudentBoyIllustration = () => (
     <div className="relative">
-      <svg width="64" height="64" viewBox="0 0 64 64" className="text-blue-500">
-        <circle cx="32" cy="20" r="12" fill="currentColor" opacity="0.8" />
-        <path
-          d="M12 52c0-11 9-20 20-20s20 9 20 20"
-          fill="currentColor"
-          opacity="0.6"
-        />
-        <rect
-          x="20"
-          y="8"
-          width="24"
-          height="16"
-          rx="4"
-          fill="currentColor"
-          opacity="0.9"
-        />
-        <circle cx="26" cy="16" r="2" fill="white" />
-        <circle cx="38" cy="16" r="2" fill="white" />
-        <path
-          d="M28 20c2 2 6 2 8 0"
-          stroke="white"
-          strokeWidth="2"
-          fill="none"
-          strokeLinecap="round"
-        />
-      </svg>
-      <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-        <span className="text-xs text-blue-600 dark:text-blue-300">♂</span>
+      <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg">
+        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
+          <span className="text-2xl">👨‍🎓</span>
+        </div>
+      </div>
+      <div className="absolute -top-1 -right-1 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+        <span className="text-xs text-blue-600 font-bold">♂</span>
       </div>
     </div>
   );
 
   const TeacherIllustration = () => (
     <div className="relative">
-      <svg
-        width="64"
-        height="64"
-        viewBox="0 0 64 64"
-        className="text-purple-500"
-      >
-        <circle cx="32" cy="20" r="12" fill="currentColor" opacity="0.8" />
-        <path
-          d="M12 52c0-11 9-20 20-20s20 9 20 20"
-          fill="currentColor"
-          opacity="0.6"
-        />
-        <path d="M16 16l16-8 16 8-4 2v8l-12 6-12-6v-8z" fill="currentColor" />
-        <rect x="44" y="16" width="4" height="12" fill="currentColor" />
-        <circle cx="46" cy="30" r="2" fill="currentColor" />
-      </svg>
-      <div className="absolute -top-1 -right-1 w-5 h-5 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-        <span className="text-xs text-purple-600 dark:text-purple-300">🎓</span>
+      <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-yellow-600 rounded-2xl flex items-center justify-center shadow-lg">
+        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
+          <GraduationCap className="w-7 h-7 text-amber-600" />
+        </div>
+      </div>
+      <div className="absolute -top-1 -right-1 w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+        <BookOpen className="w-3 h-3 text-amber-600" />
       </div>
     </div>
   );
 
   const EmployeeIllustration = () => (
     <div className="relative">
-      <svg
-        width="64"
-        height="64"
-        viewBox="0 0 64 64"
-        className="text-green-500"
-      >
-        <circle cx="32" cy="20" r="12" fill="currentColor" opacity="0.8" />
-        <path
-          d="M12 52c0-11 9-20 20-20s20 9 20 20"
-          fill="currentColor"
-          opacity="0.6"
-        />
-        <rect
-          x="20"
-          y="25"
-          width="24"
-          height="16"
-          rx="2"
-          fill="currentColor"
-          opacity="0.9"
-        />
-        <rect
-          x="28"
-          y="20"
-          width="8"
-          height="6"
-          fill="currentColor"
-          opacity="0.7"
-        />
-        <circle cx="32" cy="33" r="2" fill="white" />
-      </svg>
-      <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-        <span className="text-xs text-green-600 dark:text-green-300">💼</span>
+      <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg">
+        <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
+          <Users className="w-7 h-7 text-emerald-600" />
+        </div>
+      </div>
+      <div className="absolute -top-1 -right-1 w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+        <Award className="w-3 h-3 text-emerald-600" />
       </div>
     </div>
   );
@@ -192,7 +105,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
       change: "+3.2%",
       changeType: "increase",
       illustration: <StudentGirlIllustration />,
-      color: "pink",
+      color: "rose",
     },
     {
       title: "Élèves Garçons",
@@ -203,228 +116,123 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
       color: "blue",
     },
     {
-      title: "Professeurs",
+      title: "Corps Enseignant",
       value: "89",
       change: "+2.1%",
       changeType: "increase",
       illustration: <TeacherIllustration />,
-      color: "purple",
+      color: "amber",
     },
     {
-      title: "Employés",
+      title: "Personnel Administratif",
       value: "42",
       change: "-1.5%",
       changeType: "decrease",
       illustration: <EmployeeIllustration />,
-      color: "green",
+      color: "emerald",
     },
   ];
 
   const getColorClasses = (color: string) => {
     const colorMap = {
-      pink: "bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900/10 dark:to-pink-800/20 border-pink-200 dark:border-pink-800",
-      blue: "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/10 dark:to-blue-800/20 border-blue-200 dark:border-blue-800",
-      purple:
-        "bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/10 dark:to-purple-800/20 border-purple-200 dark:border-purple-800",
-      green:
-        "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/10 dark:to-green-800/20 border-green-200 dark:border-green-800",
+      rose: " border-2 border-rose-200 hover:border-rose-300 hover:shadow-rose-100",
+      blue: " border-2 border-blue-200 hover:border-blue-300 hover:shadow-blue-100",
+      amber:
+        " border-2 border-amber-200 hover:border-amber-300 hover:shadow-amber-100",
+      emerald:
+        " border-2 border-emerald-200 hover:border-emerald-300 hover:shadow-emerald-100",
     };
     return colorMap[color as keyof typeof colorMap] || colorMap.blue;
   };
 
-  // Données pour les graphiques avec couleurs améliorées
-  const subjectsByClassData = {
-    labels: ["6ème", "5ème", "4ème", "3ème", "2nde", "1ère", "Term"],
-    datasets: [
-      {
-        label: "Mathématiques",
-        data: [245, 238, 232, 219, 203, 195, 189],
-        backgroundColor: isDarkMode
-          ? "rgba(59, 130, 246, 0.8)"
-          : "rgba(37, 99, 235, 0.8)",
-        borderColor: isDarkMode
-          ? "rgba(59, 130, 246, 1)"
-          : "rgba(37, 99, 235, 1)",
-        borderWidth: 2,
-        borderRadius: 6,
-      },
-      {
-        label: "Français",
-        data: [245, 238, 232, 219, 203, 195, 189],
-        backgroundColor: isDarkMode
-          ? "rgba(34, 197, 94, 0.8)"
-          : "rgba(22, 163, 74, 0.8)",
-        borderColor: isDarkMode
-          ? "rgba(34, 197, 94, 1)"
-          : "rgba(22, 163, 74, 1)",
-        borderWidth: 2,
-        borderRadius: 6,
-      },
-      {
-        label: "Anglais",
-        data: [245, 238, 232, 219, 203, 195, 189],
-        backgroundColor: isDarkMode
-          ? "rgba(251, 191, 36, 0.8)"
-          : "rgba(245, 158, 11, 0.8)",
-        borderColor: isDarkMode
-          ? "rgba(251, 191, 36, 1)"
-          : "rgba(245, 158, 11, 1)",
-        borderWidth: 2,
-        borderRadius: 6,
-      },
-      {
-        label: "Sciences",
-        data: [0, 0, 232, 219, 203, 195, 189],
-        backgroundColor: isDarkMode
-          ? "rgba(147, 51, 234, 0.8)"
-          : "rgba(126, 34, 206, 0.8)",
-        borderColor: isDarkMode
-          ? "rgba(147, 51, 234, 1)"
-          : "rgba(126, 34, 206, 1)",
-        borderWidth: 2,
-        borderRadius: 6,
-      },
-    ],
-  };
+  // Données pour les graphiques
 
-  const enrollmentByYearData = {
-    labels: ["2020-2021", "2021-2022", "2022-2023", "2023-2024", "2024-2025"],
-    datasets: [
-      {
-        label: "Élèves Filles",
-        data: [580, 595, 610, 625, 634],
-        backgroundColor: isDarkMode
-          ? "rgba(236, 72, 153, 0.8)"
-          : "rgba(219, 39, 119, 0.8)",
-        borderColor: isDarkMode
-          ? "rgba(236, 72, 153, 1)"
-          : "rgba(219, 39, 119, 1)",
-        borderWidth: 2,
-        borderRadius: 8,
-      },
-      {
-        label: "Élèves Garçons",
-        data: [570, 580, 590, 595, 600],
-        backgroundColor: isDarkMode
-          ? "rgba(59, 130, 246, 0.8)"
-          : "rgba(37, 99, 235, 0.8)",
-        borderColor: isDarkMode
-          ? "rgba(59, 130, 246, 1)"
-          : "rgba(37, 99, 235, 1)",
-        borderWidth: 2,
-        borderRadius: 8,
-      },
-    ],
-  };
+  const enrollmentByYearData = [
+    { year: "2020-21", Filles: 580, Garçons: 570 },
+    { year: "2021-22", Filles: 595, Garçons: 580 },
+    { year: "2022-23", Filles: 610, Garçons: 590 },
+    { year: "2023-24", Filles: 625, Garçons: 595 },
+    { year: "2024-25", Filles: 634, Garçons: 600 },
+  ];
 
-  const genderDistributionData = {
-    labels: ["Filles", "Garçons"],
-    datasets: [
-      {
-        data: [634, 600],
-        backgroundColor: [
-          isDarkMode ? "rgba(236, 72, 153, 0.8)" : "rgba(219, 39, 119, 0.8)",
-          isDarkMode ? "rgba(59, 130, 246, 0.8)" : "rgba(37, 99, 235, 0.8)",
-        ],
-        borderColor: [
-          isDarkMode ? "rgba(236, 72, 153, 1)" : "rgba(219, 39, 119, 1)",
-          isDarkMode ? "rgba(59, 130, 246, 1)" : "rgba(37, 99, 235, 1)",
-        ],
-        borderWidth: 2,
-      },
-    ],
-  };
+  const genderDistributionData = [
+    { name: "Élèves Filles", value: 634, color: "#e11d48" },
+    { name: "Élèves Garçons", value: 600, color: "#1e40af" },
+  ];
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: true,
-        position: "bottom" as const,
-        labels: {
-          color: isDarkMode ? "#f3f4f6" : "#374151",
-          padding: 15,
-          usePointStyle: true,
-        },
-      },
-      title: {
-        display: false,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: {
-          color: isDarkMode
-            ? "rgba(75, 85, 99, 0.4)"
-            : "rgba(229, 231, 235, 0.8)",
-        },
-        ticks: {
-          color: isDarkMode ? "#d1d5db" : "#6b7280",
-        },
-      },
-      x: {
-        grid: {
-          color: isDarkMode
-            ? "rgba(75, 85, 99, 0.4)"
-            : "rgba(229, 231, 235, 0.8)",
-        },
-        ticks: {
-          color: isDarkMode ? "#d1d5db" : "#6b7280",
-        },
-      },
-    },
-  };
+  const COLORS = ["#e11d48", "#1e40af"];
 
-  const doughnutOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: "bottom" as const,
-        labels: {
-          color: isDarkMode ? "#f3f4f6" : "#374151",
-          padding: 20,
-          usePointStyle: true,
-        },
-      },
-    },
-  };
   return (
-    <div>
-      {" "}
-      <div className="p-6 space-y-6">
-        {/* Cartes statistiques */}
+    <div
+      className={`min-h-screen ${isDarkMode ? "bg-slate-900" : "bg-gray-50"}`}
+    >
+      {/* Header avec logo et titre */}
+      <div
+        className={`${
+          isDarkMode
+            ? "bg-slate-800 border-slate-700"
+            : "bg-white border-gray-200"
+        } border-b shadow-sm`}
+      >
+        <div className="p-6">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg">
+              <School className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1
+                className={`text-2xl font-bold ${
+                  isDarkMode ? "text-white" : "text-gray-900"
+                }`}
+              >
+                Tableau de Bord - SIGEP
+              </h1>
+              <p
+                className={`text-sm ${
+                  isDarkMode ? "text-gray-400" : "text-gray-600"
+                }`}
+              >
+                Année Scolaire 2024-2025 • Dernière mise à jour:{" "}
+                {new Date().toLocaleDateString("fr-FR")}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6 space-y-8">
+        {/* Cartes statistiques principales */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {statsCards.map((card, index) => (
             <div
               key={index}
               className={`${getColorClasses(
                 card.color
-              )} rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 border-2`}
+              )} rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]`}
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between">
                 <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <h3
+                      className={`text-sm font-semibold uppercase tracking-wide ${
+                        isDarkMode ? "text-gray-600" : "text-gray-600"
+                      }`}
+                    >
+                      {card.title}
+                    </h3>
+                  </div>
                   <p
-                    className={`text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-400" : "text-gray-600"
-                    }`}
-                  >
-                    {card.title}
-                  </p>
-                  <p
-                    className={`text-3xl font-bold mb-2 ${
+                    className={`text-3xl font-bold mb-3 ${
                       isDarkMode ? "text-white" : "text-gray-900"
                     }`}
                   >
                     {card.value}
                   </p>
-                  <div className="flex items-center">
+                  <div className="flex items-center space-x-2">
                     {card.changeType === "increase" ? (
-                      <TrendingUp className="w-4 h-4 text-green-600 mr-1" />
+                      <TrendingUp className="w-4 h-4 text-green-600" />
                     ) : (
-                      <TrendingDown className="w-4 h-4 text-red-600 mr-1" />
+                      <TrendingDown className="w-4 h-4 text-red-600" />
                     )}
                     <span
                       className={`text-sm font-medium ${
@@ -436,11 +244,11 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                       {card.change}
                     </span>
                     <span
-                      className={`text-sm ml-2 ${
-                        isDarkMode ? "text-gray-500" : "text-gray-500"
+                      className={`text-sm ${
+                        isDarkMode ? "text-gray-400" : "text-gray-500"
                       }`}
                     >
-                      vs mois dernier
+                      ce mois
                     </span>
                   </div>
                 </div>
@@ -452,249 +260,404 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
           ))}
         </div>
 
-        {/* Graphiques */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Graphique des matières par classe */}
+        {/* Section principale avec graphiques */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Évolution des inscriptions */}
           <div
-            className={`rounded-xl p-6 shadow-lg border lg:col-span-2 ${
+            className={`rounded-2xl p-6 shadow-lg border ${
               isDarkMode
-                ? "bg-gray-800 border-gray-700"
+                ? "bg-slate-800 border-slate-700"
                 : "bg-white border-gray-200"
             }`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3
-                className={`text-lg font-semibold ${
-                  isDarkMode ? "text-white" : "text-gray-900"
-                }`}
-              >
-                Matières par Classe
-              </h3>
-              <BarChart3 className="w-5 h-5 text-blue-500" />
-            </div>
-            <div className="h-80">
-              <Bar data={subjectsByClassData} options={chartOptions} />
-            </div>
-          </div>
-
-          {/* Graphique de répartition par sexe */}
-          <div
-            className={`rounded-xl p-6 shadow-lg border ${
-              isDarkMode
-                ? "bg-gray-800 border-gray-700"
-                : "bg-white border-gray-200"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3
-                className={`text-lg font-semibold ${
-                  isDarkMode ? "text-white" : "text-gray-900"
-                }`}
-              >
-                Répartition Élèves
-              </h3>
-              <Users className="w-5 h-5 text-pink-500" />
-            </div>
-            <div className="h-64">
-              <Doughnut
-                data={genderDistributionData}
-                options={doughnutOptions}
-              />
-            </div>
-            <div className="mt-4 text-center">
-              <p
-                className={`text-sm ${
-                  isDarkMode ? "text-gray-400" : "text-gray-600"
-                }`}
-              >
-                Total:{" "}
-                <span
-                  className={`font-bold ${
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3
+                  className={`text-xl font-bold ${
                     isDarkMode ? "text-white" : "text-gray-900"
                   }`}
                 >
-                  1,234 élèves
+                  Évolution des Inscriptions par Année Scolaire
+                </h3>
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-400" : "text-gray-600"
+                  } mt-1`}
+                >
+                  Croissance des effectifs sur 5 années
+                </p>
+              </div>
+              <div className="p-3 bg-green-100 rounded-xl">
+                <TrendingUp className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={enrollmentByYearData}>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke={isDarkMode ? "#374151" : "#e5e7eb"}
+                  />
+                  <XAxis
+                    dataKey="year"
+                    stroke={isDarkMode ? "#9ca3af" : "#6b7280"}
+                    fontSize={12}
+                  />
+                  <YAxis
+                    stroke={isDarkMode ? "#9ca3af" : "#6b7280"}
+                    fontSize={12}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDarkMode ? "#1f2937" : "#ffffff",
+                      border: `1px solid ${isDarkMode ? "#374151" : "#e5e7eb"}`,
+                      borderRadius: "8px",
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="Filles" fill="#e11d48" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Garçons" fill="#1e40af" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-6 flex justify-center space-x-4">
+              <div className="flex items-center space-x-2 p-2 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+                <div className="w-3 h-3 bg-pink-500 rounded-full"></div>
+                <span
+                  className={`text-xs font-medium ${
+                    isDarkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Filles: 634
                 </span>
+              </div>
+              <div className="flex items-center space-x-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                <span
+                  className={`text-xs font-medium ${
+                    isDarkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Garçons: 600
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Répartition par genre */}
+          <div
+            className={`rounded-2xl p-6 shadow-lg border ${
+              isDarkMode
+                ? "bg-slate-800 border-slate-700"
+                : "bg-white border-gray-200"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3
+                  className={`text-xl font-bold ${
+                    isDarkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Répartition des Élèves
+                </h3>
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-400" : "text-gray-600"
+                  } mt-1`}
+                >
+                  Par genre
+                </p>
+              </div>
+              <div className="p-3 bg-pink-100 rounded-xl">
+                <Users className="w-6 h-6 text-pink-600" />
+              </div>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={genderDistributionData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                  >
+                    {genderDistributionData.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={COLORS[index % COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDarkMode ? "#1f2937" : "#ffffff",
+                      border: `1px solid ${isDarkMode ? "#374151" : "#e5e7eb"}`,
+                      borderRadius: "8px",
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-6 text-center p-4 bg-gray-50 dark:bg-slate-700 rounded-xl">
+              <p
+                className={`text-lg font-bold ${
+                  isDarkMode ? "text-white" : "text-gray-100"
+                }`}
+              >
+                Total: 1,234 élèves
+              </p>
+              <p
+                className={`text-sm ${
+                  isDarkMode ? "text-gray-400" : "text-gray-300"
+                } mt-1`}
+              >
+                Effectif total de l'établissement
               </p>
             </div>
           </div>
         </div>
 
-        {/* Graphique inscription par année */}
-        <div
-          className={`rounded-xl p-6 shadow-lg border ${
-            isDarkMode
-              ? "bg-gray-800 border-gray-700"
-              : "bg-white border-gray-200"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3
-              className={`text-lg font-semibold ${
-                isDarkMode ? "text-white" : "text-gray-900"
-              }`}
-            >
-              Évolution des Inscriptions par Année Scolaire
-            </h3>
-            <TrendingUp className="w-5 h-5 text-green-500" />
-          </div>
-          <div className="h-80">
-            <Bar data={enrollmentByYearData} options={chartOptions} />
-          </div>
-          <div className="mt-4 flex justify-center space-x-6">
-            <div className="flex items-center">
-              <div className="w-4 h-4 bg-pink-500 rounded-full mr-2"></div>
-              <span
-                className={`text-sm ${
-                  isDarkMode ? "text-gray-400" : "text-gray-600"
-                }`}
-              >
-                Filles: 634 (+1.4%)
-              </span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-4 h-4 bg-blue-500 rounded-full mr-2"></div>
-              <span
-                className={`text-sm ${
-                  isDarkMode ? "text-gray-400" : "text-gray-600"
-                }`}
-              >
-                Garçons: 600 (+0.8%)
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Section statistiques détaillées */}
+        {/* Sections détaillées */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Répartition par niveau */}
           <div
-            className={`rounded-xl p-6 shadow-lg border ${
+            className={`rounded-2xl p-6 shadow-lg border ${
               isDarkMode
-                ? "bg-gray-800 border-gray-700"
+                ? "bg-slate-800 border-slate-700"
                 : "bg-white border-gray-200"
             }`}
           >
-            <h3
-              className={`text-lg font-semibold mb-4 ${
-                isDarkMode ? "text-white" : "text-gray-900"
-              }`}
-            >
-              Répartition par Niveau
-            </h3>
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-3 bg-indigo-100 rounded-xl">
+                <BookOpen className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h3
+                  className={`text-xl font-bold ${
+                    isDarkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Effectifs par Niveau
+                </h3>
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-400" : "text-gray-600"
+                  }`}
+                >
+                  Distribution collège et lycée
+                </p>
+              </div>
+            </div>
             <div className="space-y-4">
               {[
-                { level: "6ème", students: 245, color: "bg-blue-500" },
-                { level: "5ème", students: 238, color: "bg-green-500" },
-                { level: "4ème", students: 232, color: "bg-yellow-500" },
-                { level: "3ème", students: 219, color: "bg-purple-500" },
-                { level: "2nde", students: 203, color: "bg-pink-500" },
-                { level: "1ère", students: 195, color: "bg-indigo-500" },
-                { level: "Term", students: 189, color: "bg-red-500" },
-              ].map((item) => (
+                {
+                  level: "6ème",
+                  students: 245,
+                  color: "bg-blue-500",
+                  category: "Collège",
+                },
+                {
+                  level: "5ème",
+                  students: 238,
+                  color: "bg-green-500",
+                  category: "Collège",
+                },
+                {
+                  level: "4ème",
+                  students: 232,
+                  color: "bg-yellow-500",
+                  category: "Collège",
+                },
+                {
+                  level: "3ème",
+                  students: 219,
+                  color: "bg-purple-500",
+                  category: "Collège",
+                },
+                {
+                  level: "2nde",
+                  students: 203,
+                  color: "bg-pink-500",
+                  category: "Lycée",
+                },
+                {
+                  level: "1ère",
+                  students: 195,
+                  color: "bg-indigo-500",
+                  category: "Lycée",
+                },
+                {
+                  level: "Terminale",
+                  students: 189,
+                  color: "bg-red-500",
+                  category: "Lycée",
+                },
+              ].map((item, index) => (
                 <div
                   key={item.level}
-                  className="flex items-center justify-between"
+                  className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
                 >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-4 h-4 rounded-full ${item.color}`}></div>
+                  <div className="flex items-center space-x-4">
+                    <div
+                      className={`w-5 h-5 rounded-full ${item.color} shadow-sm`}
+                    ></div>
+                    <div>
+                      <span
+                        className={`font-semibold ${
+                          isDarkMode ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        {item.level}
+                      </span>
+                      <span
+                        className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                          isDarkMode
+                            ? "bg-slate-600 text-slate-300"
+                            : "bg-gray-200 text-gray-600"
+                        }`}
+                      >
+                        {item.category}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
                     <span
-                      className={`text-sm font-medium ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      className={`font-bold text-lg ${
+                        isDarkMode ? "text-white" : "text-gray-900"
                       }`}
                     >
-                      {item.level}
+                      {item.students}
                     </span>
+                    <p
+                      className={`text-xs ${
+                        isDarkMode ? "text-gray-400" : "text-gray-500"
+                      }`}
+                    >
+                      élèves
+                    </p>
                   </div>
-                  <span
-                    className={`text-sm font-bold ${
-                      isDarkMode ? "text-white" : "text-gray-900"
-                    }`}
-                  >
-                    {item.students} élèves
-                  </span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Performance du personnel */}
+          {/* Indicateurs de performance */}
           <div
-            className={`rounded-xl p-6 shadow-lg border ${
+            className={`rounded-2xl p-6 shadow-lg border ${
               isDarkMode
-                ? "bg-gray-800 border-gray-700"
+                ? "bg-slate-800 border-slate-700"
                 : "bg-white border-gray-200"
             }`}
           >
-            <h3
-              className={`text-lg font-semibold mb-4 ${
-                isDarkMode ? "text-white" : "text-gray-900"
-              }`}
-            >
-              Performance du Personnel
-            </h3>
-            <div className="space-y-4">
+            <div className="flex items-center space-x-3 mb-6">
+              <div className="p-3 bg-green-100 rounded-xl">
+                <Award className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <h3
+                  className={`text-xl font-bold ${
+                    isDarkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Indicateurs de Performance
+                </h3>
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-400" : "text-gray-600"
+                  }`}
+                >
+                  Suivi de la qualité éducative
+                </p>
+              </div>
+            </div>
+            <div className="space-y-6">
               {[
                 {
-                  category: "Professeurs présents",
+                  category: "Taux de Présence des Enseignants",
                   value: 87,
                   total: 89,
                   percentage: 98,
-                  color: "text-green-600",
+                  color: "bg-green-500",
+                  icon: <GraduationCap className="w-4 h-4" />,
                 },
                 {
-                  category: "Employés présents",
+                  category: "Personnel Administratif Présent",
                   value: 40,
                   total: 42,
                   percentage: 95,
-                  color: "text-blue-600",
+                  color: "bg-blue-500",
+                  icon: <Users className="w-4 h-4" />,
                 },
                 {
-                  category: "Cours assurés",
+                  category: "Cours Dispensés",
                   value: 142,
                   total: 145,
                   percentage: 98,
-                  color: "text-purple-600",
+                  color: "bg-purple-500",
+                  icon: <BookOpen className="w-4 h-4" />,
                 },
                 {
-                  category: "Satisfaction élèves",
+                  category: "Satisfaction des Élèves",
                   value: 91,
                   total: 100,
                   percentage: 91,
-                  color: "text-amber-600",
+                  color: "bg-amber-500",
+                  icon: <Award className="w-4 h-4" />,
                 },
               ].map((item, index) => (
-                <div key={index} className="space-y-2">
+                <div key={index} className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span
-                      className={`text-sm font-medium ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      {item.category}
-                    </span>
-                    <span className={`text-sm font-bold ${item.color}`}>
-                      {item.percentage}%
-                    </span>
+                    <div className="flex items-center space-x-3">
+                      <div
+                        className={`p-2 ${item.color
+                          .replace("bg-", "bg-")
+                          .replace("-500", "-100")} rounded-lg`}
+                      >
+                        <div
+                          className={`${item.color.replace("bg-", "text-")}`}
+                        >
+                          {item.icon}
+                        </div>
+                      </div>
+                      <span
+                        className={`font-medium ${
+                          isDarkMode ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        {item.category}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span
+                        className={`text-lg font-bold ${item.color.replace(
+                          "bg-",
+                          "text-"
+                        )}`}
+                      >
+                        {item.percentage}%
+                      </span>
+                      <p
+                        className={`text-xs ${
+                          isDarkMode ? "text-gray-400" : "text-gray-500"
+                        }`}
+                      >
+                        {item.value}/{item.total}
+                      </p>
+                    </div>
                   </div>
                   <div
-                    className={`w-full rounded-full h-2 ${
-                      isDarkMode ? "bg-gray-700" : "bg-gray-200"
-                    }`}
+                    className={`w-full rounded-full h-3 ${
+                      isDarkMode ? "bg-slate-700" : "bg-gray-200"
+                    } shadow-inner`}
                   >
                     <div
-                      className={`h-2 rounded-full transition-all duration-500 ${
-                        item.percentage >= 95
-                          ? "bg-green-500"
-                          : item.percentage >= 85
-                          ? "bg-amber-500"
-                          : "bg-red-500"
-                      }`}
+                      className={`h-3 rounded-full transition-all duration-700 ${item.color} shadow-sm`}
                       style={{ width: `${item.percentage}%` }}
                     ></div>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {item.value}/{item.total}
                   </div>
                 </div>
               ))}
@@ -702,76 +665,95 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
           </div>
         </div>
 
-        {/* Activités récentes */}
+        {/* Activités récentes avec style académique */}
         <div
-          className={`rounded-xl p-6 shadow-lg border ${
+          className={`rounded-2xl p-6 shadow-lg border ${
             isDarkMode
-              ? "bg-gray-800 border-gray-700"
+              ? "bg-slate-800 border-slate-700"
               : "bg-white border-gray-200"
           }`}
         >
           <div className="flex items-center justify-between mb-6">
-            <h3
-              className={`text-lg font-semibold ${
-                isDarkMode ? "text-white" : "text-gray-900"
-              }`}
-            >
-              Activités Récentes
-            </h3>
-            <Activity className="w-5 h-5 text-gray-400" />
+            <div className="flex items-center space-x-3">
+              <div className="p-3 bg-indigo-100 rounded-xl">
+                <Activity className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <h3
+                  className={`text-xl font-bold ${
+                    isDarkMode ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  Journal des Activités Récentes
+                </h3>
+                <p
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-400" : "text-gray-600"
+                  }`}
+                >
+                  Dernières opérations et événements
+                </p>
+              </div>
+            </div>
+            <div className="p-2 bg-gray-100 dark:bg-slate-700 rounded-lg">
+              <Calendar className="w-5 h-5 text-gray-400" />
+            </div>
           </div>
           <div className="space-y-4">
             {[
               {
-                action: "Nouvelle élève inscrite",
-                details: "Sophie Martin (Fille) - Classe de 5ème B",
+                action: "Nouvelle Inscription",
+                details:
+                  "Sophie Martin - Classe de 5ème B (Section Scientifique)",
                 time: "Il y a 2 heures",
                 type: "success",
                 icon: <User className="w-4 h-4" />,
-                avatar: "👧",
+                badge: "Nouvelle Élève",
               },
               {
-                action: "Paiement reçu",
-                details: "Famille Dubois - Frais de scolarité mensuelle",
+                action: "Règlement Reçu",
+                details: "Famille Dubois - Frais de scolarité Q2 2024-2025",
                 time: "Il y a 3 heures",
                 type: "info",
                 icon: <CreditCard className="w-4 h-4" />,
-                avatar: "💳",
+                badge: "Paiement",
               },
               {
-                action: "Absence signalée",
-                details: "Pierre Durand (Garçon) - Classe de 3ème A",
+                action: "Absence Signalée",
+                details:
+                  "Pierre Durand - Classe de 3ème A (Justificatif requis)",
                 time: "Il y a 4 heures",
                 type: "warning",
                 icon: <UserX className="w-4 h-4" />,
-                avatar: "⚠️",
+                badge: "Absence",
               },
               {
-                action: "Nouveau professeur",
+                action: "Recrutement",
                 details: "Mme Claire Rousseau - Professeure de Mathématiques",
                 time: "Il y a 1 jour",
                 type: "success",
                 icon: <UserCheck className="w-4 h-4" />,
-                avatar: "👩‍🏫",
+                badge: "Nouveau Personnel",
               },
               {
-                action: "Nouvel employé",
-                details: "M. Paul Legrand - Agent de maintenance",
+                action: "Personnel Administratif",
+                details: "M. Paul Legrand - Agent de maintenance et sécurité",
                 time: "Il y a 2 jours",
                 type: "success",
                 icon: <Users className="w-4 h-4" />,
-                avatar: "👨‍🔧",
+                badge: "Administration",
               },
             ].map((activity, index) => (
               <div
                 key={index}
-                className={`flex items-center space-x-4 p-3 rounded-lg transition-all duration-200 hover:transform hover:scale-105 ${
-                  isDarkMode ? "hover:bg-gray-700" : "hover:bg-gray-50"
+                className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 hover:transform hover:scale-[1.01] ${
+                  isDarkMode ? "hover:bg-slate-700" : "hover:bg-gray-50"
+                } border ${
+                  isDarkMode ? "border-slate-700" : "border-gray-200"
                 }`}
               >
-                <div className="text-2xl">{activity.avatar}</div>
                 <div
-                  className={`p-2 rounded-full ${
+                  className={`p-3 rounded-xl ${
                     activity.type === "success"
                       ? "bg-green-100 text-green-600 dark:bg-green-900/20"
                       : activity.type === "warning"
@@ -782,13 +764,26 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                   {activity.icon}
                 </div>
                 <div className="flex-1">
-                  <p
-                    className={`text-sm font-medium ${
-                      isDarkMode ? "text-white" : "text-gray-900"
-                    }`}
-                  >
-                    {activity.action}
-                  </p>
+                  <div className="flex items-center space-x-3 mb-1">
+                    <span
+                      className={`font-semibold ${
+                        isDarkMode ? "text-white" : "text-gray-900"
+                      }`}
+                    >
+                      {activity.action}
+                    </span>
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${
+                        activity.type === "success"
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          : activity.type === "warning"
+                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                          : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                      }`}
+                    >
+                      {activity.badge}
+                    </span>
+                  </div>
                   <p
                     className={`text-sm ${
                       isDarkMode ? "text-gray-400" : "text-gray-600"
@@ -797,55 +792,17 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                     {activity.details}
                   </p>
                 </div>
-                <div className="flex items-center text-xs text-gray-500">
-                  <Clock className="w-3 h-3 mr-1" />
-                  {activity.time}
+                <div className="flex items-center text-xs text-gray-500 space-x-2">
+                  <Clock className="w-3 h-3" />
+                  <span>{activity.time}</span>
                 </div>
               </div>
             ))}
           </div>
           <div className="mt-6 text-center">
-            <button className="text-blue-600 hover:text-blue-700 text-sm font-medium transition-colors hover:underline">
-              Voir toutes les activités →
+            <button className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium shadow-lg">
+              Consulter l'Historique Complet
             </button>
-          </div>
-        </div>
-
-        {/* Résumé financier rapide */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm mb-1">Paiements ce mois</p>
-                <p className="text-2xl font-bold">847</p>
-                <p className="text-blue-200 text-xs">sur 1,234 élèves</p>
-              </div>
-              <CreditCard className="w-8 h-8 text-blue-200" />
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm mb-1">Taux de présence</p>
-                <p className="text-2xl font-bold">94.2%</p>
-                <p className="text-green-200 text-xs">+2.1% vs mois dernier</p>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-200" />
-            </div>
-          </div>
-
-          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-purple-100 text-sm mb-1">Notes moyennes</p>
-                <p className="text-2xl font-bold">14.7/20</p>
-                <p className="text-purple-200 text-xs">
-                  +0.3 vs trimestre dernier
-                </p>
-              </div>
-              <GraduationCap className="w-8 h-8 text-purple-200" />
-            </div>
           </div>
         </div>
       </div>
