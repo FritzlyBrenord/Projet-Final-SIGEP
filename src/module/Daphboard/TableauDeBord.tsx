@@ -423,7 +423,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
 
         {/* Sections détaillées */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Répartition par niveau */}
+          {/* Répartition par Classe */}
           <div
             className={`rounded-2xl p-6 shadow-lg border ${
               isDarkMode
@@ -441,7 +441,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                     isDarkMode ? "text-white" : "text-gray-900"
                   }`}
                 >
-                  Effectifs par Niveau
+                  Effectifs par Classe
                 </h3>
                 <p
                   className={`text-sm ${

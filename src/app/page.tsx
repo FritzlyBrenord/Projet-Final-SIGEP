@@ -30,23 +30,19 @@ import ElevesPage from "../module/Eleves/ElevesPage";
 import NotesPage from "../module/Notes/Notes";
 import FraisScolaritePage from "../module/Paiements/Paiements";
 import GestionProfesseurs from "../module/Professeur/Professeur";
-import NewYearModal from "../module/AnneeAcademique/ConfigurationAn ee";
+import NewYearModal from "../module/AnneeAcademique/ConfigurationAnee";
+import GestionAnneeScolaire from "../module/AnneeAcademique/GestionAnneeScolaire";
 import GestionEmployer from "../module/Employer/Employer";
 import Image from "next/image";
 import CalendrierScolaire from "@/module/Calendrier/Calendrier";
 import Rapport from "@/module/Rapport/Rapport";
 import AdminSettingsPage from "@/module/Parametre/Parametre";
+import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 
 interface User {
   name: string;
   role: string;
   avatar: string;
-}
-
-export interface SchoolYear {
-  id: string;
-  label: string;
-  isActive: boolean;
 }
 
 interface Notification {
@@ -64,25 +60,17 @@ interface SidebarItem {
 }
 
 const Dashboard: React.FC = () => {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const { currentYear } = useAnneeScolaire();
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showYearSelector, setShowYearSelector] = useState(false);
   const [activeMenu, setActiveMenu] = useState("Tableau de Bord"); // State pour gérer le menu actif
   const [isNewYearModalOpen, setIsNewYearModalOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [selectedYearForConfig, setSelectedYearForConfig] = useState<
     string | null
   >(null);
-  const [yearConfigurations, setYearConfigurations] = useState<{
-    [key: string]: any;
-  }>({});
-
-  const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([
-    { id: "2024-2025", label: "2024-2025", isActive: true },
-    { id: "2023-2024", label: "2023-2024", isActive: false },
-    { id: "2022-2023", label: "2022-2023", isActive: false },
-  ]);
 
   // Données de démonstration
   const currentUser: User = {
@@ -122,6 +110,7 @@ const Dashboard: React.FC = () => {
       icon: <Home className="w-5 h-5" />,
       label: "Tableau de Bord",
     },
+
     {
       id: "students",
       icon: <GraduationCap className="w-5 h-5" />,
@@ -169,56 +158,36 @@ const Dashboard: React.FC = () => {
     setActiveMenu(menuLabel);
   };
 
-  const applyAsActiveYear = (yearId: string) => {
-    setSchoolYears((prev) =>
-      prev.map((y) => ({ ...y, isActive: y.id === yearId }))
-    );
-    setShowYearSelector(false);
-  };
+  // const handleSaveYearConfiguration = async (config: any) => {
+  //   try {
+  //     if (selectedYearForConfig) {
+  //       // Mode édition - sauvegarder les modifications
+  //       await chargerAnnee(config.year);
+  //     } else {
+  //       // Mode création - créer une nouvelle année
+  //       await creerNouvelleAnnee(config);
+  //     }
+  //     setIsNewYearModalOpen(false);
+  //     setSelectedYearForConfig(null);
+  //   } catch (error) {
+  //     console.error("Erreur lors de la sauvegarde:", error);
+  //   }
+  // };
 
-  const yearsLabels = schoolYears.map((year) => year.label);
+  // const handleDeleteYearConfiguration = async (year: string) => {
+  //   try {
+  //     setIsNewYearModalOpen(false);
+  //     setSelectedYearForConfig(null);
+  //   } catch (error) {
+  //     console.error("Erreur lors de la suppression:", error);
+  //   }
+  // };
 
-  const handleSaveYearConfiguration = (config: any) => {
-    setYearConfigurations((prev) => ({
-      ...prev,
-      [config.year]: config,
-    }));
-    setIsNewYearModalOpen(false);
-    setSelectedYearForConfig(null);
-  };
-
-  const handleDeleteYearConfiguration = (year: string) => {
-    const newConfigurations = { ...yearConfigurations };
-    delete newConfigurations[year];
-    setYearConfigurations(newConfigurations);
-    setIsNewYearModalOpen(false);
-    setSelectedYearForConfig(null);
-  };
-
-  const openNewYearModal = (mode: "create" | "edit", yearId?: string) => {
-    if (mode === "edit" && yearId) {
-      setSelectedYearForConfig(yearId);
-    } else {
-      setSelectedYearForConfig(null);
-    }
-    setIsNewYearModalOpen(true);
-  };
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, [isDarkMode]);
-
-  // Fermer les menus en cliquant à l'extérieur
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
       if (!target.closest(".notification-menu")) setShowNotifications(false);
       if (!target.closest(".user-menu")) setShowUserMenu(false);
-      if (!target.closest(".year-selector")) setShowYearSelector(false);
     };
 
     document.addEventListener("click", handleClickOutside);
@@ -229,7 +198,7 @@ const Dashboard: React.FC = () => {
     setIsDarkMode(!isDarkMode);
   };
 
-  const activeYear = schoolYears.find((year) => year.isActive);
+  const activeYear = currentYear ? { label: currentYear.year } : null;
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -246,6 +215,8 @@ const Dashboard: React.FC = () => {
     switch (activeMenu) {
       case "Tableau de Bord":
         return <TableauDeBord isDarkMode={isDarkMode} />;
+      case "Années Scolaires":
+        return <GestionAnneeScolaire isDarkMode={isDarkMode} />;
       case "Élèves":
         return <ElevesPage isDarkMode={isDarkMode} />;
       case "Notes":
@@ -393,98 +364,20 @@ const Dashboard: React.FC = () => {
                 {activeMenu}
               </h2>
 
-              {/* Sélecteur d'année scolaire */}
-              <div className="relative year-selector">
-                <button
-                  onClick={() => setShowYearSelector(!showYearSelector)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 shadow-md hover:shadow-lg transform hover:scale-105"
+              {/* Affichage de l'année actuelle avec bouton paramètres */}
+              <div className="flex items-center space-x-3">
+                <div
+                  onClick={() => handleMenuChange("Années Scolaires")}
+                  className="flex items-center cursor-pointer space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl shadow-md"
                 >
                   <Calendar className="w-4 h-4" />
-                  <span className="font-medium">{activeYear?.label}</span>
-                  <ChevronDown className="w-4 h-4" />
-                </button>
-
-                {showYearSelector && (
-                  <div
-                    className={`absolute top-full left-0 mt-2 w-56 rounded-xl shadow-2xl border py-3 z-50 backdrop-blur-lg ${
-                      isDarkMode
-                        ? "bg-gray-800/95 border-gray-700/50"
-                        : "bg-white/95 border-gray-200/50"
-                    }`}
-                  >
-                    <div
-                      className={`px-4 py-2 border-b ${
-                        isDarkMode ? "border-gray-700/50" : "border-gray-200/50"
-                      }`}
-                    >
-                      <h4
-                        className={`font-semibold text-sm ${
-                          isDarkMode ? "text-white" : "text-gray-900"
-                        }`}
-                      >
-                        Années scolaires
-                      </h4>
-                    </div>
-                    {schoolYears.map((year) => (
-                      <div key={year.id} className="px-3 py-1">
-                        <div className="space-y-2">
-                          <button
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-all duration-200 ${
-                              year.isActive
-                                ? "text-blue-600 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30"
-                                : isDarkMode
-                                ? "text-gray-300 hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
-                                : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100"
-                            }`}
-                            onClick={() => applyAsActiveYear(year.id)}
-                            disabled={year.isActive}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{year.label}</span>
-                              {year.isActive && (
-                                <span className="text-xs bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2 py-1 rounded-full shadow-sm">
-                                  Actuelle
-                                </span>
-                              )}
-                            </div>
-                          </button>
-
-                          {/* Boutons pour appliquer/éditer */}
-                          <div className="flex space-x-1">
-                            <button
-                              className={`flex-1 px-2 py-1 text-xs rounded transition-all duration-200 ${
-                                year.isActive
-                                  ? "bg-gray-300 text-gray-500 cursor-not-allowed opacity-50"
-                                  : "bg-green-500 text-white hover:bg-green-600"
-                              }`}
-                              onClick={() => applyAsActiveYear(year.id)}
-                              disabled={year.isActive}
-                            >
-                              Appliquer
-                            </button>
-                            <button
-                              className="flex-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-all duration-200"
-                              onClick={() => openNewYearModal("edit", year.id)}
-                            >
-                              Éditer
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Bouton pour créer une nouvelle année */}
-                    <div className="px-3 py-2 border-t border-gray-200 dark:border-gray-700">
-                      <button
-                        className="w-full px-3 py-2 text-sm bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center space-x-2"
-                        onClick={() => openNewYearModal("create")}
-                      >
-                        <Plus className="w-4 h-4" />
-                        <span>Créer une nouvelle année</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  <span className="font-medium">
+                    {activeYear?.label || "Aucune année"}
+                  </span>
+                  <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                    Actuelle
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -704,24 +597,6 @@ const Dashboard: React.FC = () => {
 
         {/* Contenu */}
         <div className="min-h-screen">{renderMainContent()}</div>
-        <NewYearModal
-          isOpen={isNewYearModalOpen}
-          onClose={() => setIsNewYearModalOpen(false)}
-          existingYears={yearsLabels}
-          isDarkMode={isDarkMode}
-          mode={selectedYearForConfig ? "edit" : "create"}
-          initialConfig={
-            selectedYearForConfig
-              ? yearConfigurations[selectedYearForConfig] || {
-                  year: selectedYearForConfig,
-                  description: "",
-                  levels: [],
-                }
-              : undefined
-          }
-          onSave={handleSaveYearConfiguration}
-          onDelete={handleDeleteYearConfiguration}
-        />
       </main>
     </div>
   );
