@@ -20,6 +20,34 @@ export const DataExsite = async (table: string, column: string, value: any) => {
   }
 };
 
+export const DataObjectExiste = async (
+  table: string,
+  conditions: Record<string, any>
+) => {
+  try {
+    // Construire la requête de base
+    let query = supabase.from(table).select("*");
+
+    // Ajouter chaque condition à la requête
+    Object.entries(conditions).forEach(([key, value]) => {
+      query = query.eq(key, value);
+    });
+
+    const { data, error } = await query.single();
+
+    if (error && error.code === "PGRST116") {
+      console.log("n'existe pas");
+      return false;
+    } else {
+      console.log("existe");
+      return true;
+    }
+  } catch (err) {
+    console.error("Erreur lors de la vérification: ", err);
+    return false;
+  }
+};
+
 export const DataExsiteUneSeuleLigne = async (
   table: string,
   column: string,

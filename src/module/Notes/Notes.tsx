@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -19,130 +19,107 @@ import {
   TrendingUp,
   BarChart3,
   FileSpreadsheet,
+  Loader2,
+  Check,
 } from "lucide-react";
+import { useEleves } from "../../Context/ContextEleves";
+import { useAnneeScolaire } from "../../Context/ContextAnneeScolaire";
+import { useNotes } from "../../Context/ContextNotes";
+import { useDecisionFinAnnee } from "../../Context/ContextDecisionFinAnnee";
 
-// Types
-interface Student {
-  id: string;
-  code: string;
-  nom: string;
-  prenom: string;
-  classesDemandee: string;
-  salle: string;
-  status: "actif" | "inactif" | "suspendu";
-}
+// Types - maintenant importés depuis les contextes
+import { Eleve } from "../../types/EleveType";
+import { Note } from "../../types/NoteType";
+import { Subject } from "../../Context/ContextAnneeScolaire";
 
-interface Note {
-  id: string;
-  studentId: string;
-  matiere: string;
-  trimestre: 1 | 2 | 3;
-  note: number;
-  observation?: string;
-  dateAjout: string;
-}
+// Alias pour la compatibilité
+type Student = Eleve;
 
-interface Matiere {
-  id: string;
-  nom: string;
-  coefficient: number;
-  categorie: string;
-}
-
-// Données d'exemple
-const sampleStudents: Student[] = [
-  {
-    id: "1",
-    code: "ETU001",
-    nom: "Duval",
-    prenom: "Marie",
-    classesDemandee: "9ème AF",
-    salle: "9eA",
-    status: "actif",
-  },
-  {
-    id: "2",
-    code: "ETU002",
-    nom: "Jean-Baptiste",
-    prenom: "Pierre",
-    classesDemandee: "9ème AF",
-    salle: "9eA",
-    status: "actif",
-  },
-  {
-    id: "3",
-    code: "ETU003",
-    nom: "Charles",
-    prenom: "Anne",
-    classesDemandee: "9ème AF",
-    salle: "9eA",
-    status: "suspendu",
-  },
-  {
-    id: "4",
-    code: "ETU004",
-    nom: "Moreau",
-    prenom: "Jean",
-    classesDemandee: "7ème AF",
-    salle: "7eA",
-    status: "actif",
-  },
-];
-
-const matieres: Matiere[] = [
-  { id: "1", nom: "Français", coefficient: 100, categorie: "Langues" },
-  { id: "2", nom: "Mathématiques", coefficient: 100, categorie: "Sciences" },
-  {
-    id: "3",
-    nom: "Histoire-Géographie",
-    coefficient: 100,
-    categorie: "Sciences Humaines",
-  },
-  { id: "4", nom: "Anglais", coefficient: 100, categorie: "Langues" },
-  {
-    id: "5",
-    nom: "Sciences Physiques",
-    coefficient: 100,
-    categorie: "Sciences",
-  },
-  { id: "6", nom: "SVT", coefficient: 100, categorie: "Sciences" },
-  { id: "7", nom: "EPS", coefficient: 100, categorie: "Sports" },
-];
-
-const classes = [
-  "6ème AF",
-  "7ème AF",
-  "8ème AF",
-  "9ème AF",
-  "Seconde",
-  "Première",
-  "Terminale",
-];
-
-const sallesByClass: { [key: string]: string[] } = {
-  "6ème AF": ["6eA", "6eB"],
-  "7ème AF": ["7eA", "7eB", "7eC"],
-  "8ème AF": ["8eA", "8eB"],
-  "9ème AF": ["9eA", "9eB", "9eC"],
-  Seconde: ["2ndA", "2ndB"],
-  Première: ["1ereA", "1ereB"],
-  Terminale: ["TermA", "TermB"],
-};
+// Les données sont maintenant récupérées depuis les contextes
 
 interface Props {
   isDarkMode: boolean;
 }
 
 const NotesPage = ({ isDarkMode }: Props) => {
+  // Contextes
+  const { eleves } = useEleves();
+  const { currentYear } = useAnneeScolaire();
+  const {
+    notes,
+    ajouterNote,
+    modifierNote,
+    getNotesByEleveMatiereTrimestre,
+    getMatieresBySalle,
+  } = useNotes();
+  const { decisions, ajouterDecision, modifierDecision, getDecisionByEleve } =
+    useDecisionFinAnnee();
+
   // États principaux
-  const [students] = useState<Student[]>(sampleStudents);
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [students] = useState<Eleve[]>(eleves);
 
   // États de sélection
   const [selectedClasse, setSelectedClasse] = useState("");
   const [selectedSalle, setSelectedSalle] = useState("");
   const [selectedMatiere, setSelectedMatiere] = useState("");
   const [selectedTrimestre, setSelectedTrimestre] = useState<1 | 2 | 3>(1);
+
+  // Classes organisées depuis le contexte
+  const classes = useMemo(
+    () =>
+      currentYear?.classes.map((classe) => ({
+        value: classe.id,
+        label: classe.name,
+      })) || [],
+    [currentYear?.classes]
+  ) as { value: string; label: string }[];
+
+  // Salles organisées par classe depuis le contexte
+  const sallesByClass: Record<string, { value: string; label: string }[]> =
+    useMemo(() => {
+      const result: Record<string, { value: string; label: string }[]> = {};
+      currentYear?.classes.forEach((classe) => {
+        result[classe.id] = classe.salles.map((salle) => ({
+          value: salle.id,
+          label: `${salle.name}`,
+        }));
+      });
+      return result;
+    }, [currentYear?.classes]);
+
+  const classSelectioner = classes.find(
+    (item) => item.value === selectedClasse
+  );
+  const SalleSelectioner =
+    sallesByClass[selectedClasse] &&
+    Array.isArray(sallesByClass[selectedClasse])
+      ? sallesByClass[selectedClasse].find(
+          (item) => item.value === selectedSalle
+        )
+      : undefined;
+
+  // Matières filtrées par salle sélectionnée
+  const matieres = useMemo(() => {
+    if (!selectedSalle || !currentYear) return [];
+
+    // Utiliser la fonction getMatieresBySalle du contexte Notes
+    return getMatieresBySalle(selectedSalle);
+  }, [selectedSalle, currentYear, getMatieresBySalle]);
+
+  // Matière sélectionnée (objet complet) pour connaître le coefficient
+  const selectedMatiereObj = useMemo(() => {
+    if (!selectedMatiere) return undefined;
+    return matieres.find((m) => m.id === selectedMatiere);
+  }, [selectedMatiere, matieres]);
+
+  // Index des matières par id pour l'affichage (nom + coef)
+  const subjectById = useMemo(() => {
+    const map: Record<string, Subject> = {};
+    matieres.forEach((m: Subject) => {
+      map[m.id] = m;
+    });
+    return map;
+  }, [matieres]);
 
   // États d'interface
   const [activeTab, setActiveTab] = useState<
@@ -155,15 +132,25 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
   // États de formulaire
   const [notesForm, setNotesForm] = useState<{
-    [studentId: string]: { note: string; observation: string };
+    [eleveId: string]: {
+      note: string;
+      observation: string;
+    };
   }>({});
 
+  // États de chargement pour actions serveur
+  const [isSavingNotes, setIsSavingNotes] = useState(false);
+  const [isGeneratingBulletin, setIsGeneratingBulletin] = useState(false);
+  const [isGeneratingReleve, setIsGeneratingReleve] = useState(false);
+  const [isGeneratingClassBulletin, setIsGeneratingClassBulletin] =
+    useState(false);
+
   // Étudiants actifs de la classe/salle sélectionnée
-  const activeStudents = students.filter(
+  const activeStudents = eleves.filter(
     (s) =>
-      s.status === "actif" &&
-      (!selectedClasse || s.classesDemandee === selectedClasse) &&
-      (!selectedSalle || s.salle === selectedSalle)
+      s.statut === "actif" &&
+      (!selectedClasse || s.classe_id === selectedClasse) &&
+      (!selectedSalle || s.salle_id === selectedSalle)
   );
 
   // États pour la génération de bulletins
@@ -323,59 +310,47 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
   // Calcul de la note brute par matière et trimestre
   const getNoteMatiereTrimestre = (
-    studentId: string,
-    matiere: string,
-    trimestre: number
+    eleveId: string,
+    matiereId: string,
+    trimestre: 1 | 2 | 3
   ) => {
-    const studentNotes = notes.filter(
-      (n) =>
-        n.studentId === studentId &&
-        n.matiere === matiere &&
-        n.trimestre === trimestre
-    );
-
-    if (studentNotes.length === 0) return null;
-
-    // Retourner la note brute (moyenne des notes si plusieurs)
-    const sum = studentNotes.reduce((acc, n) => acc + n.note, 0);
-    return sum / studentNotes.length;
+    const note = getNotesByEleveMatiereTrimestre(eleveId, matiereId, trimestre);
+    return note ? note.note : null;
   };
 
   // Calcul de la moyenne générale par trimestre pour un élève
   const calculateMoyenneGeneraleTrimestre = (
-    studentId: string,
-    trimestre: number
+    eleveId: string,
+    trimestre: 1 | 2 | 3
   ) => {
     let totalPoints = 0;
     let totalCoefficient = 0;
 
-    matieres.forEach((matiere) => {
+    matieres.forEach((matiere: Subject) => {
       const noteMatiere = getNoteMatiereTrimestre(
-        studentId,
-        matiere.nom,
+        eleveId,
+        matiere.id,
         trimestre
       );
-      totalCoefficient = matieres.reduce((sum, m) => sum + m.coefficient, 0);
       if (noteMatiere !== null) {
         totalPoints += noteMatiere;
+        totalCoefficient += matiere.coefficient;
       }
     });
 
     if (totalCoefficient === 0) return 0;
 
-    // Formule: Total des notes / (Total coefficients / 10)
-    return totalPoints / (totalCoefficient / 10);
+    // Formule: Total des points / Total des coefficients * 10
+    return (totalPoints / totalCoefficient) * 10;
   };
 
   // Calcul de la moyenne générale annuelle (moyenne des moyennes des trimestres)
   const calculateMoyenneGeneraleAnnuelle = (
-    studentId: string,
-    trimestres: number[]
+    eleveId: string,
+    trimestres: (1 | 2 | 3)[]
   ) => {
     const moyennesTrimestres = trimestres
-      .map((trimestre) =>
-        calculateMoyenneGeneraleTrimestre(studentId, trimestre)
-      )
+      .map((trimestre) => calculateMoyenneGeneraleTrimestre(eleveId, trimestre))
       .filter((moyenne) => moyenne > 0);
 
     if (moyennesTrimestres.length === 0) return 0;
@@ -384,83 +359,74 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
   // Gestion du formulaire de notes
   const handleNoteChange = (
-    studentId: string,
+    eleveId: string,
     field: "note" | "observation",
     value: string
   ) => {
     setNotesForm((prev) => ({
       ...prev,
-      [studentId]: {
-        ...(prev[studentId] || { note: "", observation: "" }),
+      [eleveId]: {
+        ...(prev[eleveId] || {
+          note: "",
+          observation: "",
+        }),
         [field]: value,
       },
     }));
   };
 
-  const saveNotes = () => {
-    const newNotes: Note[] = [];
-    const updatedNotes: Note[] = [];
+  const saveNotes = async () => {
+    try {
+      setIsSavingNotes(true);
+      const promises: Promise<void>[] = [];
 
-    Object.entries(notesForm).forEach(([studentId, data]) => {
-      if (data.note && !isNaN(parseFloat(data.note))) {
-        const noteValue = parseFloat(data.note);
-        if (noteValue < 0 || noteValue > 100) {
-          alert("Les notes doivent être entre 0 et 100");
-          return;
-        }
-
-        // Vérifier si la note existe déjà
-        const existingNoteIndex = notes.findIndex(
-          (n) =>
-            n.studentId === studentId &&
-            n.matiere === selectedMatiere &&
-            n.trimestre === selectedTrimestre
-        );
-
-        const noteData: Note = {
-          id:
-            existingNoteIndex >= 0
-              ? notes[existingNoteIndex].id
-              : Date.now().toString() + Math.random(),
-          studentId,
-          matiere: selectedMatiere,
-          trimestre: selectedTrimestre,
-          note: noteValue,
-          observation: data.observation || undefined,
-          dateAjout: new Date().toISOString().split("T")[0],
-        };
-
-        if (existingNoteIndex >= 0) {
-          updatedNotes.push(noteData);
-        } else {
-          newNotes.push(noteData);
-        }
-      }
-    });
-
-    // Mettre à jour l'état notes en une seule fois
-    if (updatedNotes.length > 0 || newNotes.length > 0) {
-      setNotes((prev) => {
-        let result = [...prev];
-
-        // Mettre à jour les notes existantes
-        updatedNotes.forEach((updatedNote) => {
-          const index = result.findIndex((n) => n.id === updatedNote.id);
-          if (index >= 0) {
-            result[index] = updatedNote;
+      Object.entries(notesForm).forEach(([eleveId, data]) => {
+        if (data.note && !isNaN(parseFloat(data.note))) {
+          const noteValue = parseFloat(data.note);
+          const maxAllowed = selectedMatiereObj?.coefficient ?? 100;
+          if (noteValue < 0 || noteValue > maxAllowed) {
+            alert(`La note doit être entre 0 et ${maxAllowed}`);
+            return;
           }
-        });
 
-        // Ajouter les nouvelles notes
-        result = [...result, ...newNotes];
+          // Vérifier si la note existe déjà
+          const existingNote = getNotesByEleveMatiereTrimestre(
+            eleveId,
+            selectedMatiere,
+            selectedTrimestre
+          );
 
-        return result;
+          const noteData = {
+            eleve_id: eleveId,
+            matiere_id: selectedMatiere,
+            trimestre: selectedTrimestre,
+            note: noteValue,
+            observation: data.observation || undefined,
+            annee_scolaire_id: currentYear?.id || "",
+          };
+
+          console.log("noteData", noteData);
+          if (existingNote) {
+            // Modifier la note existante
+            promises.push(modifierNote(existingNote.id, noteData));
+          } else {
+            // Ajouter une nouvelle note
+            promises.push(ajouterNote(noteData));
+          }
+        }
       });
-    }
 
-    // Réinitialiser le formulaire
-    setNotesForm({});
-    alert(`Notes sauvegardées avec succès!`);
+      await Promise.all(promises);
+
+      // Réinitialiser le formulaire
+      setNotesForm({});
+      alert(`Notes sauvegardées avec succès!`);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde:", error);
+      alert("Erreur lors de la sauvegarde des notes");
+    } finally {
+      setIsSavingNotes(false);
+    }
   };
 
   // Fonctions de génération de bulletins
@@ -470,7 +436,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
       return;
     }
 
-    const selectedTrimestres: number[] = [];
+    const selectedTrimestres: (1 | 2 | 3)[] = [];
     if (selectedTrimestresForBulletin.trimestre1) selectedTrimestres.push(1);
     if (selectedTrimestresForBulletin.trimestre2) selectedTrimestres.push(2);
     if (selectedTrimestresForBulletin.trimestre3) selectedTrimestres.push(3);
@@ -481,6 +447,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
     }
 
     // Toujours générer dans une seule fenêtre, un bulletin par page
+    setIsGeneratingBulletin(true);
     const allBulletinsWindow = window.open(
       "",
       "_blank",
@@ -690,8 +657,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer Tous</button>
         ${selectedStudentsForBulletin
-          .map((studentId) => {
-            const student = students.find((s) => s.id === studentId);
+          .map((eleveId) => {
+            const student = eleves.find((s) => s.id === eleveId);
             if (!student) return "";
 
             return generateSingleBulletinHTML(student, selectedTrimestres);
@@ -703,6 +670,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
     allBulletinsWindow.document.write(allBulletinsHTML);
     allBulletinsWindow.document.close();
+    setIsGeneratingBulletin(false);
   };
 
   const generateReleve = () => {
@@ -711,11 +679,12 @@ const NotesPage = ({ isDarkMode }: Props) => {
       return;
     }
 
-    const trimestres = selectedTrimestreForReleve
-      ? [parseInt(selectedTrimestreForReleve)]
+    const trimestres: (1 | 2 | 3)[] = selectedTrimestreForReleve
+      ? [parseInt(selectedTrimestreForReleve) as 1 | 2 | 3]
       : [1, 2, 3];
 
     // Toujours générer dans une seule fenêtre, un relevé par page
+    setIsGeneratingReleve(true);
     const allRelevesWindow = window.open("", "_blank", "width=1000,height=800");
     if (!allRelevesWindow) return;
 
@@ -894,8 +863,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer Tous</button>
         ${selectedStudentsForReleve
-          .map((studentId) => {
-            const student = students.find((s) => s.id === studentId);
+          .map((eleveId) => {
+            const student = eleves.find((s) => s.id === eleveId);
             if (!student) return "";
 
             return generateSingleReleveHTML(student, trimestres);
@@ -907,17 +876,23 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
     allRelevesWindow.document.write(allRelevesHTML);
     allRelevesWindow.document.close();
+    setIsGeneratingReleve(false);
   };
 
   const generateBulletinClasse = () => {
-    const trimestres =
+    const trimestres: (1 | 2 | 3)[] =
       selectedTrimestreForClasse === "annuel"
         ? [1, 2, 3]
-        : [parseInt(selectedTrimestreForClasse)];
+        : [parseInt(selectedTrimestreForClasse) as 1 | 2 | 3];
+    setIsGeneratingClassBulletin(true);
     generateBulletinClasseHTML(trimestres);
+    setIsGeneratingClassBulletin(false);
   };
 
-  const generateBulletinHTML = (student: Student, trimestres: number[]) => {
+  const generateBulletinHTML = (
+    student: Student,
+    trimestres: (1 | 2 | 3)[]
+  ) => {
     const bulletinWindow = window.open("", "_blank", "width=800,height=600");
     if (!bulletinWindow) return;
 
@@ -1129,11 +1104,19 @@ const NotesPage = ({ isDarkMode }: Props) => {
             <div>
               <div class="info-item">
                 <span class="info-label">Classe :</span>
-                <span class="info-value">${student.classesDemandee}</span>
+                <span class="info-value">${
+                  currentYear?.classes.find((c) => c.id === student.classe_id)
+                    ?.name || "N/A"
+                }</span>
               </div>
               <div class="info-item">
                 <span class="info-label">Salle :</span>
-                <span class="info-value">${student.salle}</span>
+                <span class="info-value">${
+                  currentYear?.classes
+                    .find((c) => c.id === student.classe_id)
+                    ?.salles.find((s) => s.id === student.salle_id)?.name ||
+                  "N/A"
+                }</span>
               </div>
             </div>
           </div>
@@ -1157,7 +1140,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
     bulletinWindow.document.close();
   };
 
-  const generateNotesTableHTML = (student: Student, trimestres: number[]) => {
+  const generateNotesTableHTML = (
+    student: Student,
+    trimestres: (1 | 2 | 3)[]
+  ) => {
     let tableHTML = '<div class="notes-section"><table class="notes-table">';
 
     // En-têtes
@@ -1182,14 +1168,14 @@ const NotesPage = ({ isDarkMode }: Props) => {
     });
 
     // Lignes des matières
-    matieres.forEach((matiere) => {
+    matieres.forEach((matiere: Subject) => {
       tableHTML += "<tr>";
-      tableHTML += `<td class="matiere-cell">${matiere.nom}</td>`;
+      tableHTML += `<td class="matiere-cell">${matiere.name}</td>`;
 
       trimestres.forEach((trimestre) => {
         const noteMatiere = getNoteMatiereTrimestre(
           student.id,
-          matiere.nom,
+          matiere.id,
           trimestre
         );
 
@@ -1267,7 +1253,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
       // Moyenne générale annuelle
       const moyenneAnnuelle =
-        moyennesTrimestres.reduce((sum, m) => sum + m, 0) /
+        moyennesTrimestres.reduce((sum: number, m: number) => sum + m, 0) /
         moyennesTrimestres.length;
       const observationAnnuelle = generateObservation(moyenneAnnuelle);
 
@@ -1287,7 +1273,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
     return tableHTML;
   };
 
-  const generateReleveHTML = (student: Student, trimestres: number[]) => {
+  const generateReleveHTML = (student: Student, trimestres: (1 | 2 | 3)[]) => {
     const releveWindow = window.open("", "_blank", "width=1000,height=700");
     if (!releveWindow) return;
 
@@ -1474,11 +1460,19 @@ const NotesPage = ({ isDarkMode }: Props) => {
             <div>
               <div class="info-item">
                 <span class="info-label">Classe :</span>
-                <span class="info-value">${student.classesDemandee}</span>
+                <span class="info-value">${
+                  currentYear?.classes.find((c) => c.id === student.classe_id)
+                    ?.name || "N/A"
+                }</span>
               </div>
               <div class="info-item">
                 <span class="info-label">Salle :</span>
-                <span class="info-value">${student.salle}</span>
+                <span class="info-value">${
+                  currentYear?.classes
+                    .find((c) => c.id === student.classe_id)
+                    ?.salles.find((s) => s.id === student.salle_id)?.name ||
+                  "N/A"
+                }</span>
               </div>
             </div>
           </div>
@@ -1497,12 +1491,12 @@ const NotesPage = ({ isDarkMode }: Props) => {
             <tbody>
               ${matieres
                 .map((matiere) => {
-                  let row = `<tr><td class="matiere-cell">${matiere.nom}</td>`;
+                  let row = `<tr><td class="matiere-cell">${matiere.name}</td>`;
 
                   trimestres.forEach((trimestre) => {
                     const noteMatiere = getNoteMatiereTrimestre(
                       student.id,
-                      matiere.nom,
+                      matiere.id,
                       trimestre
                     );
                     if (noteMatiere !== null) {
@@ -1522,10 +1516,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 ${trimestres
                   .map((trimestre) => {
                     let total = 0;
-                    matieres.forEach((matiere) => {
+                    matieres.forEach((matiere: Subject) => {
                       const noteMatiere = getNoteMatiereTrimestre(
                         student.id,
-                        matiere.nom,
+                        matiere.id,
                         trimestre
                       );
                       if (noteMatiere !== null) {
@@ -1573,8 +1567,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
                       calculateMoyenneGeneraleTrimestre(student.id, t)
                     );
                     const moyenneAnnuelle =
-                      moyennesTrimestres.reduce((sum, m) => sum + m, 0) /
-                      moyennesTrimestres.length;
+                      moyennesTrimestres.reduce(
+                        (sum: number, m: number) => sum + m,
+                        0
+                      ) / moyennesTrimestres.length;
                     const observationAnnuelle =
                       generateObservation(moyenneAnnuelle);
 
@@ -1621,7 +1617,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
       return;
     }
 
-    const selectedTrimestres: number[] = [];
+    const selectedTrimestres: (1 | 2 | 3)[] = [];
     if (selectedTrimestresForBulletin.trimestre1) selectedTrimestres.push(1);
     if (selectedTrimestresForBulletin.trimestre2) selectedTrimestres.push(2);
     if (selectedTrimestresForBulletin.trimestre3) selectedTrimestres.push(3);
@@ -1693,8 +1689,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer Tous</button>
         ${selectedStudentsForBulletin
-          .map((studentId) => {
-            const student = students.find((s) => s.id === studentId);
+          .map((eleveId) => {
+            const student = eleves.find((s) => s.id === eleveId);
             if (!student) return "";
 
             return generateSingleBulletinHTML(student, selectedTrimestres);
@@ -1711,7 +1707,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
   // Fonction pour générer le HTML d'un seul bulletin avec tous les styles
   const generateSingleBulletinHTML = (
     student: Student,
-    trimestres: number[]
+    trimestres: (1 | 2 | 3)[]
   ) => {
     return `
       <div class="bulletin-container">
@@ -1736,11 +1732,19 @@ const NotesPage = ({ isDarkMode }: Props) => {
             <div>
               <div class="info-item">
                 <span class="info-label">Classe :</span>
-                <span class="info-value">${student.classesDemandee}</span>
+                <span class="info-value">${
+                  currentYear?.classes.find((c) => c.id === student.classe_id)
+                    ?.name || "N/A"
+                }</span>
               </div>
               <div class="info-item">
                 <span class="info-label">Salle :</span>
-                <span class="info-value">${student.salle}</span>
+                <span class="info-value">${
+                  currentYear?.classes
+                    .find((c) => c.id === student.classe_id)
+                    ?.salles.find((s) => s.id === student.salle_id)?.name ||
+                  "N/A"
+                }</span>
               </div>
             </div>
           </div>
@@ -1761,7 +1765,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
   };
 
   // Fonction pour générer le HTML d'un seul relevé avec tous les styles
-  const generateSingleReleveHTML = (student: Student, trimestres: number[]) => {
+  const generateSingleReleveHTML = (
+    student: Student,
+    trimestres: (1 | 2 | 3)[]
+  ) => {
     return `
       <div class="releve-container">
         <div class="page">
@@ -1785,11 +1792,19 @@ const NotesPage = ({ isDarkMode }: Props) => {
             <div>
               <div class="info-item">
                 <span class="info-label">Classe :</span>
-                <span class="info-value">${student.classesDemandee}</span>
+                <span class="info-value">${
+                  currentYear?.classes.find((c) => c.id === student.classe_id)
+                    ?.name || "N/A"
+                }</span>
               </div>
               <div class="info-item">
                 <span class="info-label">Salle :</span>
-                <span class="info-value">${student.salle}</span>
+                <span class="info-value">${
+                  currentYear?.classes
+                    .find((c) => c.id === student.classe_id)
+                    ?.salles.find((s) => s.id === student.salle_id)?.name ||
+                  "N/A"
+                }</span>
               </div>
             </div>
           </div>
@@ -1808,12 +1823,12 @@ const NotesPage = ({ isDarkMode }: Props) => {
             <tbody>
               ${matieres
                 .map((matiere) => {
-                  let row = `<tr><td class="matiere-cell">${matiere.nom}</td>`;
+                  let row = `<tr><td class="matiere-cell">${matiere.name}</td>`;
 
                   trimestres.forEach((trimestre) => {
                     const noteMatiere = getNoteMatiereTrimestre(
                       student.id,
-                      matiere.nom,
+                      matiere.id,
                       trimestre
                     );
                     if (noteMatiere !== null) {
@@ -1833,10 +1848,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 ${trimestres
                   .map((trimestre) => {
                     let total = 0;
-                    matieres.forEach((matiere) => {
+                    matieres.forEach((matiere: Subject) => {
                       const noteMatiere = getNoteMatiereTrimestre(
                         student.id,
-                        matiere.nom,
+                        matiere.id,
                         trimestre
                       );
                       if (noteMatiere !== null) {
@@ -1884,8 +1899,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
                       calculateMoyenneGeneraleTrimestre(student.id, t)
                     );
                     const moyenneAnnuelle =
-                      moyennesTrimestres.reduce((sum, m) => sum + m, 0) /
-                      moyennesTrimestres.length;
+                      moyennesTrimestres.reduce(
+                        (sum: number, m: number) => sum + m,
+                        0
+                      ) / moyennesTrimestres.length;
                     const observationAnnuelle =
                       generateObservation(moyenneAnnuelle);
 
@@ -1921,7 +1938,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
     `;
   };
 
-  const generateBulletinClasseHTML = (trimestres: number[]) => {
+  const generateBulletinClasseHTML = (trimestres: (1 | 2 | 3)[]) => {
     const bulletinWindow = window.open("", "_blank", "width=1200,height=800");
     if (!bulletinWindow) return;
 
@@ -2048,7 +2065,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
           <div class="class-info">
             <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">
-              ${selectedClasse} - ${selectedSalle}
+              ${classSelectioner?.label} - ${SalleSelectioner?.label}
             </div>
             <div style="color: #666; font-size: 12px;">
               ${
@@ -2067,7 +2084,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 <th class="student-cell">Élève</th>
                 <th>Code</th>
                 ${matieres
-                  .map((m) => `<th>${m.nom.substring(0, 8)}</th>`)
+                  .map((m) => `<th>${m.name.substring(0, 8)}</th>`)
                   .join("")}
                 ${
                   trimestres.length === 1
@@ -2085,10 +2102,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
                   if (trimestres.length === 1) {
                     // Un seul trimestre - afficher notes par matière
                     const trimestre = trimestres[0];
-                    matieres.forEach((matiere) => {
+                    matieres.forEach((matiere: Subject) => {
                       const noteMatiere = getNoteMatiereTrimestre(
                         student.id,
-                        matiere.nom,
+                        matiere.id,
                         trimestre
                       );
                       if (noteMatiere !== null) {
@@ -2108,10 +2125,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
                     )}</td>`;
                   } else {
                     // Plusieurs trimestres - afficher notes par matière (moyenne des trimestres)
-                    matieres.forEach((matiere) => {
+                    matieres.forEach((matiere: Subject) => {
                       const notesTrimestres = trimestres
                         .map((t) =>
-                          getNoteMatiereTrimestre(student.id, matiere.nom, t)
+                          getNoteMatiereTrimestre(student.id, matiere.id, t)
                         )
                         .filter((n) => n !== null);
                       if (notesTrimestres.length > 0) {
@@ -2186,14 +2203,14 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
       if (hasRealChanges) {
         const formData: {
-          [studentId: string]: { note: string; observation: string };
+          [eleveId: string]: { note: string; observation: string };
         } = {};
 
         activeStudents.forEach((student) => {
           const existingNote = notes.find(
             (n) =>
-              n.studentId === student.id &&
-              n.matiere === selectedMatiere &&
+              n.eleve_id === student.id &&
+              n.matiere_id === selectedMatiere &&
               n.trimestre === selectedTrimestre
           );
 
@@ -2278,15 +2295,13 @@ const NotesPage = ({ isDarkMode }: Props) => {
             Saisie des Notes
           </button>
           <button
-            onClick={() => setActiveTab("consultation")}
+            onClick={() => setActiveTab("resultat")}
             className={`px-6 py-3 font-medium rounded-t-lg transition-colors ${
-              activeTab === "consultation"
-                ? tabActiveClasses
-                : tabInactiveClasses
+              activeTab === "resultat" ? tabActiveClasses : tabInactiveClasses
             }`}
           >
-            <Eye className="h-4 w-4 inline mr-2" />
-            Consultation
+            <Award className="h-4 w-4 inline mr-2" />
+            Résultat
           </button>
           <button
             onClick={() => setActiveTab("bulletins")}
@@ -2296,15 +2311,6 @@ const NotesPage = ({ isDarkMode }: Props) => {
           >
             <FileText className="h-4 w-4 inline mr-2" />
             Bulletins & Relevés
-          </button>
-          <button
-            onClick={() => setActiveTab("resultat")}
-            className={`px-6 py-3 font-medium rounded-t-lg transition-colors ${
-              activeTab === "resultat" ? tabActiveClasses : tabInactiveClasses
-            }`}
-          >
-            <Award className="h-4 w-4 inline mr-2" />
-            Résultat
           </button>
         </div>
 
@@ -2325,12 +2331,13 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 onChange={(e) => {
                   setSelectedClasse(e.target.value);
                   setSelectedSalle("");
+                  setSelectedMatiere("");
                 }}
               >
                 <option value="">Sélectionner une classe</option>
                 {classes.map((classe) => (
-                  <option key={classe} value={classe}>
-                    {classe}
+                  <option key={classe.value} value={classe.value}>
+                    {classe.label}
                   </option>
                 ))}
               </select>
@@ -2347,14 +2354,17 @@ const NotesPage = ({ isDarkMode }: Props) => {
               <select
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                 value={selectedSalle}
-                onChange={(e) => setSelectedSalle(e.target.value)}
+                onChange={(e) => {
+                  setSelectedSalle(e.target.value);
+                  setSelectedMatiere("");
+                }}
                 disabled={!selectedClasse}
               >
                 <option value="">Sélectionner une salle</option>
                 {selectedClasse &&
                   sallesByClass[selectedClasse]?.map((salle) => (
-                    <option key={salle} value={salle}>
-                      {salle}
+                    <option key={salle.value} value={salle.value}>
+                      {salle.label}
                     </option>
                   ))}
               </select>
@@ -2372,11 +2382,12 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                 value={selectedMatiere}
                 onChange={(e) => setSelectedMatiere(e.target.value)}
+                disabled={!selectedSalle}
               >
                 <option value="">Sélectionner une matière</option>
                 {matieres.map((matiere) => (
-                  <option key={matiere.id} value={matiere.nom}>
-                    {matiere.nom} (Coef. {matiere.coefficient})
+                  <option key={matiere.id} value={matiere.id}>
+                    {matiere.name} (Coef. {matiere.coefficient})
                   </option>
                 ))}
               </select>
@@ -2419,7 +2430,9 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 {selectedMatiere && (
                   <span className="flex items-center gap-1">
                     <BookOpen className="h-4 w-4" />
-                    Matière: {selectedMatiere}
+                    {subjectById[selectedMatiere]
+                      ? `Matière: ${subjectById[selectedMatiere].name} (Coef. ${subjectById[selectedMatiere].coefficient})`
+                      : `Matière: ${selectedMatiere}`}
                   </span>
                 )}
                 <span className="flex items-center gap-1">
@@ -2440,10 +2453,17 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 {selectedMatiere && activeStudents.length > 0 && (
                   <button
                     onClick={saveNotes}
-                    className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors`}
+                    disabled={isSavingNotes}
+                    className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50`}
                   >
-                    <Save className="h-4 w-4" />
-                    Sauvegarder les Notes
+                    {isSavingNotes ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {isSavingNotes
+                      ? "Enregistrement..."
+                      : "Sauvegarder les Notes"}
                   </button>
                 )}
               </div>
@@ -2457,7 +2477,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
                   />
                   <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
                     Veuillez sélectionner une classe, salle et matière pour
-                    commencer la saisie
+                    commencer la saisie. Les matières disponibles dépendent de
+                    la salle sélectionnée.
                   </p>
                 </div>
               ) : activeStudents.length === 0 ? (
@@ -2476,8 +2497,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
                   {activeStudents.map((student) => {
                     const existingNote = notes.find(
                       (n) =>
-                        n.studentId === student.id &&
-                        n.matiere === selectedMatiere &&
+                        n.eleve_id === student.id &&
+                        n.matiere_id === selectedMatiere &&
                         n.trimestre === selectedTrimestre
                     );
 
@@ -2509,8 +2530,15 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                 isDarkMode ? "text-gray-400" : "text-gray-500"
                               }`}
                             >
-                              {student.code} • {student.classesDemandee} -{" "}
-                              {student.salle}
+                              {student.code} •{" "}
+                              {currentYear?.classes.find(
+                                (c) => c.id === student.classe_id
+                              )?.name || "N/A"}{" "}
+                              -{" "}
+                              {currentYear?.classes
+                                .find((c) => c.id === student.classe_id)
+                                ?.salles.find((s) => s.id === student.salle_id)
+                                ?.name || "N/A"}
                             </div>
                           </div>
 
@@ -2520,12 +2548,14 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                 isDarkMode ? "text-gray-300" : "text-gray-700"
                               }`}
                             >
-                              Note (/100)
+                              {`Note (/ ${
+                                selectedMatiereObj?.coefficient ?? 100
+                              })`}
                             </label>
                             <input
                               type="number"
                               min="0"
-                              max="100"
+                              max={selectedMatiereObj?.coefficient ?? 100}
                               step="0.5"
                               placeholder="Note"
                               className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
@@ -2543,263 +2573,6 @@ const NotesPage = ({ isDarkMode }: Props) => {
                       </div>
                     );
                   })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {activeTab === "consultation" && (
-          <div className={`${cardClasses} rounded-lg shadow-sm border`}>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">Consultation des Notes</h2>
-                <button
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={`px-3 py-2 border rounded-lg flex items-center gap-2 hover:bg-opacity-80 ${inputClasses}`}
-                >
-                  <Filter className="h-4 w-4" />
-                  Filtres
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${
-                      showFilters ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {showFilters && (
-                <div
-                  className={`mb-6 p-4 border rounded-lg ${
-                    isDarkMode ? "border-gray-600" : "border-gray-200"
-                  }`}
-                >
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        Rechercher un élève
-                      </label>
-                      <div className="relative">
-                        <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Nom, prénom ou code..."
-                          className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        Matière
-                      </label>
-                      <select
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={filterMatiere}
-                        onChange={(e) => setFilterMatiere(e.target.value)}
-                      >
-                        <option value="">Toutes les matières</option>
-                        {matieres.map((matiere) => (
-                          <option key={matiere.id} value={matiere.nom}>
-                            {matiere.nom}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label
-                        className={`block text-sm font-medium mb-1 ${
-                          isDarkMode ? "text-gray-300" : "text-gray-700"
-                        }`}
-                      >
-                        Trimestre
-                      </label>
-                      <select
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={filterTrimestre}
-                        onChange={(e) => setFilterTrimestre(e.target.value)}
-                      >
-                        <option value="">Tous les trimestres</option>
-                        <option value="1">1er Trimestre</option>
-                        <option value="2">2ème Trimestre</option>
-                        <option value="3">3ème Trimestre</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Tableau des notes */}
-              {(() => {
-                const filteredNotes = notes.filter((note) => {
-                  const student = students.find((s) => s.id === note.studentId);
-                  if (!student) return false;
-
-                  if (
-                    selectedClasse &&
-                    student.classesDemandee !== selectedClasse
-                  )
-                    return false;
-                  if (selectedSalle && student.salle !== selectedSalle)
-                    return false;
-                  if (filterMatiere && note.matiere !== filterMatiere)
-                    return false;
-                  if (
-                    filterTrimestre &&
-                    note.trimestre.toString() !== filterTrimestre
-                  )
-                    return false;
-
-                  if (searchTerm) {
-                    const searchLower = searchTerm.toLowerCase();
-                    return (
-                      student.nom.toLowerCase().includes(searchLower) ||
-                      student.prenom.toLowerCase().includes(searchLower) ||
-                      student.code.toLowerCase().includes(searchLower)
-                    );
-                  }
-
-                  return true;
-                });
-
-                const paginatedNotes = getPaginatedData(
-                  filteredNotes,
-                  currentPageConsultation,
-                  itemsPerPage
-                );
-                const totalPages = getTotalPages(
-                  filteredNotes.length,
-                  itemsPerPage
-                );
-
-                return (
-                  <>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full">
-                        <thead
-                          className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}
-                        >
-                          <tr>
-                            <th
-                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                                isDarkMode ? "text-gray-300" : "text-gray-500"
-                              }`}
-                            >
-                              Élève
-                            </th>
-                            <th
-                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                                isDarkMode ? "text-gray-300" : "text-gray-500"
-                              }`}
-                            >
-                              Matière
-                            </th>
-                            <th
-                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                                isDarkMode ? "text-gray-300" : "text-gray-500"
-                              }`}
-                            >
-                              Trimestre
-                            </th>
-                            <th
-                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                                isDarkMode ? "text-gray-300" : "text-gray-500"
-                              }`}
-                            >
-                              Note
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody
-                          className={`divide-y ${
-                            isDarkMode ? "divide-gray-700" : "divide-gray-200"
-                          }`}
-                        >
-                          {paginatedNotes.map((note) => {
-                            const student = students.find(
-                              (s) => s.id === note.studentId
-                            );
-                            if (!student) return null;
-
-                            return (
-                              <tr
-                                key={note.id}
-                                className={
-                                  isDarkMode
-                                    ? "hover:bg-gray-700"
-                                    : "hover:bg-gray-50"
-                                }
-                              >
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <div>
-                                    <div className="text-sm font-medium">
-                                      {student.prenom} {student.nom}
-                                    </div>
-                                    <div
-                                      className={`text-sm ${
-                                        isDarkMode
-                                          ? "text-gray-400"
-                                          : "text-gray-500"
-                                      }`}
-                                    >
-                                      {student.code} • {student.classesDemandee}{" "}
-                                      - {student.salle}
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                  {note.matiere}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                  {note.trimestre}er Trimestre
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                  <span
-                                    className={`text-sm font-medium ${getNoteColor(
-                                      note.note
-                                    )}`}
-                                  >
-                                    {note.note}/100
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <PaginationComponent
-                      currentPage={currentPageConsultation}
-                      totalPages={totalPages}
-                      onPageChange={setCurrentPageConsultation}
-                      totalItems={filteredNotes.length}
-                    />
-                  </>
-                );
-              })()}
-
-              {notes.length === 0 && (
-                <div className="text-center py-12">
-                  <BarChart3
-                    className={`h-16 w-16 mx-auto mb-4 ${
-                      isDarkMode ? "text-gray-600" : "text-gray-400"
-                    }`}
-                  />
-                  <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
-                    Aucune note trouvée selon vos critères
-                  </p>
                 </div>
               )}
             </div>
@@ -2949,7 +2722,12 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                       : "text-gray-500"
                                   }`}
                                 >
-                                  ({student.code}) • {student.salle}
+                                  ({student.code}) •{" "}
+                                  {currentYear?.classes
+                                    .find((c) => c.id === student.classe_id)
+                                    ?.salles.find(
+                                      (s) => s.id === student.salle_id
+                                    )?.name || "N/A"}
                                 </span>
                               </span>
                             </label>
@@ -3049,11 +2827,20 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
                   <button
                     onClick={() => generateBulletin()}
-                    disabled={selectedStudentsForBulletin.length === 0}
+                    disabled={
+                      selectedStudentsForBulletin.length === 0 ||
+                      isGeneratingBulletin
+                    }
                     className={`w-full ${buttonPrimaryClasses} px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
-                    <Download className="h-4 w-4 inline mr-2" />
-                    Générer Bulletin(s)
+                    {isGeneratingBulletin ? (
+                      <Loader2 className="h-4 w-4 inline mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 inline mr-2" />
+                    )}
+                    {isGeneratingBulletin
+                      ? "Génération..."
+                      : "Générer Bulletin(s)"}
                   </button>
                 </div>
 
@@ -3186,7 +2973,12 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                       : "text-gray-500"
                                   }`}
                                 >
-                                  ({student.code}) • {student.salle}
+                                  ({student.code}) •{" "}
+                                  {currentYear?.classes
+                                    .find((c) => c.id === student.classe_id)
+                                    ?.salles.find(
+                                      (s) => s.id === student.salle_id
+                                    )?.name || "N/A"}
                                 </span>
                               </span>
                             </label>
@@ -3222,11 +3014,18 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
                   <button
                     onClick={() => generateReleve()}
-                    disabled={selectedStudentsForReleve.length === 0}
+                    disabled={
+                      selectedStudentsForReleve.length === 0 ||
+                      isGeneratingReleve
+                    }
                     className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <FileSpreadsheet className="h-4 w-4 inline mr-2" />
-                    Générer Relevé(s)
+                    {isGeneratingReleve ? (
+                      <Loader2 className="h-4 w-4 inline mr-2 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4 inline mr-2" />
+                    )}
+                    {isGeneratingReleve ? "Génération..." : "Générer Relevé(s)"}
                   </button>
                 </div>
 
@@ -3272,10 +3071,17 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
                   <button
                     onClick={() => generateBulletinClasse()}
-                    className="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
+                    disabled={isGeneratingClassBulletin}
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
                   >
-                    <TrendingUp className="h-4 w-4 inline mr-2" />
-                    Générer Bulletin
+                    {isGeneratingClassBulletin ? (
+                      <Loader2 className="h-4 w-4 inline mr-2 animate-spin" />
+                    ) : (
+                      <TrendingUp className="h-4 w-4 inline mr-2" />
+                    )}
+                    {isGeneratingClassBulletin
+                      ? "Génération..."
+                      : "Générer Bulletin"}
                   </button>
                 </div>
               </div>
@@ -3288,7 +3094,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
                   }`}
                 >
                   <h3 className="text-lg font-bold mb-4">
-                    Statistiques de Classe - {selectedClasse} ({selectedSalle})
+                    Statistiques de Classe - {classSelectioner?.label} (
+                    {SalleSelectioner?.label})
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -3376,7 +3183,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
                             {
                               notes.filter((note) =>
                                 activeStudents.some(
-                                  (s) => s.id === note.studentId
+                                  (s) => s.id === note.eleve_id
                                 )
                               ).length
                             }
@@ -3425,61 +3232,22 @@ const NotesPage = ({ isDarkMode }: Props) => {
                       />
                     </div>
                   </div>
-
-                  <div>
-                    <label
-                      className={`block text-sm font-medium mb-1 ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      Classe
-                    </label>
-                    <select
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                      value={selectedClasse}
-                      onChange={(e) => {
-                        setSelectedClasse(e.target.value);
-                        setSelectedSalle("");
-                      }}
-                    >
-                      <option value="">Toutes les classes</option>
-                      {classes.map((classe) => (
-                        <option key={classe} value={classe}>
-                          {classe}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label
-                      className={`block text-sm font-medium mb-1 ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      Salle
-                    </label>
-                    <select
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                      value={selectedSalle}
-                      onChange={(e) => setSelectedSalle(e.target.value)}
-                      disabled={!selectedClasse}
-                    >
-                      <option value="">Toutes les salles</option>
-                      {selectedClasse &&
-                        sallesByClass[selectedClasse]?.map((salle) => (
-                          <option key={salle} value={salle}>
-                            {salle}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
                 </div>
               </div>
 
               {/* Tableau des résultats */}
               {(() => {
-                const filteredStudents = activeStudents.filter((student) => {
+                // Élèves actifs de la classe/salle sélectionnée ayant AU MOINS une note
+                const studentsWithNotes = eleves.filter((s) => {
+                  if (s.statut !== "actif") return false;
+                  if (selectedClasse && s.classe_id !== selectedClasse)
+                    return false;
+                  if (selectedSalle && s.salle_id !== selectedSalle)
+                    return false;
+                  return notes.some((n) => n.eleve_id === s.id);
+                });
+
+                const filteredStudents = studentsWithNotes.filter((student) => {
                   if (!searchTerm) return true;
                   const s = searchTerm.toLowerCase();
                   return (
@@ -3521,9 +3289,25 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                   isDarkMode ? "text-gray-300" : "text-gray-500"
                                 }`}
                               >
-                                {m.nom}
+                                {m.name}/{m.coefficient} <br />
+                                T1, T2, T3
                               </th>
                             ))}
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "bg-yellow-600" : "bg-yellow-600"
+                              }`}
+                            >
+                              Total T1,T2,T3
+                            </th>
+                            <th
+                              className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
+                                isDarkMode ? "bg-yellow-800" : "bg-yellow-800"
+                              }`}
+                            >
+                              <b className=""> Total Coef.</b>
+                            </th>
+
                             <th
                               className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
                                 isDarkMode ? "text-gray-300" : "text-gray-500"
@@ -3547,7 +3331,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
                             </th>
                             <th
                               className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${
-                                isDarkMode ? "text-gray-300" : "text-gray-500"
+                                isDarkMode ? "bg-yellow-800" : "bg-yellow-800"
                               }`}
                             >
                               Moy. annuelle
@@ -3574,7 +3358,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
                           }`}
                         >
                           {paginatedStudents.map((student) => {
-                            const trimestres = [1, 2, 3];
+                            const trimestres: (1 | 2 | 3)[] = [1, 2, 3];
                             const moyenneT1 = calculateMoyenneGeneraleTrimestre(
                               student.id,
                               1
@@ -3592,6 +3376,24 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                 student.id,
                                 trimestres
                               );
+                            const TotalCoef = matieres.reduce(
+                              (sum, m) => sum + m.coefficient,
+                              0
+                            );
+                            // Calculer les sommes par trimestre pour l'élève
+                            const sommesTrimestres = trimestres.map(
+                              (t: 1 | 2 | 3) => {
+                                const somme = matieres.reduce((total, m) => {
+                                  const note = getNoteMatiereTrimestre(
+                                    student.id,
+                                    m.id,
+                                    t
+                                  );
+                                  return total + (note !== null ? note : 0);
+                                }, 0);
+                                return somme.toFixed(0);
+                              }
+                            );
 
                             const observationResultat =
                               moyenneAnnuelle >= 5.5
@@ -3621,40 +3423,53 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                           : "text-gray-500"
                                       }`}
                                     >
-                                      {student.code} • {student.classesDemandee}{" "}
-                                      - {student.salle}
+                                      {student.code} •{" "}
+                                      {currentYear?.classes.find(
+                                        (c) => c.id === student.classe_id
+                                      )?.name || "N/A"}{" "}
+                                      -{" "}
+                                      {currentYear?.classes
+                                        .find((c) => c.id === student.classe_id)
+                                        ?.salles.find(
+                                          (s) => s.id === student.salle_id
+                                        )?.name || "N/A"}
                                     </div>
                                   </div>
                                 </td>
 
                                 {matieres.map((m) => {
-                                  const notesTrimestres = trimestres
-                                    .map((t) =>
-                                      getNoteMatiereTrimestre(
+                                  const notesTrimestres = trimestres.map(
+                                    (t: 1 | 2 | 3) => {
+                                      const note = getNoteMatiereTrimestre(
                                         student.id,
-                                        m.nom,
+                                        m.id,
                                         t
-                                      )
-                                    )
-                                    .filter((n) => n !== null) as number[];
-                                  const moyenneMatiere =
-                                    notesTrimestres.length > 0
-                                      ? notesTrimestres.reduce(
-                                          (sum, n) => sum + n,
-                                          0
-                                        ) / notesTrimestres.length
-                                      : null;
+                                      );
+                                      return note !== null
+                                        ? note.toFixed(0)
+                                        : "0";
+                                    }
+                                  );
+
                                   return (
                                     <td
                                       key={m.id}
                                       className="px-6 py-4 whitespace-nowrap text-sm"
                                     >
-                                      {moyenneMatiere !== null
-                                        ? moyenneMatiere.toFixed(0)
-                                        : "-"}
+                                      {notesTrimestres.join(" | ")}
                                     </td>
                                   );
                                 })}
+                                <td className="px-6 py-4 whitespace-nowrap bg-yellow-600">
+                                  <b className={`text-sm font-medium `}>
+                                    {sommesTrimestres.join(" | ")}
+                                  </b>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap bg-yellow-800">
+                                  <b className={`text-sm font-medium `}>
+                                    {TotalCoef}
+                                  </b>
+                                </td>
 
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <span
@@ -3684,7 +3499,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                   </span>
                                 </td>
 
-                                <td className="px-6 py-4 whitespace-nowrap">
+                                <td className="px-6 py-4 whitespace-nowrap bg-yellow-800">
                                   <span
                                     className={`text-sm font-medium ${getMoyenneColor(
                                       moyenneAnnuelle
@@ -3699,17 +3514,130 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                 </td>
 
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <select
-                                    className={`px-3 py-2 border rounded-lg ${inputClasses}`}
-                                    defaultValue=""
-                                  >
-                                    <option value="" disabled>
-                                      Choisir une décision
-                                    </option>
-                                    <option value="ADMIS">Admis</option>
-                                    <option value="REDOUBLER">Redoubler</option>
-                                    <option value="EXPULSER">Expulser</option>
-                                  </select>
+                                  <div className="flex gap-1">
+                                    <select
+                                      className={`px-3 py-2 border rounded-lg ${inputClasses}`}
+                                      defaultValue=""
+                                      value={
+                                        getDecisionByEleve(student.id)
+                                          ?.decision || ""
+                                      }
+                                      onChange={async (e) => {
+                                        const decision = e.target.value as
+                                          | "ADMIS"
+                                          | "REDOUBLER"
+                                          | "EXPULSER";
+                                        if (decision) {
+                                          try {
+                                            setIsSavingNotes(true);
+
+                                            const existingDecision =
+                                              getDecisionByEleve(student.id);
+
+                                            if (existingDecision) {
+                                              // Modifier la décision existante
+                                              await modifierDecision(
+                                                existingDecision.id,
+                                                {
+                                                  decision,
+                                                  observation:
+                                                    existingDecision.observation,
+                                                }
+                                              );
+                                            } else {
+                                              // Créer une nouvelle décision
+                                              await ajouterDecision({
+                                                eleve_id: student.id,
+                                                annee_scolaire_id:
+                                                  currentYear?.id || "",
+                                                decision,
+                                                observation: "",
+                                              });
+                                            }
+
+                                            alert(
+                                              "Décision sauvegardée avec succès!"
+                                            );
+                                          } catch (error) {
+                                            console.error("Erreur:", error);
+                                            alert(
+                                              "Erreur lors de la sauvegarde"
+                                            );
+                                          } finally {
+                                            setIsSavingNotes(false);
+                                          }
+                                        }
+                                      }}
+                                    >
+                                      <option value="" disabled>
+                                        Choisir une décision
+                                      </option>
+                                      <option value="ADMIS">Admis</option>
+                                      <option value="REDOUBLER">
+                                        Redoubler
+                                      </option>
+                                      <option value="EXPULSER">Expulser</option>
+                                    </select>
+                                    <button
+                                      onClick={async () => {
+                                        const decision = getDecisionByEleve(
+                                          student.id
+                                        )?.decision;
+                                        if (decision) {
+                                          try {
+                                            setIsSavingNotes(true);
+
+                                            const existingDecision =
+                                              getDecisionByEleve(student.id);
+
+                                            if (existingDecision) {
+                                              // Modifier la décision existante
+                                              await modifierDecision(
+                                                existingDecision.id,
+                                                {
+                                                  decision,
+                                                  observation:
+                                                    existingDecision.observation,
+                                                }
+                                              );
+                                            } else {
+                                              // Créer une nouvelle décision
+                                              await ajouterDecision({
+                                                eleve_id: student.id,
+                                                annee_scolaire_id:
+                                                  currentYear?.id || "",
+                                                decision,
+                                                observation: "",
+                                              });
+                                            }
+
+                                            alert(
+                                              "Décision sauvegardée avec succès!"
+                                            );
+                                          } catch (error) {
+                                            console.error("Erreur:", error);
+                                            alert(
+                                              "Erreur lors de la sauvegarde"
+                                            );
+                                          } finally {
+                                            setIsSavingNotes(false);
+                                          }
+                                        } else {
+                                          alert(
+                                            "Veuillez sélectionner une décision"
+                                          );
+                                        }
+                                      }}
+                                      disabled={isSavingNotes}
+                                      className="w-10 h-10 bg-green-500 rounded-lg grid place-items-center cursor-pointer hover:bg-green-600 transition-colors disabled:opacity-50"
+                                    >
+                                      {isSavingNotes ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                      ) : (
+                                        <Check className="w-5" />
+                                      )}
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );

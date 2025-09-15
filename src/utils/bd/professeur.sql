@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS sequences (
     matiere UUID NOT NULL VARCHAR(20),,
     deleted BOOLEAN DEFAULT FALSE, -- Suppression logique
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),  
+    updated_at TIMESTAMP WITH TIME 54ZONE DEFAULT NOW(),  
 );
 
 -- =========================================

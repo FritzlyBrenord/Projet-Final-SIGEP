@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -18,121 +18,21 @@ import {
 } from "lucide-react";
 import ReenrollmentModal from "./Reinscription/Reinscription";
 import ExportModal from "./ExportModal";
+import { useEleves } from "../../Context/ContextEleves";
+import { useAnneeScolaire } from "../../Context/ContextAnneeScolaire";
+import { Eleve, EleveFormData } from "../../types/EleveType";
 
-// Types TypeScript
-interface Student {
-  id: string;
-  code: string;
-  nom: string;
-  prenom: string;
-  dateNaissance: string;
-  lieuNaissance: string;
-  sexe: "M" | "F";
-  adresseActuelle: string;
-  telephoneParents: string;
-  adresseParents: string;
-  nifParents: string;
-  classesDemandee: string;
-  salle: string;
-  moyenneGenerale: number;
-  etablissementPrecedent: string;
-  status: "actif" | "inactif" | "suspendu";
-  dateInscription: string;
-  observations?: string;
-  photoUrl?: string;
-}
-
-// Données d'exemple
-const sampleStudents: Student[] = [
-  {
-    id: "1",
-    code: "ETU001",
-    nom: "Duval",
-    prenom: "Marie",
-    dateNaissance: "2008-05-15",
-    lieuNaissance: "Port-au-Prince",
-    sexe: "F",
-    adresseActuelle: "123 Rue Delmas, Port-au-Prince",
-    telephoneParents: "+509 3456-7890",
-    adresseParents: "123 Rue Delmas, Port-au-Prince",
-    nifParents: "12345678901",
-    classesDemandee: "9ème AF",
-    salle: "9eA",
-    moyenneGenerale: 85.5,
-    etablissementPrecedent: "École Saint-Joseph",
-    status: "actif",
-    dateInscription: "2024-09-01",
-    observations: "Excellente élève, très motivée",
-  },
-  {
-    id: "2",
-    code: "ETU002",
-    nom: "Jean-Baptiste",
-    prenom: "Pierre",
-    dateNaissance: "2009-03-22",
-    lieuNaissance: "Cap-Haïtien",
-    sexe: "M",
-    adresseActuelle: "456 Avenue Jean-Jacques Dessalines",
-    telephoneParents: "+509 2345-6789",
-    adresseParents: "456 Avenue Jean-Jacques Dessalines",
-    nifParents: "98765432101",
-    classesDemandee: "8ème AF",
-    salle: "8eB",
-    moyenneGenerale: 78.2,
-    etablissementPrecedent: "Collège Notre-Dame",
-    status: "actif",
-    dateInscription: "2024-09-01",
-  },
-  {
-    id: "3",
-    code: "ETU003",
-    nom: "Charles",
-    prenom: "Anne",
-    dateNaissance: "2007-11-08",
-    lieuNaissance: "Gonaïves",
-    sexe: "F",
-    adresseActuelle: "789 Rue Capois, Pétion-Ville",
-    telephoneParents: "+509 4567-8901",
-    adresseParents: "789 Rue Capois, Pétion-Ville",
-    nifParents: "11223344556",
-    classesDemandee: "Terminale",
-    salle: "TermA",
-    moyenneGenerale: 92.1,
-    etablissementPrecedent: "Lycée Alexandre Pétion",
-    status: "suspendu",
-    dateInscription: "2023-09-01",
-    observations: "Suspendu temporairement pour absence répétée",
-  },
-  {
-    id: "4",
-    code: "ETU004",
-    nom: "Moreau",
-    prenom: "Jean",
-    dateNaissance: "2009-01-12",
-    lieuNaissance: "Les Cayes",
-    sexe: "M",
-    adresseActuelle: "321 Route de Frères, Carrefour",
-    telephoneParents: "+509 5678-9012",
-    adresseParents: "321 Route de Frères, Carrefour",
-    nifParents: "22334455667",
-    classesDemandee: "7ème AF",
-    salle: "7eA",
-    moyenneGenerale: 72.8,
-    etablissementPrecedent: "École Nationale des Cayes",
-    status: "actif",
-    dateInscription: "2024-09-01",
-    observations: "Bon comportement, besoin d'améliorer en mathématiques",
-  },
-];
+// plus de données locales; tout vient du contexte Eleves
 
 interface Props {
   isDarkMode: boolean;
 }
 
 const ElevesPage = ({ isDarkMode }: Props) => {
-  const [students, setStudents] = useState<Student[]>(sampleStudents);
+  const { eleves, ajouterEleve, modifierEleve, supprimerEleve, rechercherEleves, genererNouveauCode } = useEleves();
+  const { currentYear } = useAnneeScolaire();
   const [filteredStudents, setFilteredStudents] =
-    useState<Student[]>(sampleStudents);
+    useState<Eleve[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterClass, setFilterClass] = useState("");
   const [filterSalle, setFilterSalle] = useState("");
@@ -143,52 +43,63 @@ const ElevesPage = ({ isDarkMode }: Props) => {
   const [filterAddress, setFilterAddress] = useState("");
   const [filterPreviousSchool, setFilterPreviousSchool] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<Eleve | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editingStudent, setEditingStudent] = useState<Eleve | null>(null);
   const [showReinscriptionModal, setShowReinscriptionModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
 
   // Formulaire
-  const [formData, setFormData] = useState<Partial<Student>>({
+  const [formData, setFormData] = useState<EleveFormData>({
     code: "",
     nom: "",
     prenom: "",
-    dateNaissance: "",
-    lieuNaissance: "",
+    date_naissance: "",
+    lieu_naissance: "",
     sexe: "M",
-    adresseActuelle: "",
-    telephoneParents: "",
-    adresseParents: "",
-    nifParents: "",
-    classesDemandee: "",
-    salle: "",
-    moyenneGenerale: 0,
-    etablissementPrecedent: "",
-    status: "actif",
+    adresse_actuelle: "",
+    telephone_parents: "",
+    adresse_parents: "",
+    nif_parents: "",
+    moyenne_generale: 0,
+    etablissement_precedent: "",
+    statut: "actif",
+    date_inscription: "",
     observations: "",
+    photo_url: "",
+    annee_scolaire_id: "",
+    classe_id: "",
+    salle_id: "",
   });
 
-  // Classes et salles disponibles
-  const classes = [
-    "6ème AF",
-    "7ème AF",
-    "8ème AF",
-    "9ème AF",
-    "Seconde",
-    "Première",
-    "Terminale",
-  ];
+  // Classes et salles depuis l'année scolaire courante
+  const classes = useMemo(
+    () =>
+      currentYear?.classes.map((classe) => ({
+        value: classe.id,
+        label: classe.name,
+      })) || [],
+    [currentYear?.classes]
+  ) as { value: string; label: string }[];
 
-  const sallesByClass: { [key: string]: string[] } = {
-    "6ème AF": ["6eA", "6eB"],
-    "7ème AF": ["7eA", "7eB", "7eC"],
-    "8ème AF": ["8eA", "8eB"],
-    "9ème AF": ["9eA", "9eB", "9eC"],
-    Seconde: ["2ndA", "2ndB"],
-    Première: ["1ereA", "1ereB"],
-    Terminale: ["TermA", "TermB"],
+  const sallesByClass: Record<string, { value: string; label: string }[]> =
+    useMemo(() => {
+      const result: Record<string, { value: string; label: string }[]> = {};
+      currentYear?.classes.forEach((classe) => {
+        result[classe.id] = classe.salles.map((salle) => ({
+          value: salle.id,
+          label: `${salle.name}`,
+        }));
+      });
+      return result;
+    }, [currentYear?.classes]);
+
+  const getClasseName = (classeId?: string) =>
+    classes.find((c) => c.value === classeId)?.label || classeId || "";
+  const getSalleName = (classeId?: string, salleId?: string) => {
+    if (!classeId || !salleId) return salleId || "";
+    return sallesByClass[classeId]?.find((s) => s.value === salleId)?.label || salleId;
   };
 
   // Fonction pour calculer l'âge
@@ -208,7 +119,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
 
   // Effet pour filtrer les étudiants
   useEffect(() => {
-    let filtered = students;
+    let filtered = searchTerm ? rechercherEleves(searchTerm) : eleves;
 
     if (searchTerm) {
       filtered = filtered.filter(
@@ -220,13 +131,11 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     }
 
     if (filterClass) {
-      filtered = filtered.filter(
-        (student) => student.classesDemandee === filterClass
-      );
+      filtered = filtered.filter((student) => student.classe_id === filterClass);
     }
 
     if (filterSalle) {
-      filtered = filtered.filter((student) => student.salle === filterSalle);
+      filtered = filtered.filter((student) => student.salle_id === filterSalle);
     }
 
     if (filterGender) {
@@ -234,12 +143,12 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     }
 
     if (filterStatus) {
-      filtered = filtered.filter((student) => student.status === filterStatus);
+      filtered = filtered.filter((student) => student.statut === filterStatus as any);
     }
 
     if (filterAge) {
-      filtered = filtered.filter((student) => {
-        const age = calculateAge(student.dateNaissance);
+      filtered = filtered.filter((student: Eleve) => {
+        const age = calculateAge(student.date_naissance);
         const ageRange = filterAge.split("-");
         if (ageRange.length === 2) {
           return age >= parseInt(ageRange[0]) && age <= parseInt(ageRange[1]);
@@ -249,24 +158,24 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     }
 
     if (filterBirthPlace) {
-      filtered = filtered.filter((student) =>
-        student.lieuNaissance
+      filtered = filtered.filter((student: Eleve) =>
+        student.lieu_naissance
           .toLowerCase()
           .includes(filterBirthPlace.toLowerCase())
       );
     }
 
     if (filterAddress) {
-      filtered = filtered.filter((student) =>
-        student.adresseActuelle
+      filtered = filtered.filter((student: Eleve) =>
+        student.adresse_actuelle
           .toLowerCase()
           .includes(filterAddress.toLowerCase())
       );
     }
 
     if (filterPreviousSchool) {
-      filtered = filtered.filter((student) =>
-        student.etablissementPrecedent
+      filtered = filtered.filter((student: Eleve) =>
+        student.etablissement_precedent
           .toLowerCase()
           .includes(filterPreviousSchool.toLowerCase())
       );
@@ -274,7 +183,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
 
     setFilteredStudents(filtered);
   }, [
-    students,
+    eleves,
     searchTerm,
     filterClass,
     filterSalle,
@@ -292,32 +201,31 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     >
   ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({
+    const { name, value } = e.target as { name: keyof EleveFormData; value: string };
+    setFormData((prev) => {
+      const next = {
       ...prev,
-      [name]: name === "moyenneGenerale" ? parseFloat(value) || 0 : value,
-    }));
+      [name]: name === "moyenne_generale" ? (parseFloat(value) as any) || 0 : (value as any),
+      } as EleveFormData;
+      // Si la classe change, réinitialiser la salle
+      if (name === "classe_id") {
+        next.salle_id = "" as any;
+      }
+      return next;
+    });
   };
 
-  const handleSubmit = () => {
-    if (editingStudent) {
-      setStudents((prev) =>
-        prev.map((student) =>
-          student.id === editingStudent.id
-            ? ({ ...student, ...formData } as Student)
-            : student
-        )
-      );
-    } else {
-      const newStudent: Student = {
-        ...(formData as Student),
-        id: Date.now().toString(),
-        dateInscription: new Date().toISOString().split("T")[0],
-      };
-      setStudents((prev) => [...prev, newStudent]);
+  const handleSubmit = async () => {
+    if (!currentYear) {
+      alert("Veuillez d'abord sélectionner une année scolaire");
+      return;
     }
-
+    const payload: EleveFormData = { ...formData, annee_scolaire_id: currentYear.id };
+    if (!payload.code) payload.code = await genererNouveauCode();
+    if (editingStudent) await modifierEleve(editingStudent.id, payload);
+    else await ajouterEleve(payload);
     resetForm();
+    setShowForm(false);
   };
 
   const resetForm = () => {
@@ -325,57 +233,76 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       code: "",
       nom: "",
       prenom: "",
-      dateNaissance: "",
-      lieuNaissance: "",
+      date_naissance: "",
+      lieu_naissance: "",
       sexe: "M",
-      adresseActuelle: "",
-      telephoneParents: "",
-      adresseParents: "",
-      nifParents: "",
-      classesDemandee: "",
-      salle: "",
-      moyenneGenerale: 0,
-      etablissementPrecedent: "",
-      status: "actif",
+      adresse_actuelle: "",
+      telephone_parents: "",
+      adresse_parents: "",
+      nif_parents: "",
+      moyenne_generale: 0,
+      etablissement_precedent: "",
+      statut: "actif",
+      date_inscription: "",
       observations: "",
+      photo_url: "",
+      annee_scolaire_id: "",
+      classe_id: "",
+      salle_id: "",
     });
     setEditingStudent(null);
     setShowForm(false);
   };
 
   // Actions sur les étudiants
-  const changeStudentStatus = (
+  const changeStudentStatus = async (
     studentId: string,
     newStatus: "actif" | "inactif" | "suspendu"
   ) => {
-    setStudents((prev) =>
-      prev.map((student) =>
-        student.id === studentId ? { ...student, status: newStatus } : student
-      )
-    );
+    await modifierEleve(studentId, { statut: newStatus } as any);
   };
 
-  const deleteStudent = (studentId: string) => {
+  const deleteStudent = async (studentId: string) => {
     if (confirm("Êtes-vous sûr de vouloir supprimer cet élève ?")) {
-      setStudents((prev) => prev.filter((student) => student.id !== studentId));
+      await supprimerEleve(studentId);
     }
   };
 
-  const editStudent = (student: Student) => {
+  const editStudent = (student: Eleve) => {
     setEditingStudent(student);
-    setFormData(student);
+    setFormData({
+      code: student.code,
+      nom: student.nom,
+      prenom: student.prenom,
+      date_naissance: student.date_naissance,
+      lieu_naissance: student.lieu_naissance,
+      sexe: student.sexe,
+      adresse_actuelle: student.adresse_actuelle,
+      telephone_parents: student.telephone_parents,
+      adresse_parents: student.adresse_parents,
+      nif_parents: student.nif_parents,
+      moyenne_generale: student.moyenne_generale,
+      etablissement_precedent: student.etablissement_precedent,
+      statut: student.statut,
+      date_inscription: student.date_inscription,
+      observations: student.observations || "",
+      photo_url: student.photo_url || "",
+      annee_scolaire_id: student.annee_scolaire_id,
+      classe_id: student.classe_id,
+      salle_id: student.salle_id,
+    });
     setShowForm(true);
   };
 
   // Statistiques
   const stats = {
-    total: students.length,
-    actifs: students.filter((s) => s.status === "actif").length,
-    inactifs: students.filter((s) => s.status === "inactif").length,
-    suspendus: students.filter((s) => s.status === "suspendu").length,
+    total: eleves.length,
+    actifs: eleves.filter((s: Eleve) => s.statut === "actif").length,
+    inactifs: eleves.filter((s: Eleve) => s.statut === "inactif").length,
+    suspendus: eleves.filter((s: Eleve) => s.statut === "suspendu").length,
     moyenneGenerale:
-      students.reduce((acc, s) => acc + s.moyenneGenerale, 0) /
-        students.length || 0,
+      eleves.reduce((acc: number, s: Eleve) => acc + (s.moyenne_generale || 0), 0) /
+        (eleves.length || 1),
   };
 
   const getStatusColor = (status: string) => {
@@ -543,8 +470,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
             >
               <option value="">Toutes les classes</option>
               {classes.map((classe) => (
-                <option key={classe} value={classe}>
-                  {classe}
+                <option key={classe.value} value={classe.value}>
+                  {classe.label}
                 </option>
               ))}
             </select>
@@ -557,15 +484,15 @@ const ElevesPage = ({ isDarkMode }: Props) => {
               <option value="">Toutes les salles</option>
               {filterClass && sallesByClass[filterClass]
                 ? sallesByClass[filterClass].map((salle) => (
-                    <option key={salle} value={salle}>
-                      {salle}
+                    <option key={salle.value} value={salle.value}>
+                      {salle.label}
                     </option>
                   ))
                 : Object.values(sallesByClass)
                     .flat()
                     .map((salle) => (
-                      <option key={salle} value={salle}>
-                        {salle}
+                      <option key={salle.value} value={salle.value}>
+                        {salle.label}
                       </option>
                     ))}
             </select>
@@ -766,21 +693,21 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                           }`}
                         >
                           {student.sexe === "M" ? "Masculin" : "Féminin"} • Âge:{" "}
-                          {calculateAge(student.dateNaissance)} ans
+                          {calculateAge(student.date_naissance)} ans
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm">
                         <div className="font-medium">
-                          {student.classesDemandee}
+                          {getClasseName(student.classe_id)}
                         </div>
                         <div
                           className={`${
                             isDarkMode ? "text-gray-400" : "text-gray-500"
                           }`}
                         >
-                          Salle: {student.salle}
+                          Salle: {getSalleName(student.classe_id, student.salle_id)}
                         </div>
                       </div>
                     </td>
@@ -789,7 +716,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         <div className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
                           <span className="text-xs">
-                            {student.lieuNaissance}
+                            {student.lieu_naissance}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
@@ -799,9 +726,9 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                               isDarkMode ? "text-gray-400" : "text-gray-500"
                             }`}
                           >
-                            {student.adresseActuelle.length > 20
-                              ? student.adresseActuelle.substring(0, 20) + "..."
-                              : student.adresseActuelle}
+                            {student.adresse_actuelle.length > 20
+                              ? student.adresse_actuelle.substring(0, 20) + "..."
+                              : student.adresse_actuelle}
                           </span>
                         </div>
                       </div>
@@ -809,11 +736,11 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
-                          student.status
+                          student.statut
                         )}`}
                       >
-                        {student.status.charAt(0).toUpperCase() +
-                          student.status.slice(1)}
+                        {student.statut.charAt(0).toUpperCase() +
+                          student.statut.slice(1)}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -839,7 +766,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         >
                           <Edit className="h-4 w-4" />
                         </button>
-                        {student.status === "actif" ? (
+                        {student.statut === "actif" ? (
                           <button
                             onClick={() =>
                               changeStudentStatus(student.id, "suspendu")
@@ -956,8 +883,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.dateNaissance} (
-                    {calculateAge(selectedStudent.dateNaissance)} ans)
+                    {selectedStudent.date_naissance} (
+                    {calculateAge(selectedStudent.date_naissance)} ans)
                   </p>
                 </div>
                 <div>
@@ -975,7 +902,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.lieuNaissance}
+                    {selectedStudent.lieu_naissance}
                   </p>
                 </div>
                 <div>
@@ -1011,7 +938,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.classesDemandee} - {selectedStudent.salle}
+                    {getClasseName(selectedStudent.classe_id)} - {getSalleName(
+                      selectedStudent.classe_id,
+                      selectedStudent.salle_id
+                    )}
                   </p>
                 </div>
                 <div className="md:col-span-2">
@@ -1029,7 +959,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.adresseActuelle}
+                    {selectedStudent.adresse_actuelle}
                   </p>
                 </div>
                 <div>
@@ -1047,7 +977,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.telephoneParents}
+                    {selectedStudent.telephone_parents}
                   </p>
                 </div>
                 <div>
@@ -1065,7 +995,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.nifParents}
+                    {selectedStudent.nif_parents}
                   </p>
                 </div>
                 <div className="md:col-span-2">
@@ -1083,7 +1013,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.adresseParents}
+                    {selectedStudent.adresse_parents}
                   </p>
                 </div>
                 <div>
@@ -1101,7 +1031,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.moyenneGenerale}
+                    {selectedStudent.moyenne_generale}
                   </p>
                 </div>
                 <div>
@@ -1119,7 +1049,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.etablissementPrecedent}
+                    {selectedStudent.etablissement_precedent}
                   </p>
                 </div>
                 {selectedStudent.observations && (
@@ -1253,10 +1183,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="date"
-                    name="dateNaissance"
+                    name="date_naissance"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.dateNaissance}
+                    value={formData.date_naissance}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1270,10 +1200,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="text"
-                    name="lieuNaissance"
+                    name="lieu_naissance"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.lieuNaissance}
+                    value={formData.lieu_naissance}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1287,10 +1217,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="text"
-                    name="adresseActuelle"
+                    name="adresse_actuelle"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.adresseActuelle}
+                    value={formData.adresse_actuelle}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1304,10 +1234,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="tel"
-                    name="telephoneParents"
+                    name="telephone_parents"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.telephoneParents}
+                    value={formData.telephone_parents}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1321,10 +1251,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="text"
-                    name="nifParents"
+                    name="nif_parents"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.nifParents}
+                    value={formData.nif_parents}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1338,10 +1268,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="text"
-                    name="adresseParents"
+                    name="adresse_parents"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.adresseParents}
+                    value={formData.adresse_parents}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1351,19 +1281,19 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                       isDarkMode ? "text-gray-300" : "text-gray-700"
                     }`}
                   >
-                    Classe demandée *
+                    Classe *
                   </label>
                   <select
-                    name="classesDemandee"
+                    name="classe_id"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.classesDemandee}
+                    value={formData.classe_id}
                     onChange={handleInputChange}
                   >
                     <option value="">Sélectionner une classe</option>
                     {classes.map((classe) => (
-                      <option key={classe} value={classe}>
-                        {classe}
+                      <option key={classe.value} value={classe.value}>
+                        {classe.label}
                       </option>
                     ))}
                   </select>
@@ -1377,25 +1307,26 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     Salle *
                   </label>
                   <select
-                    name="salle"
+                    name="salle_id"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.salle}
+                    value={formData.salle_id}
                     onChange={handleInputChange}
+                    disabled={!formData.classe_id}
                   >
                     <option value="">Sélectionner une salle</option>
-                    {formData.classesDemandee &&
-                    sallesByClass[formData.classesDemandee]
-                      ? sallesByClass[formData.classesDemandee].map((salle) => (
-                          <option key={salle} value={salle}>
-                            {salle}
+                    {formData.classe_id &&
+                    sallesByClass[formData.classe_id]
+                      ? sallesByClass[formData.classe_id].map((salle) => (
+                          <option key={salle.value} value={salle.value}>
+                            {salle.label}
                           </option>
                         ))
                       : Object.values(sallesByClass)
                           .flat()
                           .map((salle) => (
-                            <option key={salle} value={salle}>
-                              {salle}
+                            <option key={salle.value} value={salle.value}>
+                              {salle.label}
                             </option>
                           ))}
                   </select>
@@ -1410,13 +1341,13 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="number"
-                    name="moyenneGenerale"
+                    name="moyenne_generale"
                     min="0"
                     max="100"
                     step="0.1"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.moyenneGenerale}
+                    value={formData.moyenne_generale}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1430,10 +1361,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </label>
                   <input
                     type="text"
-                    name="etablissementPrecedent"
+                    name="etablissement_precedent"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.etablissementPrecedent}
+                    value={formData.etablissement_precedent}
                     onChange={handleInputChange}
                   />
                 </div>
@@ -1446,10 +1377,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     Statut *
                   </label>
                   <select
-                    name="status"
+                    name="statut"
                     required
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.status}
+                    value={formData.statut}
                     onChange={handleInputChange}
                   >
                     <option value="actif">Actif</option>
@@ -1509,7 +1440,27 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
-        students={students}
+        students={eleves.map((e) => ({
+          id: e.id,
+          code: e.code,
+          nom: e.nom,
+          prenom: e.prenom,
+          dateNaissance: e.date_naissance,
+          lieuNaissance: e.lieu_naissance,
+          sexe: e.sexe,
+          adresseActuelle: e.adresse_actuelle,
+          telephoneParents: e.telephone_parents,
+          adresseParents: e.adresse_parents,
+          nifParents: e.nif_parents,
+          classesDemandee: e.classe_id,
+          salle: e.salle_id,
+          moyenneGenerale: e.moyenne_generale,
+          etablissementPrecedent: e.etablissement_precedent,
+          status: e.statut,
+          dateInscription: e.date_inscription,
+          observations: e.observations,
+          photoUrl: e.photo_url,
+        }))}
         isDarkMode={isDarkMode}
       />
     </div>

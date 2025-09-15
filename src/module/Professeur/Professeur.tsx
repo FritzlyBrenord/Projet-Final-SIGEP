@@ -12,6 +12,7 @@ import {
   Users,
   CheckCircle,
   AlertTriangle,
+  Filter,
   ChevronDown,
   Check,
   Loader2,
@@ -261,7 +262,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
   currentYear?.classes.forEach((classe) => {
     sallesData[classe.id] = classe.salles.map((salle) => ({
       value: salle.id,
-      label: `${salle.name} (${classe.name})`,
+      label: `${salle.name}`,
     }));
   });
 
@@ -290,8 +291,10 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterClasse, setFilterClasse] = useState<string>("");
   const [filterSalle, setFilterSalle] = useState<string>("");
+  const [filterStatut, setFilterStatut] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showFilters, setShowFilters] = useState<boolean>(true);
 
   // Impression - état UI
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -696,9 +699,8 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
   };
 
   // Filtrer les professeurs
-  const filteredProfesseurs = (searchTerm
-    ? rechercherProfesseurs(searchTerm)
-    : professeurs
+  const filteredProfesseurs = (
+    searchTerm ? rechercherProfesseurs(searchTerm) : professeurs
   ).filter((prof) => {
     // Filtre par classe/salle si définis
     const hasClasse = filterClasse
@@ -707,7 +709,8 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
     const hasSalle = filterSalle
       ? prof.sequences.some((s) => s.salle === filterSalle)
       : true;
-    return hasClasse && hasSalle;
+    const hasStatut = filterStatut ? prof.statut === filterStatut : true;
+    return hasClasse && hasSalle && hasStatut;
   });
 
   // Obtenir les labels pour l'affichage
@@ -760,7 +763,8 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
     if (printColumns.nom) columns.push({ key: "nom", label: "Nom" });
     if (printColumns.prenom) columns.push({ key: "prenom", label: "Prénom" });
     if (printColumns.email) columns.push({ key: "email", label: "Email" });
-    if (printColumns.telephone) columns.push({ key: "telephone", label: "Téléphone" });
+    if (printColumns.telephone)
+      columns.push({ key: "telephone", label: "Téléphone" });
     if (printColumns.nifcin) columns.push({ key: "nif_cin", label: "NIF/CIN" });
     if (printColumns.classe) columns.push({ key: "_classe", label: "Classe" });
     if (printColumns.salle) columns.push({ key: "_salle", label: "Salle" });
@@ -772,7 +776,9 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
         ? classes.find((c) => c.value === seq.classe)?.label || seq.classe
         : "";
       const salleLabel = seq
-        ? Object.values(sallesData).flat().find((s) => s.value === seq.salle)?.label || seq.salle
+        ? Object.values(sallesData)
+            .flat()
+            .find((s) => s.value === seq.salle)?.label || seq.salle
         : "";
       const row: Record<string, string> = {
         code: p.code,
@@ -787,18 +793,29 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
       return row;
     });
 
-    const thead = `<tr>${columns.map((c) => `<th>${c.label}</th>`).join("")}</tr>`;
+    const thead = `<tr>${columns
+      .map((c) => `<th>${c.label}</th>`)
+      .join("")}</tr>`;
     const tbody = rows
       .map(
-        (r) => `<tr>${columns.map((c) => `<td>${(r as any)[c.key] || ""}</td>`).join("")}</tr>`
+        (r) =>
+          `<tr>${columns
+            .map((c) => `<td>${(r as any)[c.key] || ""}</td>`)
+            .join("")}</tr>`
       )
       .join("");
 
     const headerHtml = `
       <div class="header">
         <div class="title">${printHeader.companyName || ""}</div>
-        <div class="meta">${printHeader.address || ""}${printHeader.phone ? " | " + printHeader.phone : ""}</div>
-        ${currentYear ? `<div class="meta">Année scolaire: ${currentYear.year}</div>` : ""}
+        <div class="meta">${printHeader.address || ""}${
+      printHeader.phone ? " | " + printHeader.phone : ""
+    }</div>
+        ${
+          currentYear
+            ? `<div class="meta">Année scolaire: ${currentYear.year}</div>`
+            : ""
+        }
       </div>
     `;
 
@@ -869,37 +886,15 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
               />
             </div>
 
-            {/* Filtres Classe et Salle */}
-            <div className="flex gap-3 w-full lg:w-auto">
-              <div className="w-48">
-                <SelectWithSearch
-                  options={[{ value: "", label: "Toutes les classes" }, ...classes]}
-                  selectedValues={filterClasse ? [filterClasse] : [""]}
-                  onChange={(values) => {
-                    setFilterClasse(values[0] || "");
-                    setFilterSalle("");
-                  }}
-                  placeholder="Filtrer par classe"
-                  multiple={false}
-                  isDarkMode={isDarkMode}
-                />
-              </div>
-              <div className="w-56">
-                <SelectWithSearch
-                  options={
-                    filterClasse
-                      ? [{ value: "", label: "Toutes les salles" }, ...(sallesData[filterClasse] || [])]
-                      : [{ value: "", label: "Toutes les salles" }]
-                  }
-                  selectedValues={filterSalle ? [filterSalle] : [""]}
-                  onChange={(values) => setFilterSalle(values[0] || "")}
-                  placeholder="Filtrer par salle"
-                  multiple={false}
-                  isDarkMode={isDarkMode}
-                  disabled={!filterClasse}
-                />
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              className={`px-3 py-2 rounded-lg flex items-center gap-2 ${buttonSecondaryClasses}`}
+              aria-label="Afficher/masquer les filtres"
+            >
+              <Filter className="h-4 w-4" />
+              Filtres
+            </button>
 
             <button
               onClick={() => openModal("add")}
@@ -923,7 +918,59 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
             </button>
           </div>
         </div>
-
+        {/* Filtres Classe, Salle et Statut */}
+        {showFilters && (
+          <div className="mt-4 mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full">
+            <div>
+              <SelectWithSearch
+                options={[
+                  { value: "", label: "Toutes les classes" },
+                  ...classes,
+                ]}
+                selectedValues={filterClasse ? [filterClasse] : [""]}
+                onChange={(values) => {
+                  setFilterClasse(values[0] || "");
+                  setFilterSalle("");
+                }}
+                placeholder="Filtrer par classe"
+                multiple={false}
+                isDarkMode={isDarkMode}
+              />
+            </div>
+            <div>
+              <SelectWithSearch
+                options={
+                  filterClasse
+                    ? [
+                        { value: "", label: "Toutes les salles" },
+                        ...(sallesData[filterClasse] || []),
+                      ]
+                    : [{ value: "", label: "Toutes les salles" }]
+                }
+                selectedValues={filterSalle ? [filterSalle] : [""]}
+                onChange={(values) => setFilterSalle(values[0] || "")}
+                placeholder="Filtrer par salle"
+                multiple={false}
+                isDarkMode={isDarkMode}
+                disabled={!filterClasse}
+              />
+            </div>
+            <div>
+              <SelectWithSearch
+                options={[
+                  { value: "", label: "Tous les statuts" },
+                  { value: "actif", label: "Actif" },
+                  { value: "inactif", label: "Inactif" },
+                ]}
+                selectedValues={filterStatut ? [filterStatut] : [""]}
+                onChange={(values) => setFilterStatut(values[0] || "")}
+                placeholder="Filtrer par statut"
+                multiple={false}
+                isDarkMode={isDarkMode}
+              />
+            </div>
+          </div>
+        )}
         {/* Statistiques */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className={`${cardClasses} p-6 rounded-lg shadow-sm border`}>
@@ -2054,13 +2101,21 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
         {/* Modal Impression */}
         {showPrintModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className={`${cardClasses} rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto`}>
+            <div
+              className={`${cardClasses} rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto`}
+            >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-xl font-semibold">Préparer l'impression</h3>
+                  <h3 className="text-xl font-semibold">
+                    Préparer l'impression
+                  </h3>
                   <button
                     onClick={() => setShowPrintModal(false)}
-                    className={`${isDarkMode ? "text-gray-400 hover:text-gray-200" : "text-gray-400 hover:text-gray-600"}`}
+                    className={`${
+                      isDarkMode
+                        ? "text-gray-400 hover:text-gray-200"
+                        : "text-gray-400 hover:text-gray-600"
+                    }`}
                   >
                     <X className="h-6 w-6" />
                   </button>
@@ -2075,21 +2130,36 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                         placeholder="Nom de l'établissement"
                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                         value={printHeader.companyName}
-                        onChange={(e) => setPrintHeader({ ...printHeader, companyName: e.target.value })}
+                        onChange={(e) =>
+                          setPrintHeader({
+                            ...printHeader,
+                            companyName: e.target.value,
+                          })
+                        }
                       />
                       <input
                         type="text"
                         placeholder="Adresse"
                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                         value={printHeader.address}
-                        onChange={(e) => setPrintHeader({ ...printHeader, address: e.target.value })}
+                        onChange={(e) =>
+                          setPrintHeader({
+                            ...printHeader,
+                            address: e.target.value,
+                          })
+                        }
                       />
                       <input
                         type="text"
                         placeholder="Téléphone"
                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                         value={printHeader.phone}
-                        onChange={(e) => setPrintHeader({ ...printHeader, phone: e.target.value })}
+                        onChange={(e) =>
+                          setPrintHeader({
+                            ...printHeader,
+                            phone: e.target.value,
+                          })
+                        }
                       />
                     </div>
                   </div>
@@ -2106,11 +2176,19 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                         { key: "classe", label: "Classe" },
                         { key: "salle", label: "Salle" },
                       ].map((col) => (
-                        <label key={col.key} className="flex items-center gap-2 cursor-pointer">
+                        <label
+                          key={col.key}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
                           <input
                             type="checkbox"
                             checked={(printColumns as any)[col.key]}
-                            onChange={(e) => setPrintColumns({ ...printColumns, [col.key]: e.target.checked })}
+                            onChange={(e) =>
+                              setPrintColumns({
+                                ...printColumns,
+                                [col.key]: e.target.checked,
+                              })
+                            }
                           />
                           {col.label}
                         </label>

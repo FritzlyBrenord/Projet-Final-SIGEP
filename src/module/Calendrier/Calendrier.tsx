@@ -1,6 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useCalendrierScolaire } from "@/Context/CalendrierScolaire";
+import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
+import { useNotes } from "@/Context/ContextNotes";
 import {
   Calendar,
   Clock,
@@ -13,7 +16,17 @@ import {
   Trash2,
   Save,
   X,
+  Download,
+  AlertTriangle,
 } from "lucide-react";
+
+// Informations de l'établissement
+const ETABLISSEMENT_INFO = {
+  nom: "Institution Mixte Faustin Premiere (IMFP)",
+  adresse: "Gonaives, Haiti",
+  telephone: "+509 3745-8901",
+  email: "contact@imfp.edu.ht",
+};
 
 interface Event {
   id: string;
@@ -37,7 +50,7 @@ interface Schedule {
     schedule: {
       startTime: string;
       endTime: string;
-      subject: string;
+      subjects: string[]; // Changé pour permettre plusieurs matières
     }[];
   }[];
 }
@@ -45,17 +58,35 @@ interface Schedule {
 interface HolidayEvent {
   date: string;
   name: string;
+  localName: string;
   type: "holiday";
 }
 
 interface Props {
   darkMode: boolean;
 }
+
 const CalendrierScolaire = ({ darkMode }: Props) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [events, setEvents] = useState<Event[]>([]);
-  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const {
+    evenements,
+    horaires,
+    creneauxHoraires,
+    joursFeries,
+    isLoading,
+    ajouterEvenement,
+    modifierEvenement,
+    supprimerEvenement,
+    ajouterHoraire,
+    ajouterHoraireReturn,
+    supprimerHoraire,
+    ajouterCreneauHoraire,
+    chargerJoursFeries,
+    verifierConflitHoraire,
+    rechargerDonnees,
+  } = useCalendrierScolaire();
+  const { currentYear } = useAnneeScolaire();
   const [showEventModal, setShowEventModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -67,27 +98,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
   const [scheduleDetails, setScheduleDetails] = useState<any[]>([]);
   const [filterClass, setFilterClass] = useState("");
   const [filterRoom, setFilterRoom] = useState("");
-
-  // Jours fériés officiels d'Haïti 2025
-  const holidays: HolidayEvent[] = [
-    { date: "2025-01-01", name: "Indépendance", type: "holiday" },
-    { date: "2025-01-02", name: "Jour des Aïeux", type: "holiday" },
-    { date: "2025-03-02", name: "Carnaval (Dimanche)", type: "holiday" },
-    { date: "2025-03-03", name: "Carnaval (Lundi)", type: "holiday" },
-    { date: "2025-03-04", name: "Carnaval (Mardi)", type: "holiday" },
-    { date: "2025-04-18", name: "Vendredi Saint", type: "holiday" },
-    { date: "2025-04-20", name: "Pâques", type: "holiday" },
-    { date: "2025-05-01", name: "Fête du Travail", type: "holiday" },
-    { date: "2025-05-18", name: "Jour du Drapeau", type: "holiday" },
-    { date: "2025-05-29", name: "Ascension", type: "holiday" },
-    { date: "2025-06-19", name: "Fête Dieu", type: "holiday" },
-    { date: "2025-08-15", name: "Assomption", type: "holiday" },
-    { date: "2025-10-17", name: "Mort de Dessalines", type: "holiday" },
-    { date: "2025-11-01", name: "Toussaint", type: "holiday" },
-    { date: "2025-11-02", name: "Jour des Morts", type: "holiday" },
-    { date: "2025-11-18", name: "Bataille de Vertières", type: "holiday" },
-    { date: "2025-12-25", name: "Noël", type: "holiday" },
-  ];
+  const [conflictWarning, setConflictWarning] = useState("");
 
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -106,6 +117,35 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     endDate: "",
   });
 
+  // Charger les jours fériés via le contexte
+  useEffect(() => {
+    const annee = new Date().getFullYear();
+    chargerJoursFeries(annee);
+  }, [chargerJoursFeries]);
+
+  // Vérifier les conflits via le contexte
+  const checkScheduleConflict = (
+    className: string,
+    room: string,
+    date: Date,
+    startTime: string,
+    endTime: string,
+    excludeScheduleId?: string
+  ) => {
+    const d = date.toISOString().split("T")[0];
+    const conflits = verifierConflitHoraire(
+      className,
+      room,
+      d,
+      d,
+      startTime,
+      endTime,
+      excludeScheduleId
+    );
+    if (conflits.length > 0) return conflits[0].message;
+    return null;
+  };
+
   // Générer les heures de 6h à 17h
   const generateTimeOptions = () => {
     const times = [];
@@ -118,89 +158,57 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
 
   const timeOptions = generateTimeOptions();
 
-  const classes = [
-    "9ème A",
-    "9ème B",
-    "9ème C",
-    "8ème A",
-    "8ème B",
-    "7ème A",
-    "7ème B",
-    "6ème A",
-    "6ème B",
-    "5ème A",
-    "5ème B",
-    "4ème A",
-    "4ème B",
-    "3ème A",
-    "3ème B",
-  ];
+  // Données dynamiques depuis le contexte Année/Notes
+  const { getMatieresBySalle } = useNotes();
+  const [selectedClasseId, setSelectedClasseId] = useState<string>("");
+  const [selectedSalleId, setSelectedSalleId] = useState<string>("");
 
-  const subjects = [
-    "Mathématiques",
-    "Français",
-    "Sciences",
-    "Histoire",
-    "Géographie",
-    "Anglais",
-    "Physique",
-    "Chimie",
-    "Biologie",
-    "Informatique",
-    "Arts",
-    "Sport",
-  ];
+  // Classes organisées depuis le contexte
+  const classesOptions = useMemo(
+    () =>
+      currentYear?.classes.map((classe) => ({
+        value: classe.id,
+        label: classe.name,
+      })) || [],
+    [currentYear?.classes]
+  ) as { value: string; label: string }[];
 
-  // Fonction pour obtenir les salles selon la classe sélectionnée
-  const getAvailableRooms = (selectedClass: string) => {
-    if (!selectedClass) return classes;
+  // Salles organisées par classe depuis le contexte
+  const sallesByClass: Record<string, { value: string; label: string }[]> =
+    useMemo(() => {
+      const result: Record<string, { value: string; label: string }[]> = {};
+      currentYear?.classes.forEach((classe) => {
+        result[classe.id] = classe.salles.map((salle) => ({
+          value: salle.id,
+          label: `${salle.name}`,
+        }));
+      });
+      return result;
+    }, [currentYear?.classes]);
 
-    const level = selectedClass.split("ème")[0] + "ème";
-    return classes.filter((room) => room.startsWith(level));
-  };
+  // Matières filtrées par salle sélectionnée
+  const subjects = useMemo(() => {
+    if (!selectedSalleId || !currentYear) return [] as string[];
+    const mats = getMatieresBySalle(selectedSalleId);
+    return mats.map((m) => m.name);
+  }, [selectedSalleId, currentYear, getMatieresBySalle]);
 
-  useEffect(() => {
-    try {
-      const savedEvents = JSON.parse(
-        localStorage.getItem("calendar-events") || "[]"
-      );
-      const savedSchedules = JSON.parse(
-        localStorage.getItem("calendar-schedules") || "[]"
-      );
-      const savedTheme = JSON.parse(
-        localStorage.getItem("dark-mode") || "false"
-      );
+  // Libellés lisibles pour la classe et la salle sélectionnées
+  const selectedClasseLabel = useMemo(() => {
+    const id = selectedClasseId || newSchedule.className;
+    const found = classesOptions.find((c) => c.value === id);
+    return found ? found.label : id;
+  }, [classesOptions, selectedClasseId, newSchedule.className]);
 
-      setEvents(savedEvents);
-      setSchedules(savedSchedules);
-    } catch (error) {
-      console.error("Erreur lors du chargement des données:", error);
-    }
-  }, []);
+  const selectedSalleLabel = useMemo(() => {
+    const classeId = selectedClasseId || newSchedule.className;
+    const salleId = selectedSalleId || newSchedule.room;
+    const list = (classeId && sallesByClass[classeId]) || [];
+    const found = list.find((s) => s.value === salleId);
+    return found ? found.label : salleId;
+  }, [sallesByClass, selectedClasseId, selectedSalleId, newSchedule.className, newSchedule.room]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("calendar-events", JSON.stringify(events));
-    } catch (error) {
-      console.error("Erreur lors de la sauvegarde des événements:", error);
-    }
-  }, [events]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("calendar-schedules", JSON.stringify(schedules));
-    } catch (error) {
-      console.error("Erreur lors de la sauvegarde des horaires:", error);
-    }
-  }, [schedules]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("dark-mode", JSON.stringify(darkMode));
-    } catch (error) {
-      console.error("Erreur lors de la sauvegarde du thème:", error);
-    }
-  }, [darkMode]);
+  // Données gérées côté serveur via le contexte. Pas de localStorage ici.
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -238,38 +246,116 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     return date.toISOString().split("T")[0];
   };
 
+  // Adapter les données du contexte pour l'UI existante
+  const eventsUI = useMemo(() => {
+    return evenements.map(
+      (e) =>
+        ({
+          id: e.id,
+          title: e.titre,
+          date: e.date_debut,
+          endDate: e.date_fin,
+          time:
+            e.heure_debut && e.heure_fin
+              ? `${e.heure_debut}-${e.heure_fin}`
+              : undefined,
+          subject: e.matiere,
+          type: e.type,
+        } as Event)
+    );
+  }, [evenements]);
+
+  const holidaysUI = useMemo(() => {
+    return joursFeries.map(
+      (h) =>
+        ({
+          date: h.date,
+          name: h.nom_local,
+          localName: h.nom_local,
+          type: "holiday" as const,
+        } as HolidayEvent)
+    );
+  }, [joursFeries]);
+
+  const schedulesUI = useMemo(() => {
+    return horaires.map((h) => {
+      const creneaux = creneauxHoraires.filter((c) => c.horaire_id === h.id);
+      const start = new Date(h.date_debut);
+      const end = new Date(h.date_fin);
+      const days: {
+        date: Date;
+        schedule: { startTime: string; endTime: string; subjects: string[] }[];
+      }[] = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split("T")[0];
+        const dow = d.getDay();
+        const slots = creneaux
+          .filter(
+            (c) => c.date_specifique === dateStr || c.jour_semaine === dow
+          )
+          .map((c) => ({
+            startTime: c.heure_debut,
+            endTime: c.heure_fin,
+            subjects: c.matieres || [],
+          }));
+        days.push({ date: new Date(d), schedule: slots });
+      }
+      return {
+        id: h.id,
+        name: h.nom,
+        className: h.classe,
+        room: h.salle,
+        startDate: h.date_debut,
+        endDate: h.date_fin,
+        details: days,
+      } as Schedule;
+    });
+  }, [horaires, creneauxHoraires]);
+
   const getEventsForDate = (date: Date) => {
     const dateString = formatDate(date);
-    const userEvents = events.filter((event) => {
+    const userEvents = eventsUI.filter((event: Event) => {
       if (event.endDate) {
         return dateString >= event.date && dateString <= event.endDate;
       }
       return event.date === dateString;
     });
 
-    const holidayEvents = holidays.filter(
+    const holidayEvents = holidaysUI.filter(
       (holiday) => holiday.date === dateString
     );
 
     return [...userEvents, ...holidayEvents];
   };
 
-  const addEvent = () => {
-    if (newEvent.title && newEvent.date) {
-      const event: Event = {
-        id: Date.now().toString(),
-        ...newEvent,
-      };
-
-      if (editingEvent) {
-        setEvents(events.map((e) => (e.id === editingEvent.id ? event : e)));
-        setEditingEvent(null);
-      } else {
-        setEvents([...events, event]);
-      }
-
-      resetEventForm();
+  const addEvent = async () => {
+    if (!newEvent.title || !newEvent.date || !currentYear?.id) return;
+    const [start, end] = newEvent.time?.split("-") || [];
+    if (editingEvent) {
+      await modifierEvenement(editingEvent.id, {
+        titre: newEvent.title,
+        date_debut: newEvent.date,
+        date_fin: newEvent.endDate || undefined,
+        heure_debut: start || undefined,
+        heure_fin: end || undefined,
+        matiere: newEvent.subject || undefined,
+        type: newEvent.type,
+      });
+      setEditingEvent(null);
+    } else {
+      await ajouterEvenement({
+        titre: newEvent.title,
+        date_debut: newEvent.date,
+        date_fin: newEvent.endDate || undefined,
+        heure_debut: start || undefined,
+        heure_fin: end || undefined,
+        matiere: newEvent.subject || undefined,
+        type: newEvent.type,
+        annee_scolaire_id: currentYear.id,
+      });
     }
+    await rechargerDonnees();
+    resetEventForm();
   };
 
   const startScheduleCreation = () => {
@@ -282,6 +368,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     });
     setCurrentScheduleStep(0);
     setScheduleDetails([]);
+    setConflictWarning("");
     setShowScheduleModal(true);
   };
 
@@ -315,7 +402,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
       updated[dayIndex].schedule.push({
         startTime: "08:00",
         endTime: "10:00",
-        subject: "",
+        subjects: [], // Maintenant un tableau
       });
       return updated;
     });
@@ -325,7 +412,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     dayIndex: number,
     slotIndex: number,
     field: string,
-    value: string
+    value: string | string[]
   ) => {
     setScheduleDetails((prev) => {
       const updated = [...prev];
@@ -333,6 +420,53 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
         ...updated[dayIndex].schedule[slotIndex],
         [field]: value,
       };
+
+      // Vérifier les conflits si on modifie les heures
+      if (field === "startTime" || field === "endTime") {
+        const slot = updated[dayIndex].schedule[slotIndex];
+        const conflict = checkScheduleConflict(
+          newSchedule.className,
+          newSchedule.room,
+          updated[dayIndex].date,
+          slot.startTime,
+          slot.endTime,
+          editingSchedule?.id
+        );
+        setConflictWarning(conflict || "");
+      }
+
+      return updated;
+    });
+  };
+
+  const addSubjectToSlot = (
+    dayIndex: number,
+    slotIndex: number,
+    subject: string
+  ) => {
+    if (!subject) return;
+
+    setScheduleDetails((prev) => {
+      const updated = [...prev];
+      const currentSubjects = updated[dayIndex].schedule[slotIndex].subjects;
+      if (!currentSubjects.includes(subject)) {
+        updated[dayIndex].schedule[slotIndex].subjects = [
+          ...currentSubjects,
+          subject,
+        ];
+      }
+      return updated;
+    });
+  };
+
+  const removeSubjectFromSlot = (
+    dayIndex: number,
+    slotIndex: number,
+    subjectIndex: number
+  ) => {
+    setScheduleDetails((prev) => {
+      const updated = [...prev];
+      updated[dayIndex].schedule[slotIndex].subjects.splice(subjectIndex, 1);
       return updated;
     });
   };
@@ -343,28 +477,43 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
       updated[dayIndex].schedule.splice(slotIndex, 1);
       return updated;
     });
+    setConflictWarning("");
   };
 
-  const saveSchedule = () => {
-    const schedule: Schedule = {
-      id: Date.now().toString(),
-      name: newSchedule.name,
-      className: newSchedule.className,
-      room: newSchedule.room,
-      startDate: newSchedule.startDate,
-      endDate: newSchedule.endDate,
-      details: scheduleDetails,
-    };
+  const saveSchedule = async () => {
+    if (conflictWarning) {
+      alert("Impossible de sauvegarder: " + conflictWarning);
+      return;
+    }
+    if (!currentYear?.id) return;
 
-    if (editingSchedule) {
-      setSchedules(
-        schedules.map((s) => (s.id === editingSchedule.id ? schedule : s))
-      );
-      setEditingSchedule(null);
-    } else {
-      setSchedules([...schedules, schedule]);
+    // Créer l'horaire et récupérer son id immédiatement
+    const created = await ajouterHoraireReturn({
+      nom: newSchedule.name,
+      classe: newSchedule.className,
+      salle: newSchedule.room,
+      date_debut: newSchedule.startDate,
+      date_fin: newSchedule.endDate,
+      annee_scolaire_id: currentYear.id,
+    });
+
+    for (const day of scheduleDetails) {
+      const dateStr = day.date.toISOString().split("T")[0];
+      for (const slot of day.schedule) {
+        if (slot.startTime && slot.endTime && (slot.subjects || []).length) {
+          await ajouterCreneauHoraire({
+            horaire_id: created.id,
+            date_specifique: dateStr,
+            heure_debut: slot.startTime,
+            heure_fin: slot.endTime,
+            matieres: slot.subjects,
+            annee_scolaire_id: currentYear.id,
+          });
+        }
+      }
     }
 
+    await rechargerDonnees();
     resetScheduleForm();
   };
 
@@ -381,12 +530,14 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     setShowEventModal(true);
   };
 
-  const deleteEvent = (id: string) => {
-    setEvents(events.filter((e) => e.id !== id));
+  const deleteEvent = async (id: string) => {
+    await supprimerEvenement(id);
+    await rechargerDonnees();
   };
 
-  const deleteSchedule = (id: string) => {
-    setSchedules(schedules.filter((s) => s.id !== id));
+  const deleteSchedule = async (id: string) => {
+    await supprimerHoraire(id);
+    await rechargerDonnees();
   };
 
   const resetEventForm = () => {
@@ -414,10 +565,275 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     setEditingSchedule(null);
     setCurrentScheduleStep(0);
     setScheduleDetails([]);
+    setConflictWarning("");
   };
 
   const printCalendar = () => {
     window.print();
+  };
+
+  const printAgenda = () => {
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      const allEvents: (
+        | Event
+        | (HolidayEvent & { id: string; title: string })
+      )[] = [
+        ...eventsUI,
+        ...holidaysUI.map((h) => ({
+          ...h,
+          id: h.date,
+          title: h.localName,
+        })),
+      ].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const eventsByMonth = new Map<
+        string,
+        (Event | (HolidayEvent & { id: string; title: string }))[]
+      >();
+      allEvents.forEach(
+        (event: Event | (HolidayEvent & { id: string; title: string })) => {
+          const date = new Date(event.date);
+          const monthKey = `${date.getFullYear()}-${date.getMonth()}`;
+          if (!eventsByMonth.has(monthKey)) {
+            eventsByMonth.set(monthKey, []);
+          }
+          eventsByMonth.get(monthKey)!.push(event);
+        }
+      );
+
+      const monthSections = Array.from(eventsByMonth.entries())
+        .map(([monthKey, events]) => {
+          const [year, month] = monthKey.split("-").map(Number);
+          const monthName = new Date(year, month).toLocaleDateString("fr-FR", {
+            month: "long",
+            year: "numeric",
+          });
+
+          return `
+          <div class="month-section">
+            <div class="month-header">${monthName.toUpperCase()}</div>
+            ${events
+              .map(
+                (
+                  event: Event | (HolidayEvent & { id: string; title: string })
+                ) => {
+                  const isHoliday = "localName" in event;
+                  const eventType = isHoliday
+                    ? "holiday"
+                    : (event as Event).type;
+                  const eventDate = new Date(event.date);
+
+                  return `
+                <div class="event-item ${eventType}">
+                  <div class="event-date">
+                    ${eventDate.toLocaleDateString("fr-FR", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
+                  </div>
+                  <div class="event-content">
+                    <div class="event-title">${
+                      "localName" in event ? event.localName : event.title
+                    }</div>
+                    <div class="event-details">
+                      <span class="event-badge ${eventType}">
+                        ${
+                          eventType === "exam"
+                            ? "Examen"
+                            : eventType === "vacation"
+                            ? "Vacances"
+                            : eventType === "holiday"
+                            ? "Jour Férié"
+                            : eventType === "school-start"
+                            ? "Rentrée"
+                            : "Activité"
+                        }
+                      </span>
+                      ${
+                        !isHoliday && (event as Event).time
+                          ? ` • ${(event as Event).time}`
+                          : ""
+                      }
+                      ${
+                        !isHoliday && (event as Event).subject
+                          ? ` • ${(event as Event).subject}`
+                          : ""
+                      }
+                      ${
+                        !isHoliday && (event as Event).endDate
+                          ? ` • Jusqu'au ${new Date(
+                              (event as Event).endDate as string
+                            ).toLocaleDateString("fr-FR")}`
+                          : ""
+                      }
+                    </div>
+                  </div>
+                </div>
+              `;
+                }
+              )
+              .join("")}
+          </div>
+        `;
+        })
+        .join("");
+
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Planning des Événements - ${ETABLISSEMENT_INFO.nom}</title>
+            <style>
+              @page {
+                size: A4;
+                margin: 0.75in;
+              }
+              
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              
+              body { 
+                font-family: 'Times New Roman', serif;
+                font-size: 11pt;
+                line-height: 1.4;
+                color: #000;
+                background: #fff;
+              }
+              
+              .header {
+                text-align: center;
+                margin-bottom: 20px;
+                padding: 15px;
+                border-bottom: 2px solid #000;
+              }
+              
+              .institution-name {
+                font-size: 18pt;
+                font-weight: bold;
+                margin-bottom: 5px;
+              }
+              
+              .institution-details {
+                font-size: 9pt;
+                margin-bottom: 10px;
+              }
+              
+              .document-title {
+                font-size: 14pt;
+                font-weight: bold;
+                margin-bottom: 5px;
+              }
+              
+              .print-date {
+                font-size: 8pt;
+                font-style: italic;
+              }
+              
+              .events-container {
+                margin: 10px 0;
+              }
+              
+              .month-section {
+                margin-bottom: 20px;
+                break-inside: avoid;
+              }
+              
+              .month-header {
+                background: #f0f0f0;
+                padding: 8px 12px;
+                font-size: 12pt;
+                font-weight: bold;
+                border: 1px solid #000;
+                margin-bottom: 8px;
+              }
+              
+              .event-item {
+                display: flex;
+                padding: 6px 10px;
+                margin-bottom: 4px;
+                border-left: 3px solid #666;
+                border: 1px solid #ccc;
+                break-inside: avoid;
+              }
+              
+              .event-item.holiday { border-left-color: #dc3545; }
+              .event-item.exam { border-left-color: #ffc107; }
+              .event-item.vacation { border-left-color: #28a745; }
+              
+              .event-date {
+                font-weight: bold;
+                min-width: 100px;
+                font-size: 9pt;
+              }
+              
+              .event-content {
+                flex-grow: 1;
+                margin-left: 10px;
+              }
+              
+              .event-title {
+                font-weight: bold;
+                font-size: 10pt;
+                margin-bottom: 2px;
+              }
+              
+              .event-details {
+                font-size: 8pt;
+                color: #666;
+              }
+              
+              .event-badge {
+                background: #666;
+                color: white;
+                padding: 1px 4px;
+                border-radius: 3px;
+                font-size: 7pt;
+                font-weight: bold;
+                text-transform: uppercase;
+              }
+              
+              .footer {
+                margin-top: 20px;
+                padding-top: 10px;
+                border-top: 1px solid #ccc;
+                text-align: center;
+                font-size: 8pt;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <div class="institution-name">${ETABLISSEMENT_INFO.nom}</div>
+              <div class="institution-details">
+                ${ETABLISSEMENT_INFO.adresse} | ${
+        ETABLISSEMENT_INFO.telephone
+      } | ${ETABLISSEMENT_INFO.email}
+              </div>
+              <div class="document-title">PLANNING DES ÉVÉNEMENTS</div>
+              <div class="print-date">Imprimé le ${new Date().toLocaleDateString(
+                "fr-FR"
+              )} à ${new Date().toLocaleTimeString("fr-FR")}</div>
+            </div>
+            
+            <div class="events-container">
+              ${monthSections}
+            </div>
+            
+            <div class="footer">
+              <strong>${
+                ETABLISSEMENT_INFO.nom
+              }</strong> - Document généré automatiquement
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.print();
+    }
   };
 
   const printSchedule = (schedule: Schedule) => {
@@ -428,96 +844,222 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
           <head>
             <title>Horaire - ${schedule.name}</title>
             <style>
+              @page {
+                size: A4;
+                margin: 0.5in;
+              }
+              
+              * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+              }
+              
               body { 
-                font-family: Arial, sans-serif; 
-                margin: 20px; 
+                font-family: 'Times New Roman', serif;
+                font-size: 10pt;
+                line-height: 1.3;
                 color: #000;
+                background: #fff;
               }
-              .header { 
-                text-align: center; 
-                margin-bottom: 30px; 
-                border-bottom: 2px solid #000;
-                padding-bottom: 20px;
-              }
-              .schedule-info { 
-                margin-bottom: 30px; 
-                padding: 15px;
-                border: 1px solid #ccc;
-              }
-              .day-block {
-                margin-bottom: 25px;
-                page-break-inside: avoid;
-              }
-              .day-header {
-                background-color: #f0f0f0;
+              
+              .header {
+                text-align: center;
+                margin-bottom: 15px;
                 padding: 10px;
-                border: 2px solid #000;
-                font-weight: bold;
-                font-size: 16px;
+                border-bottom: 2px solid #000;
               }
-              .schedule-item {
-                padding: 8px 15px;
-                border: 1px solid #ccc;
-                border-top: none;
+              
+              .institution-name {
+                font-size: 16pt;
+                font-weight: bold;
+                margin-bottom: 3px;
+              }
+              
+              .institution-details {
+                font-size: 8pt;
+                margin-bottom: 8px;
+              }
+              
+              .document-title {
+                font-size: 12pt;
+                font-weight: bold;
+                margin-bottom: 3px;
+              }
+              
+              .schedule-info {
+                background: #f8f9fa;
+                padding: 8px;
+                border: 1px solid #000;
+                margin-bottom: 15px;
+                text-align: center;
+              }
+              
+              .schedule-info h3 {
+                font-size: 11pt;
+                margin-bottom: 5px;
+              }
+              
+              .schedule-meta {
+                font-size: 9pt;
                 display: flex;
-                justify-content: space-between;
+                justify-content: space-around;
+                flex-wrap: wrap;
               }
-              .time-slot {
+              
+              .day-block {
+                margin-bottom: 12px;
+                break-inside: avoid;
+                border: 1px solid #000;
+              }
+              
+              .day-header {
+                background: #e9ecef;
+                padding: 6px 10px;
                 font-weight: bold;
-                min-width: 120px;
+                font-size: 9pt;
+                border-bottom: 1px solid #000;
               }
-              .subject {
-                flex-grow: 1;
-                margin-left: 20px;
+              
+              .schedule-table {
+                width: 100%;
+                border-collapse: collapse;
               }
-              @media print { 
-                body { margin: 0; }
-                .day-block { page-break-inside: avoid; }
+              
+              .schedule-row {
+                border-bottom: 1px solid #ccc;
+              }
+              
+              .time-cell {
+                padding: 4px 8px;
+                font-weight: bold;
+                background: #f8f9fa;
+                border-right: 1px solid #000;
+                width: 80px;
+                text-align: center;
+                font-size: 8pt;
+              }
+              
+              .subject-cell {
+                padding: 4px 8px;
+                font-size: 8pt;
+              }
+              
+              .subject-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 3px;
+              }
+              
+              .subject-tag {
+                background: #007bff;
+                color: white;
+                padding: 1px 4px;
+                border-radius: 2px;
+                font-size: 7pt;
+                font-weight: bold;
+              }
+              
+              .empty-day {
+                padding: 8px;
+                text-align: center;
+                font-style: italic;
+                font-size: 8pt;
+              }
+              
+              .footer {
+                margin-top: 15px;
+                padding-top: 8px;
+                border-top: 1px solid #ccc;
+                text-align: center;
+                font-size: 7pt;
               }
             </style>
           </head>
           <body>
             <div class="header">
-              <h1>Calendrier Scolaire Haïtien</h1>
-              <h2>${schedule.name}</h2>
-            </div>
-            <div class="schedule-info">
-              <p><strong>Classe:</strong> ${schedule.className}</p>
-              <p><strong>Salle:</strong> ${schedule.room}</p>
-              <p><strong>Période:</strong> ${new Date(
-                schedule.startDate
-              ).toLocaleDateString("fr-FR")} - ${new Date(
-        schedule.endDate
-      ).toLocaleDateString("fr-FR")}</p>
+              <div class="institution-name">${ETABLISSEMENT_INFO.nom}</div>
+              <div class="institution-details">
+                ${ETABLISSEMENT_INFO.adresse} | ${
+        ETABLISSEMENT_INFO.telephone
+      } | ${ETABLISSEMENT_INFO.email}
+              </div>
+              <div class="document-title">HORAIRE DE CLASSE</div>
             </div>
             
-            ${schedule.details
-              .filter((day) => day.schedule.length > 0)
-              .map(
-                (day) => `
-                <div class="day-block">
-                  <div class="day-header">
-                    ${day.date.toLocaleDateString("fr-FR", {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </div>
-                  ${day.schedule
-                    .map(
-                      (slot) => `
-                    <div class="schedule-item">
-                      <span class="time-slot">${slot.startTime} - ${slot.endTime}</span>
-                      <span class="subject">${slot.subject}</span>
+            <div class="schedule-info">
+              <h3>${schedule.name}</h3>
+              <div class="schedule-meta">
+                <span><strong>Classe:</strong> ${schedule.className}</span>
+                <span><strong>Salle:</strong> ${schedule.room}</span>
+                <span><strong>Du:</strong> ${new Date(
+                  schedule.startDate
+                ).toLocaleDateString("fr-FR")}</span>
+                <span><strong>Au:</strong> ${new Date(
+                  schedule.endDate
+                ).toLocaleDateString("fr-FR")}</span>
+              </div>
+            </div>
+            
+            <div class="schedule-content">
+              ${schedule.details
+                .filter((day) => day.schedule.length > 0)
+                .map(
+                  (day) => `
+                  <div class="day-block">
+                    <div class="day-header">
+                      ${day.date.toLocaleDateString("fr-FR", {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      })}
                     </div>
-                  `
-                    )
-                    .join("")}
-                </div>
-              `
-              )
-              .join("")}
+                    ${
+                      day.schedule.length > 0
+                        ? `
+                      <table class="schedule-table">
+                        ${day.schedule
+                          .map(
+                            (slot) => `
+                            <tr class="schedule-row">
+                              <td class="time-cell">
+                                ${slot.startTime}<br>-<br>${slot.endTime}
+                              </td>
+                              <td class="subject-cell">
+                                <div class="subject-list">
+                                  ${slot.subjects
+                                    .map(
+                                      (subject) =>
+                                        `<span class="subject-tag">${subject}</span>`
+                                    )
+                                    .join("")}
+                                </div>
+                              </td>
+                            </tr>
+                          `
+                          )
+                          .join("")}
+                      </table>
+                    `
+                        : `
+                      <div class="empty-day">
+                        Aucun cours programmé
+                      </div>
+                    `
+                    }
+                  </div>
+                `
+                )
+                .join("")}
+            </div>
+            
+            <div class="footer">
+              <strong>${
+                ETABLISSEMENT_INFO.nom
+              }</strong> - Horaire généré le ${new Date().toLocaleDateString(
+        "fr-FR"
+      )}
+            </div>
           </body>
         </html>
       `);
@@ -549,7 +1091,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
 
   const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
 
-  const filteredSchedules = schedules.filter((schedule) => {
+  const filteredSchedules = schedulesUI.filter((schedule) => {
     const classMatch = !filterClass || schedule.className === filterClass;
     const roomMatch = !filterRoom || schedule.room === filterRoom;
     return classMatch && roomMatch;
@@ -568,7 +1110,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     const labels: Record<string, string> = {
       exam: "Examen",
       vacation: "Vacances",
-      holiday: "Férié",
+      holiday: "Jour Férié",
       "school-start": "Rentrée",
       activity: "Activité",
     };
@@ -597,7 +1139,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                   darkMode ? "text-gray-400" : "text-gray-600"
                 }`}
               >
-                Haïti - Année Académique 2025
+                {ETABLISSEMENT_INFO.nom} - Année Académique 2025
               </p>
             </div>
           </div>
@@ -649,7 +1191,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
             </button>
 
             <button
-              onClick={printCalendar}
+              onClick={viewMode === "agenda" ? printAgenda : printCalendar}
               className={`p-2 rounded-lg transition-colors ${
                 darkMode
                   ? "bg-gray-700 hover:bg-gray-600"
@@ -664,6 +1206,21 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
       </header>
 
       <main className="max-w-7xl mx-auto p-6 print-calendar">
+        {isLoading && (
+          <div className="text-center py-4 no-print">
+            <div className="text-blue-600">Chargement...</div>
+          </div>
+        )}
+
+        {conflictWarning && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4 no-print">
+            <div className="flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              <span>{conflictWarning}</span>
+            </div>
+          </div>
+        )}
+
         {viewMode === "month" ? (
           <>
             {/* Calendar Navigation */}
@@ -751,27 +1308,41 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                       </div>
 
                       <div className="space-y-1">
-                        {dayEvents.slice(0, 4).map((event, eventIndex) => (
-                          <div
-                            key={eventIndex}
-                            className={`text-xs p-1 rounded border ${
-                              darkMode
-                                ? "border-gray-600 bg-gray-700"
-                                : "border-gray-300 bg-gray-100"
-                            }`}
-                            title={"type" in event ? event.name : event.title}
-                          >
-                            <div className="font-medium">
-                              {"type" in event ? event.name : event.title}
-                            </div>
-                            {"type" in event ? null : (
-                              <div className="text-xs opacity-75">
-                                {getEventTypeLabel(event.type)}
-                                {event.time && ` - ${event.time}`}
+                        {dayEvents
+                          .slice(0, 4)
+                          .map(
+                            (
+                              event: Event | HolidayEvent,
+                              eventIndex: number
+                            ) => (
+                              <div
+                                key={eventIndex}
+                                className={`text-xs p-1 rounded border ${
+                                  darkMode
+                                    ? "border-gray-600 bg-gray-700"
+                                    : "border-gray-300 bg-gray-100"
+                                }`}
+                                title={
+                                  "localName" in event
+                                    ? event.localName
+                                    : event.title
+                                }
+                              >
+                                <div className="font-medium">
+                                  {"localName" in event
+                                    ? event.localName
+                                    : event.title}
+                                </div>
+                                {"localName" in event ? null : (
+                                  <div className="text-xs opacity-75">
+                                    {getEventTypeLabel((event as Event).type)}
+                                    {(event as Event).time &&
+                                      ` - ${(event as Event).time}`}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                        ))}
+                            )
+                          )}
                         {dayEvents.length > 4 && (
                           <div
                             className={`text-xs ${
@@ -798,85 +1369,115 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
             }`}
           >
             <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                Planning des Événements
-              </h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">
+                  Planning des Événements
+                </h3>
+                <button
+                  onClick={printAgenda}
+                  className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors no-print"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Imprimer Planning</span>
+                </button>
+              </div>
 
               <div className="space-y-4">
                 {[
-                  ...events,
-                  ...holidays.map((h) => ({
+                  ...eventsUI,
+                  ...holidaysUI.map((h) => ({
                     ...h,
                     id: h.date,
-                    title: h.name,
+                    title: h.localName,
                   })),
                 ]
                   .sort(
                     (a, b) =>
                       new Date(a.date).getTime() - new Date(b.date).getTime()
                   )
-                  .map((event) => (
-                    <div
-                      key={event.id}
-                      className={`p-4 rounded-lg border transition-colors ${
-                        darkMode
-                          ? "bg-gray-700 border-gray-600"
-                          : "bg-gray-50 border-gray-200"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-medium">
-                            {"name" in event ? event.name : event.title}
-                          </h4>
-                          <div
-                            className={`text-sm mt-1 ${
-                              darkMode ? "text-gray-400" : "text-gray-600"
-                            }`}
-                          >
-                            <span>
-                              {new Date(event.date).toLocaleDateString("fr-FR")}
-                            </span>
-                            {event.endDate && (
+                  .map(
+                    (
+                      event:
+                        | Event
+                        | (HolidayEvent & { id: string; title: string })
+                    ) => (
+                      <div
+                        key={event.id}
+                        className={`p-4 rounded-lg border transition-colors ${
+                          darkMode
+                            ? "bg-gray-700 border-gray-600"
+                            : "bg-gray-50 border-gray-200"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-medium">
+                              {"localName" in event
+                                ? event.localName
+                                : event.title}
+                            </h4>
+                            <div
+                              className={`text-sm mt-1 ${
+                                darkMode ? "text-gray-400" : "text-gray-600"
+                              }`}
+                            >
                               <span>
-                                {" "}
-                                -{" "}
-                                {new Date(event.endDate).toLocaleDateString(
+                                {new Date(event.date).toLocaleDateString(
                                   "fr-FR"
                                 )}
                               </span>
-                            )}
-                            {event.time && <span> ⏰ {event.time}</span>}
-                            {event.subject && <span> 📚 {event.subject}</span>}
-                            {"type" in event && event.type !== "holiday" && (
-                              <span> 📋 {getEventTypeLabel(event.type)}</span>
-                            )}
+                              {!("localName" in event) &&
+                                (event as Event).endDate && (
+                                  <span>
+                                    {" "}
+                                    -{" "}
+                                    {new Date(
+                                      (event as Event).endDate as string
+                                    ).toLocaleDateString("fr-FR")}
+                                  </span>
+                                )}
+                              {!("localName" in event) &&
+                                (event as Event).time && (
+                                  <span> {(event as Event).time}</span>
+                                )}
+                              {!("localName" in event) &&
+                                (event as Event).subject && (
+                                  <span> {(event as Event).subject}</span>
+                                )}
+                              {!("localName" in event) &&
+                                (event as Event).type !== "holiday" && (
+                                  <span>
+                                    {" "}
+                                    {getEventTypeLabel((event as Event).type)}
+                                  </span>
+                                )}
+                            </div>
                           </div>
-                        </div>
 
-                        {!("type" in event && event.type === "holiday") && (
-                          <div className="flex space-x-2 no-print">
-                            <button
-                              onClick={() => editEvent(event as Event)}
-                              className={`p-1 rounded transition-colors ${
-                                darkMode
-                                  ? "hover:bg-gray-600"
-                                  : "hover:bg-gray-200"
-                              }`}
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => deleteEvent(event.id)}
-                              className="p-1 rounded text-red-600 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        )}
+                          {!("localName" in event) && (
+                            <div className="flex space-x-2 no-print">
+                              <button
+                                onClick={() => editEvent(event as Event)}
+                                className={`p-1 rounded transition-colors ${
+                                  darkMode
+                                    ? "hover:bg-gray-600"
+                                    : "hover:bg-gray-200"
+                                }`}
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteEvent(event.id as string)}
+                                className="p-1 rounded text-red-600 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  )}
               </div>
             </div>
           </div>
@@ -898,9 +1499,9 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                   }`}
                 >
                   <option value="">Toutes les classes</option>
-                  {classes.map((cls) => (
-                    <option key={cls} value={cls}>
-                      {cls}
+                  {classesOptions.map((cls) => (
+                    <option key={cls.value} value={cls.value}>
+                      {cls.label}
                     </option>
                   ))}
                 </select>
@@ -915,9 +1516,12 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                   }`}
                 >
                   <option value="">Toutes les salles</option>
-                  {getAvailableRooms(filterClass).map((room) => (
-                    <option key={room} value={room}>
-                      {room}
+                  {(filterClass && sallesByClass[filterClass]
+                    ? sallesByClass[filterClass]
+                    : Object.values(sallesByClass).flat()
+                  ).map((room) => (
+                    <option key={room.value} value={room.value}>
+                      {room.label}
                     </option>
                   ))}
                 </select>
@@ -1008,7 +1612,18 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                                 <span className="font-medium text-sm">
                                   {slot.startTime} - {slot.endTime}
                                 </span>
-                                <span className="text-sm">{slot.subject}</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {slot.subjects.map(
+                                    (subject, subjectIndex) => (
+                                      <span
+                                        key={subjectIndex}
+                                        className="text-xs bg-blue-600 text-white px-2 py-1 rounded"
+                                      >
+                                        {subject}
+                                      </span>
+                                    )
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -1263,7 +1878,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
       {showScheduleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div
-            className={`w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-lg p-6 transition-colors ${
+            className={`w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-lg p-6 transition-colors ${
               darkMode ? "bg-gray-800" : "bg-white"
             }`}
           >
@@ -1318,10 +1933,12 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                     <select
                       value={newSchedule.className}
                       onChange={(e) => {
+                        setSelectedClasseId(e.target.value);
+                        setSelectedSalleId("");
                         setNewSchedule({
                           ...newSchedule,
                           className: e.target.value,
-                          room: "", // Reset room when class changes
+                          room: "",
                         });
                       }}
                       className={`w-full p-3 border rounded transition-colors ${
@@ -1331,9 +1948,9 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                       }`}
                     >
                       <option value="">Choisir une classe</option>
-                      {classes.map((cls) => (
-                        <option key={cls} value={cls}>
-                          {cls}
+                      {classesOptions.map((cls) => (
+                        <option key={cls.value} value={cls.value}>
+                          {cls.label}
                         </option>
                       ))}
                     </select>
@@ -1349,9 +1966,10 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                     </label>
                     <select
                       value={newSchedule.room}
-                      onChange={(e) =>
-                        setNewSchedule({ ...newSchedule, room: e.target.value })
-                      }
+                      onChange={(e) => {
+                        setSelectedSalleId(e.target.value);
+                        setNewSchedule({ ...newSchedule, room: e.target.value });
+                      }}
                       className={`w-full p-3 border rounded transition-colors ${
                         darkMode
                           ? "bg-gray-700 border-gray-600 text-white"
@@ -1360,9 +1978,12 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                       disabled={!newSchedule.className}
                     >
                       <option value="">Choisir une salle</option>
-                      {getAvailableRooms(newSchedule.className).map((room) => (
-                        <option key={room} value={room}>
-                          {room}
+                      {(selectedClasseId && sallesByClass[selectedClasseId]
+                        ? sallesByClass[selectedClasseId]
+                        : []
+                      ).map((room) => (
+                        <option key={room.value} value={room.value}>
+                          {room.label}
                         </option>
                       ))}
                     </select>
@@ -1451,8 +2072,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
               <>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold">
-                    Définir les Horaires - {newSchedule.className} (
-                    {newSchedule.room})
+                    Définir les Horaires - {selectedClasseLabel} ({selectedSalleLabel})
                   </h3>
                   <button
                     onClick={resetScheduleForm}
@@ -1485,97 +2105,122 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                         </button>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {day.schedule.map((slot: any, slotIndex: number) => (
                           <div
                             key={slotIndex}
-                            className="grid grid-cols-12 gap-2 items-center"
+                            className={`border rounded p-3 ${
+                              darkMode ? "border-gray-500" : "border-gray-300"
+                            }`}
                           >
-                            <div className="col-span-3">
-                              <select
-                                value={slot.startTime}
-                                onChange={(e) =>
-                                  updateScheduleSlot(
-                                    dayIndex,
-                                    slotIndex,
-                                    "startTime",
-                                    e.target.value
-                                  )
-                                }
-                                className={`w-full p-2 rounded border text-sm transition-colors ${
-                                  darkMode
-                                    ? "bg-gray-700 border-gray-600 text-white"
-                                    : "bg-white border-gray-300"
-                                }`}
-                              >
-                                {timeOptions.map((time) => (
-                                  <option key={time} value={time}>
-                                    {time}
-                                  </option>
-                                ))}
-                              </select>
+                            <div className="grid grid-cols-12 gap-2 items-center mb-2">
+                              <div className="col-span-3">
+                                <select
+                                  value={slot.startTime}
+                                  onChange={(e) =>
+                                    updateScheduleSlot(
+                                      dayIndex,
+                                      slotIndex,
+                                      "startTime",
+                                      e.target.value
+                                    )
+                                  }
+                                  className={`w-full p-2 rounded border text-sm transition-colors ${
+                                    darkMode
+                                      ? "bg-gray-700 border-gray-600 text-white"
+                                      : "bg-white border-gray-300"
+                                  }`}
+                                >
+                                  {timeOptions.map((time) => (
+                                    <option key={time} value={time}>
+                                      {time}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="col-span-3">
+                                <select
+                                  value={slot.endTime}
+                                  onChange={(e) =>
+                                    updateScheduleSlot(
+                                      dayIndex,
+                                      slotIndex,
+                                      "endTime",
+                                      e.target.value
+                                    )
+                                  }
+                                  className={`w-full p-2 rounded border text-sm transition-colors ${
+                                    darkMode
+                                      ? "bg-gray-700 border-gray-600 text-white"
+                                      : "bg-white border-gray-300"
+                                  }`}
+                                >
+                                  {timeOptions.map((time) => (
+                                    <option key={time} value={time}>
+                                      {time}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="col-span-5">
+                                <select
+                                  onChange={(e) => {
+                                    addSubjectToSlot(dayIndex, slotIndex, e.target.value);
+                                    e.target.value = "";
+                                  }}
+                                  className={`w-full p-2 rounded border text-sm transition-colors ${
+                                    darkMode
+                                      ? "bg-gray-700 border-gray-600 text-white"
+                                      : "bg-white border-gray-300"
+                                  }`}
+                                >
+                                  <option value="">Ajouter une matière</option>
+                                  {subjects.map((subject) => (
+                                    <option key={subject} value={subject}>
+                                      {subject}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="col-span-1">
+                                <button
+                                  onClick={() =>
+                                    removeTimeSlot(dayIndex, slotIndex)
+                                  }
+                                  className="p-2 rounded text-red-600 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             </div>
 
-                            <div className="col-span-3">
-                              <select
-                                value={slot.endTime}
-                                onChange={(e) =>
-                                  updateScheduleSlot(
-                                    dayIndex,
-                                    slotIndex,
-                                    "endTime",
-                                    e.target.value
-                                  )
-                                }
-                                className={`w-full p-2 rounded border text-sm transition-colors ${
-                                  darkMode
-                                    ? "bg-gray-700 border-gray-600 text-white"
-                                    : "bg-white border-gray-300"
-                                }`}
-                              >
-                                {timeOptions.map((time) => (
-                                  <option key={time} value={time}>
-                                    {time}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="col-span-5">
-                              <select
-                                value={slot.subject}
-                                onChange={(e) =>
-                                  updateScheduleSlot(
-                                    dayIndex,
-                                    slotIndex,
-                                    "subject",
-                                    e.target.value
-                                  )
-                                }
-                                className={`w-full p-2 rounded border text-sm transition-colors ${
-                                  darkMode
-                                    ? "bg-gray-700 border-gray-600 text-white"
-                                    : "bg-white border-gray-300"
-                                }`}
-                              >
-                                <option value="">Choisir une matière</option>
-                                {subjects.map((subject) => (
-                                  <option key={subject} value={subject}>
+                            {/* Affichage des matières sélectionnées */}
+                            <div className="flex flex-wrap gap-2">
+                              {slot.subjects.map(
+                                (subject: string, subjectIndex: number) => (
+                                  <span
+                                    key={subjectIndex}
+                                    className="inline-flex items-center gap-1 bg-blue-600 text-white px-2 py-1 rounded text-sm"
+                                  >
                                     {subject}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="col-span-1">
-                              <button
-                                onClick={() =>
-                                  removeTimeSlot(dayIndex, slotIndex)
-                                }
-                                className="p-2 rounded text-red-600 hover:bg-red-100 dark:hover:bg-red-900 transition-colors"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                                    <button
+                                      onClick={() =>
+                                        removeSubjectFromSlot(
+                                          dayIndex,
+                                          slotIndex,
+                                          subjectIndex
+                                        )
+                                      }
+                                      className="hover:bg-blue-700 rounded"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </span>
+                                )
+                              )}
                             </div>
                           </div>
                         ))}
@@ -1597,7 +2242,8 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                   </button>
                   <button
                     onClick={saveSchedule}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                    disabled={!!conflictWarning}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded transition-colors"
                   >
                     Enregistrer l'Horaire
                   </button>

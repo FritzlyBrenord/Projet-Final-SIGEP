@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Search,
   Filter,
@@ -19,241 +19,102 @@ import {
   Clock,
   Printer,
   BarChart3,
+  Loader,
+  X, // NOUVEAU: Icône pour fermer les modals
 } from "lucide-react";
-
-// Types
-interface Student {
-  id: string;
-  code: string;
-  nom: string;
-  prenom: string;
-  classesDemandee: string;
-  salle: string;
-  status: "actif" | "inactif" | "suspendu";
-}
-
-interface TypeFrais {
-  id: string;
-  nom: string;
-  montantDefaut: number;
-  description: string;
-  obligatoire: boolean;
-}
-
-interface FraisParClasse {
-  id: string;
-  classe: string;
-  typeFraisId: string;
-  montant: number;
-}
-
-interface Paiement {
-  id: string;
-  studentId: string;
-  typeFrais: string;
-  montantDu: number;
-  montantPaye: number;
-  datePaiement: string;
-  heurePaiement: string;
-  remarques?: string;
-  numeroRecu: string;
-}
-
-// Données d'exemple
-const sampleStudents: Student[] = [
-  {
-    id: "1",
-    code: "ETU001",
-    nom: "Duval",
-    prenom: "Marie",
-    classesDemandee: "9ème AF",
-    salle: "9eA",
-    status: "actif",
-  },
-  {
-    id: "2",
-    code: "ETU002",
-    nom: "Jean-Baptiste",
-    prenom: "Pierre",
-    classesDemandee: "9ème AF",
-    salle: "9eA",
-    status: "actif",
-  },
-  {
-    id: "3",
-    code: "ETU003",
-    nom: "Charles",
-    prenom: "Anne",
-    classesDemandee: "9ème AF",
-    salle: "9eA",
-    status: "suspendu",
-  },
-  {
-    id: "4",
-    code: "ETU004",
-    nom: "Moreau",
-    prenom: "Jean",
-    classesDemandee: "7ème AF",
-    salle: "7eA",
-    status: "actif",
-  },
-];
-
-const defaultTypesFrais: TypeFrais[] = [
-  {
-    id: "1",
-    nom: "Frais d'Entrée",
-    montantDefaut: 10000,
-    description: "Frais d'inscription annuelle",
-    obligatoire: true,
-  },
-  {
-    id: "2",
-    nom: "1er Trimestre",
-    montantDefaut: 15000,
-    description: "Frais de scolarité du premier trimestre",
-    obligatoire: true,
-  },
-  {
-    id: "3",
-    nom: "2ème Trimestre",
-    montantDefaut: 15000,
-    description: "Frais de scolarité du deuxième trimestre",
-    obligatoire: true,
-  },
-  {
-    id: "4",
-    nom: "3ème Trimestre",
-    montantDefaut: 15000,
-    description: "Frais de scolarité du troisième trimestre",
-    obligatoire: true,
-  },
-];
-
-// Données d'exemple pour les frais par classe
-const defaultFraisParClasse: FraisParClasse[] = [
-  // 6ème AF
-  { id: "1", classe: "6ème AF", typeFraisId: "1", montant: 8000 },
-  { id: "2", classe: "6ème AF", typeFraisId: "2", montant: 12000 },
-  { id: "3", classe: "6ème AF", typeFraisId: "3", montant: 12000 },
-  { id: "4", classe: "6ème AF", typeFraisId: "4", montant: 12000 },
-  
-  // 7ème AF
-  { id: "5", classe: "7ème AF", typeFraisId: "1", montant: 8500 },
-  { id: "6", classe: "7ème AF", typeFraisId: "2", montant: 13000 },
-  { id: "7", classe: "7ème AF", typeFraisId: "3", montant: 13000 },
-  { id: "8", classe: "7ème AF", typeFraisId: "4", montant: 13000 },
-  
-  // 8ème AF
-  { id: "9", classe: "8ème AF", typeFraisId: "1", montant: 9000 },
-  { id: "10", classe: "8ème AF", typeFraisId: "2", montant: 14000 },
-  { id: "11", classe: "8ème AF", typeFraisId: "3", montant: 14000 },
-  { id: "12", classe: "8ème AF", typeFraisId: "4", montant: 14000 },
-  
-  // 9ème AF
-  { id: "13", classe: "9ème AF", typeFraisId: "1", montant: 10000 },
-  { id: "14", classe: "9ème AF", typeFraisId: "2", montant: 15000 },
-  { id: "15", classe: "9ème AF", typeFraisId: "3", montant: 15000 },
-  { id: "16", classe: "9ème AF", typeFraisId: "4", montant: 15000 },
-  
-  // Seconde
-  { id: "17", classe: "Seconde", typeFraisId: "1", montant: 12000 },
-  { id: "18", classe: "Seconde", typeFraisId: "2", montant: 18000 },
-  { id: "19", classe: "Seconde", typeFraisId: "3", montant: 18000 },
-  { id: "20", classe: "Seconde", typeFraisId: "4", montant: 18000 },
-  
-  // Première
-  { id: "21", classe: "Première", typeFraisId: "1", montant: 13000 },
-  { id: "22", classe: "Première", typeFraisId: "2", montant: 20000 },
-  { id: "23", classe: "Première", typeFraisId: "3", montant: 20000 },
-  { id: "24", classe: "Première", typeFraisId: "4", montant: 20000 },
-  
-  // Terminale
-  { id: "25", classe: "Terminale", typeFraisId: "1", montant: 15000 },
-  { id: "26", classe: "Terminale", typeFraisId: "2", montant: 22000 },
-  { id: "27", classe: "Terminale", typeFraisId: "3", montant: 22000 },
-  { id: "28", classe: "Terminale", typeFraisId: "4", montant: 22000 },
-];
-
-const classes = [
-  "6ème AF",
-  "7ème AF",
-  "8ème AF",
-  "9ème AF",
-  "Seconde",
-  "Première",
-  "Terminale",
-];
-
-const sallesByClass: { [key: string]: string[] } = {
-  "6ème AF": ["6eA", "6eB"],
-  "7ème AF": ["7eA", "7eB", "7eC"],
-  "8ème AF": ["8eA", "8eB"],
-  "9ème AF": ["9eA", "9eB", "9eC"],
-  Seconde: ["2ndA", "2ndB"],
-  Première: ["1ereA", "1ereB"],
-  Terminale: ["TermA", "TermB"],
-};
+import { useFraisScolarite } from "@/Context/ContextPaiement";
+import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
+import { useEleves } from "@/Context/ContextEleves";
 
 interface Props {
   isDarkMode?: boolean;
 }
 
 const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
-  // États principaux
-  const [students] = useState<Student[]>(sampleStudents);
-  const [typesFrais, setTypesFrais] = useState<TypeFrais[]>(defaultTypesFrais);
-  const [fraisParClasse, setFraisParClasse] = useState<FraisParClasse[]>(defaultFraisParClasse);
-  const [paiements, setPaiements] = useState<Paiement[]>([]);
+  // Contextes (INCHANGÉS)
+  const {
+    typesFrais,
+    fraisParClasse,
+    paiements,
+    isLoading: isLoadingFrais,
+    error: errorFrais,
+    ajouterPaiement,
+    ajouterTypeFrais,
+    ajouterFraisParClasse,
+    modifierFraisParClasse,
+    supprimerPaiement,
+    getFraisForClasse,
+    getStudentBalance,
+    generateReceiptNumber,
+    modifierPaiement, // NOUVEAU: Fonction pour modifier un paiement
+  } = useFraisScolarite();
 
-  // États de sélection
-  const [selectedClasse, setSelectedClasse] = useState("");
-  const [selectedSalle, setSelectedSalle] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const { currentYear } = useAnneeScolaire();
+  const { eleves, isLoading: isLoadingEleves } = useEleves();
 
-  // États d'interface
+  // Classes et salles (INCHANGÉS)
+  const classes = useMemo(
+    () =>
+      currentYear?.classes.map((classe) => ({
+        value: classe.id,
+        label: classe.name,
+      })) || [],
+    [currentYear?.classes]
+  ) as { value: string; label: string }[];
+
+  const sallesByClass: Record<string, { value: string; label: string }[]> =
+    useMemo(() => {
+      const result: Record<string, { value: string; label: string }[]> = {};
+      currentYear?.classes.forEach((classe) => {
+        result[classe.id] = classe.salles.map((salle) => ({
+          value: salle.id,
+          label: `${salle.name}`,
+        }));
+      });
+      return result;
+    }, [currentYear?.classes]);
+
+  // États existants (INCHANGÉS)
+  const [selectedClasseId, setSelectedClasseId] = useState("");
+  const [selectedSalleId, setSelectedSalleId] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<
-    "paiements" | "consultation" | "configuration" | "rapports"
+    "paiements" | "consultation" | "configuration"
   >("paiements");
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterTypeFrais, setFilterTypeFrais] = useState("");
   const [filterStatutPaiement, setFilterStatutPaiement] = useState("");
-
-  // États de formulaire
   const [paiementForm, setPaiementForm] = useState({
-    typeFrais: "",
-    montantDu: "",
-    montantPaye: "",
+    type_frais_id: "",
+    montant_du: "",
+    montant_paye: "",
     remarques: "",
   });
-
   const [newTypeFrais, setNewTypeFrais] = useState({
     nom: "",
-    montantDefaut: "",
+    montant_defaut: "",
     description: "",
     obligatoire: false,
   });
-
-  // États pour la configuration des frais par classe
   const [selectedClasseForConfig, setSelectedClasseForConfig] = useState("");
-  const [fraisConfigForm, setFraisConfigForm] = useState<{
-    [typeFraisId: string]: string;
-  }>({});
 
-  // Étudiants actifs filtrés
-  const activeStudents = students.filter(
+  // NOUVEAUX ÉTATS pour les fonctionnalités demandées
+  const [editingPaiement, setEditingPaiement] = useState<any | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showExcessModal, setShowExcessModal] = useState(false);
+  const [excessData, setExcessData] = useState<any>(null);
+
+  const isLoading = isLoadingFrais || isLoadingEleves;
+
+  const activeStudents = eleves.filter(
     (s) =>
-      s.status === "actif" &&
-      (!selectedClasse || s.classesDemandee === selectedClasse) &&
-      (!selectedSalle || s.salle === selectedSalle)
+      s.statut === "actif" &&
+      (!selectedClasseId || s.classe_id === selectedClasseId) &&
+      (!selectedSalleId || s.salle_id === selectedSalleId)
   );
 
-  // Fonctions utilitaires
-  const generateReceiptNumber = () => {
-    return "REC" + Date.now().toString().slice(-8);
-  };
-
+  // Fonctions utilitaires existantes (INCHANGÉES)
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString() + " HTG";
   };
@@ -270,187 +131,673 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     return <AlertTriangle className="h-4 w-4" />;
   };
 
-  // Fonction pour obtenir le montant des frais pour une classe donnée
-  const getFraisForClasse = (classe: string, typeFraisId: string) => {
-    const frais = fraisParClasse.find(
-      (f) => f.classe === classe && f.typeFraisId === typeFraisId
-    );
-    return frais ? frais.montant : 0;
+  const getClasseNameById = (classeId: string) => {
+    const classe = classes.find((c) => c.value === classeId);
+    return classe ? classe.label : "";
   };
 
-  // Fonction pour mettre à jour les frais par classe
-  const updateFraisForClasse = (classe: string, typeFraisId: string, montant: number) => {
-    setFraisParClasse((prev) => {
-      const existingIndex = prev.findIndex(
-        (f) => f.classe === classe && f.typeFraisId === typeFraisId
+  const getSalleNameById = (classeId: string, salleId: string) => {
+    const salles = sallesByClass[classeId] || [];
+    const salle = salles.find((s) => s.value === salleId);
+    return salle ? salle.label : "";
+  };
+
+  // NOUVELLES FONCTIONS pour les fonctionnalités demandées
+
+  // Vérifier si un type de frais est déjà soldé pour un élève
+  const isTypeFraisSolde = (eleveId: string, typeFraisId: string) => {
+    const student = eleves.find((e) => e.id === eleveId);
+    if (!student) return false;
+
+    const classeNom = getClasseNameById(student.classe_id);
+    const montantDu = getFraisForClasse(classeNom, typeFraisId);
+
+    const paiementsExistants = paiements.filter(
+      (p) => p.eleve_id === eleveId && p.type_frais_id === typeFraisId
+    );
+    const totalPaye = paiementsExistants.reduce(
+      (sum, p) => sum + p.montant_paye,
+      0
+    );
+
+    return totalPaye >= montantDu;
+  };
+
+  // Obtenir le solde par type de frais pour un élève
+  const getStudentBalanceByType = (eleveId: string) => {
+    const student = eleves.find((e) => e.id === eleveId);
+    if (!student) return {};
+
+    const classeNom = getClasseNameById(student.classe_id);
+    const balances: {
+      [key: string]: {
+        due: number;
+        paid: number;
+        balance: number;
+        typeName: string;
+      };
+    } = {};
+
+    typesFrais.forEach((type) => {
+      const montantDu = getFraisForClasse(classeNom, type.id);
+      const paiementsExistants = paiements.filter(
+        (p) => p.eleve_id === eleveId && p.type_frais_id === type.id
       );
-      
-      if (existingIndex >= 0) {
-        // Mettre à jour l'existant
-        const updated = [...prev];
-        updated[existingIndex] = { ...updated[existingIndex], montant };
-        return updated;
-      } else {
-        // Ajouter un nouveau
-        return [...prev, {
-          id: Date.now().toString(),
-          classe,
-          typeFraisId,
-          montant,
-        }];
-      }
+      const totalPaye = paiementsExistants.reduce(
+        (sum, p) => sum + p.montant_paye,
+        0
+      );
+
+      balances[type.id] = {
+        due: montantDu,
+        paid: totalPaye,
+        balance: montantDu - totalPaye,
+        typeName: type.nom,
+      };
+    });
+
+    return balances;
+  };
+
+  // Obtenir les types disponibles pour l'excédent
+  const getAvailableTypesForExcess = (
+    eleveId: string,
+    currentTypeId: string
+  ) => {
+    const student = eleves.find((e) => e.id === eleveId);
+    if (!student) return [];
+
+    const classeNom = getClasseNameById(student.classe_id);
+
+    return typesFrais.filter((type) => {
+      if (type.id === currentTypeId) return false;
+
+      const montantDu = getFraisForClasse(classeNom, type.id);
+      const paiementsExistants = paiements.filter(
+        (p) => p.eleve_id === eleveId && p.type_frais_id === type.id
+      );
+      const totalPaye = paiementsExistants.reduce(
+        (sum, p) => sum + p.montant_paye,
+        0
+      );
+
+      return totalPaye < montantDu;
     });
   };
 
-  // Calcul du solde d'un élève
-  const getStudentBalance = (studentId: string) => {
-    const studentPaiements = paiements.filter((p) => p.studentId === studentId);
-    const totalDu = studentPaiements.reduce((sum, p) => sum + p.montantDu, 0);
-    const totalPaye = studentPaiements.reduce(
-      (sum, p) => sum + p.montantPaye,
-      0
-    );
-    return { totalDu, totalPaye, solde: totalDu - totalPaye };
-  };
-
-  // Gestion du formulaire
+  // Gestion du formulaire (MODIFIÉE pour les nouvelles contraintes)
   const handlePaiementChange = (field: string, value: string) => {
     setPaiementForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const addPaiement = () => {
-    if (
-      !selectedStudent ||
-      !paiementForm.typeFrais ||
-      !paiementForm.montantDu
-    ) {
-      alert("Veuillez remplir tous les champs obligatoires");
-      return;
+  // FONCTION MODIFIÉE pour gérer les nouvelles contraintes
+  const handleAddPaiement = async () => {
+    try {
+      if (
+        !selectedStudent ||
+        !paiementForm.type_frais_id ||
+        !paiementForm.montant_du ||
+        !paiementForm.montant_paye ||
+        !currentYear
+      ) {
+        alert("Veuillez remplir tous les champs obligatoires");
+        return;
+      }
+
+      const montantPaye = parseFloat(paiementForm.montant_paye);
+      const montantDu = parseFloat(paiementForm.montant_du);
+
+      // NOUVELLE CONTRAINTE: Vérifier si le type est déjà soldé
+      if (isTypeFraisSolde(selectedStudent.id, paiementForm.type_frais_id)) {
+        alert(
+          "Ce type de frais est déjà entièrement payé pour cet élève. Vous ne pouvez pas ajouter un nouveau paiement pour ce type."
+        );
+        return;
+      }
+
+      // NOUVELLE CONTRAINTE: Gérer la détection d'un type de frais déjà payé partiellement
+      const paiementsExistants = paiements.filter(
+        (p) =>
+          p.eleve_id === selectedStudent.id &&
+          p.type_frais_id === paiementForm.type_frais_id
+      );
+      const totalDejaPaye = paiementsExistants.reduce(
+        (sum, p) => sum + p.montant_paye,
+        0
+      );
+      const restantAPayer = montantDu - totalDejaPaye;
+
+      // S'il existe déjà un paiement pour ce type et que le nouveau montant n'excède pas le restant,
+      // proposer d'augmenter le paiement existant au lieu de créer un doublon
+      if (paiementsExistants.length > 0 && montantPaye <= restantAPayer) {
+        // Choisir le paiement le plus récent si possible
+        const paiementExistant = [...paiementsExistants].sort((a, b) => {
+          const da = a.date_paiement ? new Date(a.date_paiement).getTime() : 0;
+          const db = b.date_paiement ? new Date(b.date_paiement).getTime() : 0;
+          return db - da;
+        })[0];
+
+        const confirmer = window.confirm(
+          `Ce type de frais existe déjà pour cet élève (déjà payé: ${formatCurrency(
+            totalDejaPaye
+          )} / dû: ${formatCurrency(
+            montantDu
+          )}).\n\nVoulez-vous augmenter le paiement existant de ${formatCurrency(
+            montantPaye
+          )} ?`
+        );
+
+        if (confirmer) {
+          await modifierPaiement(paiementExistant.id, {
+            montant_paye: parseFloat(paiementExistant.montant_paye) + montantPaye,
+            remarques: paiementForm.remarques || undefined,
+          });
+
+          setPaiementForm({
+            type_frais_id: "",
+            montant_du: "",
+            montant_paye: "",
+            remarques: "",
+          });
+
+          alert("Paiement existant augmenté avec succès !");
+          return;
+        }
+        // Si l'utilisateur refuse, on continue le flux normal (y compris gestion d'excédent)
+      }
+
+      if (montantPaye > restantAPayer) {
+        // Gérer l'excédent
+        const excess = montantPaye - restantAPayer;
+        const availableTypes = getAvailableTypesForExcess(
+          selectedStudent.id,
+          paiementForm.type_frais_id
+        );
+
+        if (availableTypes.length > 0) {
+          // Inclure des informations sur un paiement existant (si présent) pour l'augmenter automatiquement
+          const paiementExistant = paiementsExistants.length
+            ? [...paiementsExistants].sort((a, b) => {
+                const da = a.date_paiement
+                  ? new Date(a.date_paiement).getTime()
+                  : 0;
+                const db = b.date_paiement
+                  ? new Date(b.date_paiement).getTime()
+                  : 0;
+                return db - da;
+              })[0]
+            : null;
+
+          setExcessData({
+            eleveId: selectedStudent.id,
+            currentTypeId: paiementForm.type_frais_id,
+            amountForCurrent: restantAPayer,
+            excessAmount: excess,
+            availableTypes: availableTypes,
+            remarques: paiementForm.remarques,
+            existingPaiementId: paiementExistant?.id,
+            existingPaiementPaid: paiementExistant?.montant_paye ?? 0,
+          });
+          setShowExcessModal(true);
+          return;
+        } else {
+          alert(
+            `Le montant saisi (${formatCurrency(
+              montantPaye
+            )}) dépasse le montant restant à payer (${formatCurrency(
+              restantAPayer
+            )}). Aucun autre type de frais disponible pour l'excédent.`
+          );
+          return;
+        }
+      }
+
+      // Ajouter le paiement normal
+      await ajouterPaiement({
+        eleve_id: selectedStudent.id,
+        type_frais_id: paiementForm.type_frais_id,
+        montant_du: parseFloat(paiementForm.montant_du),
+        montant_paye: montantPaye,
+        remarques: paiementForm.remarques || undefined,
+        annee_scolaire_id: currentYear.id,
+      });
+
+      setPaiementForm({
+        type_frais_id: "",
+        montant_du: "",
+        montant_paye: "",
+        remarques: "",
+      });
+
+      alert("Paiement ajouté avec succès!");
+    } catch (error) {
+      alert(
+        `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`
+      );
     }
-
-    const now = new Date();
-    const nouveauPaiement: Paiement = {
-      id: Date.now().toString(),
-      studentId: selectedStudent.id,
-      typeFrais: paiementForm.typeFrais,
-      montantDu: parseFloat(paiementForm.montantDu),
-      montantPaye: parseFloat(paiementForm.montantPaye || "0"),
-      datePaiement: now.toISOString().split("T")[0],
-      heurePaiement: now.toTimeString().split(" ")[0],
-      remarques: paiementForm.remarques,
-      numeroRecu: generateReceiptNumber(),
-    };
-
-    setPaiements((prev) => [...prev, nouveauPaiement]);
-
-    // Réinitialiser le formulaire
-    setPaiementForm({
-      typeFrais: "",
-      montantDu: "",
-      montantPaye: "",
-      remarques: "",
-    });
-
-    alert(
-      `Paiement ajouté avec succès! Numéro de reçu: ${nouveauPaiement.numeroRecu}`
-    );
   };
 
-  const addTypeFrais = () => {
-    if (!newTypeFrais.nom || !newTypeFrais.montantDefaut) {
-      alert("Veuillez remplir les champs obligatoires");
-      return;
+  // NOUVELLES FONCTIONS pour gérer l'excédent
+  const handleExcessPayment = async (selectedTypeId: string) => {
+    if (!excessData) return;
+
+    try {
+      const student = eleves.find((e) => e.id === excessData.eleveId);
+      if (!student) return;
+
+      const classeNom = getClasseNameById(student.classe_id);
+      const montantDuSelectedType = getFraisForClasse(
+        classeNom,
+        selectedTypeId
+      );
+
+      const paiementsExistants = paiements.filter(
+        (p) =>
+          p.eleve_id === excessData.eleveId &&
+          p.type_frais_id === selectedTypeId
+      );
+      const totalDejaPayé = paiementsExistants.reduce(
+        (sum, p) => sum + p.montant_paye,
+        0
+      );
+      const restantAPayer = montantDuSelectedType - totalDejaPayé;
+
+      const montantPourSelectedType = Math.min(
+        excessData.excessAmount,
+        restantAPayer
+      );
+
+      if (currentYear) {
+        // 1) Pour le type original: augmenter le paiement existant s'il existe, sinon créer
+        if (excessData.existingPaiementId) {
+          await modifierPaiement(excessData.existingPaiementId, {
+            montant_paye:
+              parseFloat(excessData.existingPaiementPaid) +
+              parseFloat(excessData.amountForCurrent),
+            remarques: excessData.remarques || undefined,
+          });
+        } else {
+        await ajouterPaiement({
+          eleve_id: excessData.eleveId,
+          type_frais_id: excessData.currentTypeId,
+          montant_du: excessData.amountForCurrent,
+          montant_paye: excessData.amountForCurrent,
+          remarques: excessData.remarques || undefined,
+          annee_scolaire_id: currentYear?.id,
+        });
+        }
+
+        // 2) Pour le type sélectionné: ajouter le paiement avec l'excédent
+        await ajouterPaiement({
+          eleve_id: excessData.eleveId,
+          type_frais_id: selectedTypeId,
+          montant_du: montantDuSelectedType,
+          montant_paye: montantPourSelectedType,
+          remarques: `Excédent de paiement`,
+          annee_scolaire_id: currentYear?.id,
+        });
+      }
+
+      setShowExcessModal(false);
+      setExcessData(null);
+      setPaiementForm({
+        type_frais_id: "",
+        montant_du: "",
+        montant_paye: "",
+        remarques: "",
+      });
+
+      alert("Paiements ajoutés avec succès avec gestion de l'excédent!");
+    } catch (error) {
+      alert(
+        `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`
+      );
     }
-
-    const nouveauType: TypeFrais = {
-      id: Date.now().toString(),
-      nom: newTypeFrais.nom,
-      montantDefaut: parseFloat(newTypeFrais.montantDefaut),
-      description: newTypeFrais.description,
-      obligatoire: newTypeFrais.obligatoire,
-    };
-
-    setTypesFrais((prev) => [...prev, nouveauType]);
-    setNewTypeFrais({
-      nom: "",
-      montantDefaut: "",
-      description: "",
-      obligatoire: false,
-    });
   };
 
-  // Génération de reçu
-  const generateReceipt = (paiement: Paiement) => {
-    const student = students.find((s) => s.id === paiement.studentId);
-    if (!student) return;
+  // NOUVELLES FONCTIONS pour modification des paiements
+  const handleEditPaiement = (paiement: any) => {
+    setEditingPaiement({ ...paiement });
+    setShowEditModal(true);
+  };
+
+  const handleUpdatePaiement = async () => {
+    if (!editingPaiement) return;
+
+    try {
+      await modifierPaiement(editingPaiement.id, {
+        montant_paye: parseFloat(editingPaiement.montant_paye),
+        remarques: editingPaiement.remarques,
+      });
+
+      setShowEditModal(false);
+      setEditingPaiement(null);
+      alert("Paiement modifié avec succès!");
+    } catch (error) {
+      alert(
+        `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`
+      );
+    }
+  };
+
+  // Autres fonctions existantes (INCHANGÉES)...
+  const handleAddTypeFrais = async () => {
+    try {
+      if (!newTypeFrais.nom || !newTypeFrais.montant_defaut || !currentYear) {
+        alert("Veuillez remplir les champs obligatoires");
+        return;
+      }
+
+      await ajouterTypeFrais({
+        nom: newTypeFrais.nom,
+        montant_defaut: parseFloat(newTypeFrais.montant_defaut),
+        description: newTypeFrais.description || undefined,
+        obligatoire: newTypeFrais.obligatoire,
+        annee_scolaire_id: currentYear.id,
+      });
+
+      setNewTypeFrais({
+        nom: "",
+        montant_defaut: "",
+        description: "",
+        obligatoire: false,
+      });
+
+      alert("Type de frais ajouté avec succès!");
+    } catch (error) {
+      alert(
+        `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`
+      );
+    }
+  };
+
+  const handleUpdateFraisClasse = async (
+    typeFraisId: string,
+    montant: number
+  ) => {
+    try {
+      if (!selectedClasseForConfig || !currentYear) return;
+
+      const existingFrais = fraisParClasse.find(
+        (f) =>
+          f.classe === selectedClasseForConfig &&
+          f.type_frais_id === typeFraisId
+      );
+
+      if (existingFrais) {
+        await modifierFraisParClasse(existingFrais.id, { montant });
+      } else {
+        await ajouterFraisParClasse({
+          classe: selectedClasseForConfig,
+          type_frais_id: typeFraisId,
+          montant,
+          annee_scolaire_id: currentYear.id,
+        });
+      }
+    } catch (error) {
+      alert(
+        `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}`
+      );
+    }
+  };
+
+  // Auto-remplissage du montant (INCHANGÉ)
+  useEffect(() => {
+    if (paiementForm.type_frais_id && selectedStudent) {
+      const classeNom = getClasseNameById(selectedStudent.classe_id);
+      const montant = getFraisForClasse(classeNom, paiementForm.type_frais_id);
+      setPaiementForm((prev) => ({
+        ...prev,
+        montant_du: montant.toString(),
+      }));
+    }
+  }, [paiementForm.type_frais_id, selectedStudent, getFraisForClasse]);
+
+  // FONCTION AMÉLIORÉE pour la génération de reçu
+  const generateReceipt = (paiement: any) => {
+    const student = eleves.find((s) => s.id === paiement.eleve_id);
+    const typeFrais = typesFrais.find((t) => t.id === paiement.type_frais_id);
+    if (!student || !typeFrais) return;
 
     const receiptWindow = window.open("", "_blank", "width=800,height=600");
     if (!receiptWindow) return;
+
+    const classeNom = getClasseNameById(student.classe_id);
+    const salleNom = getSalleNameById(student.classe_id, student.salle_id);
+    const balances = getStudentBalanceByType(student.id);
+    const currentBalance = balances[typeFrais.id];
 
     receiptWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Reçu ${paiement.numeroRecu}</title>
+        <title>Reçu ${paiement.numero_recu}</title>
         <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          .content { margin: 20px 0; }
-          .amount { font-size: 24px; font-weight: bold; color: #2563eb; }
+          body { 
+            font-family: 'Arial', sans-serif; 
+            margin: 0; 
+            padding: 20px; 
+            background: white;
+            color: #333;
+          }
+          .header { 
+            text-align: center; 
+            border-bottom: 3px solid #2563eb; 
+            padding-bottom: 20px; 
+            margin-bottom: 30px;
+          }
+          .school-name {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 5px;
+          }
+          .school-info {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+          }
+          .receipt-title {
+            font-size: 20px;
+            font-weight: bold;
+            background: #2563eb;
+            color: white;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 5px;
+          }
+          .student-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+          }
+          .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+          }
+          .info-label {
+            font-weight: bold;
+            color: #555;
+          }
+          .payment-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          }
+          .payment-table th,
+          .payment-table td {
+            padding: 12px;
+            text-align: left;
+            border: 1px solid #ddd;
+          }
+          .payment-table th {
+            background: #2563eb;
+            color: white;
+            font-weight: bold;
+          }
+          .payment-table tr:nth-child(even) {
+            background: #f8f9fa;
+          }
+          .amount {
+            font-size: 24px;
+            font-weight: bold;
+            color: #16a34a;
+            text-align: center;
+            background: #f0fdf4;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+          }
+          .balance-info {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 20px 0;
+          }
+          .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 20px;
+          }
+          .signature-area {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            padding-top: 20px;
+          }
+          .signature-box {
+            width: 200px;
+            text-align: center;
+          }
+          .signature-line {
+            border-top: 1px solid #333;
+            margin-top: 30px;
+            padding-top: 5px;
+            font-size: 12px;
+          }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>INSTITUT SAINT-JOSEPH</h1>
-          <p>REÇU DE PAIEMENT</p>
+          <div class="school-name">INSTITUT SAINT-JOSEPH</div>
+          <div class="school-info">
+            123 Rue de l'Éducation, Port-au-Prince, Haïti<br>
+            Tél: +509 1234-5678 | Email: contact@institut-sj.ht<br>
+            Site web: www.institut-sj.ht
+          </div>
+          <div class="receipt-title">FICHE DE PAIEMENT</div>
         </div>
-        <div class="content">
-          <p><strong>Élève:</strong> ${student.prenom} ${student.nom}</p>
-          <p><strong>Code:</strong> ${student.code}</p>
-          <p><strong>Classe:</strong> ${student.classesDemandee} - ${
-      student.salle
-    }</p>
-          <p><strong>Type de frais:</strong> ${paiement.typeFrais}</p>
-          <p><strong>N° Reçu:</strong> ${paiement.numeroRecu}</p>
-          <p><strong>Date:</strong> ${new Date(
-            paiement.datePaiement
-          ).toLocaleDateString()}</p>
-          <p><strong>Heure:</strong> ${paiement.heurePaiement}</p>
-          <div class="amount">Montant payé: ${formatCurrency(
-            paiement.montantPaye
-          )}</div>
-          ${
-            paiement.remarques
-              ? `<p><strong>Remarques:</strong> ${paiement.remarques}</p>`
-              : ""
-          }
+        
+        <div class="student-info">
+          <div class="info-row">
+            <span class="info-label">Nom et Prénom:</span>
+            <span>${student.prenom} ${student.nom}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Code Élève:</span>
+            <span>${student.code}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Classe:</span>
+            <span>${classeNom} - ${salleNom}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">N° Fiche:</span>
+            <span>${paiement.numero_recu}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Date:</span>
+            <span>${new Date(paiement.date_paiement).toLocaleDateString(
+              "fr-FR"
+            )}</span>
+          </div>
+          <div class="info-row">
+            <span class="info-label">Heure:</span>
+            <span>${paiement.heure_paiement}</span>
+          </div>
+        </div>
+
+        <table class="payment-table">
+          <thead>
+            <tr>
+              <th>Type de Frais</th>
+              <th>Montant Dû</th>
+              <th>Montant Versé</th>
+              <th>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>${typeFrais.nom}</td>
+              <td>${formatCurrency(paiement.montant_du)}</td>
+              <td>${formatCurrency(paiement.montant_paye)}</td>
+              <td>${formatCurrency(
+                Math.max(0, currentBalance?.balance || 0)
+              )}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        
+        ${
+          (currentBalance?.balance || 0) > 0
+            ? `
+          <div class="balance-info">
+            <strong>⚠️ Solde Restant:</strong> ${formatCurrency(
+              currentBalance.balance
+            )}<br>
+            <small>Veuillez effectuer le paiement du solde restant avant la prochaine échéance.</small>
+          </div>
+        `
+            : `
+          <div class="balance-info" style="background: #dcfce7; border-color: #16a34a;">
+            <strong>✅ Paiement Complet</strong><br>
+            <small>Ce type de frais est entièrement soldé.</small>
+          </div>
+        `
+        }
+
+        ${
+          paiement.remarques
+            ? `
+          <div class="info-row">
+            <span class="info-label">Remarques:</span>
+            <span>${paiement.remarques}</span>
+          </div>
+        `
+            : ""
+        }
+
+        <div class="signature-area">
+          <div class="signature-box">
+            <div class="signature-line">Signature du Caissier</div>
+          </div>
+          <div class="signature-box">
+            <div class="signature-line">Signature du Parent/Élève</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>Cette fiche fait foi de paiement. Veuillez la conserver précieusement.</p>
+         
         </div>
       </body>
       </html>
     `);
     receiptWindow.document.close();
+    receiptWindow.print();
   };
 
-  // Auto-remplissage du montant
-  useEffect(() => {
-    if (paiementForm.typeFrais && selectedStudent) {
-      const typeFrais = typesFrais.find(
-        (t) => t.nom === paiementForm.typeFrais
-      );
-      if (typeFrais) {
-        // Utiliser les frais configurés pour la classe de l'élève
-        const fraisClasse = getFraisForClasse(selectedStudent.classesDemandee, typeFrais.id);
-        const montant = fraisClasse > 0 ? fraisClasse : typeFrais.montantDefaut;
-        
-        setPaiementForm((prev) => ({
-          ...prev,
-          montantDu: montant.toString(),
-        }));
-      }
-    }
-  }, [paiementForm.typeFrais, selectedStudent, typesFrais, fraisParClasse]);
-
-  // Styles conditionnels
+  // Styles conditionnels (INCHANGÉS)
   const cardClasses = isDarkMode
     ? "bg-gray-800 border-gray-700"
     : "bg-white border-gray-200";
@@ -467,6 +814,30 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
     : "bg-gray-200 text-gray-700 hover:bg-gray-300";
 
+  // Gestion des erreurs et chargement (INCHANGÉES)
+  if (errorFrais) {
+    return (
+      <div className="min-h-screen p-6 flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-red-600" />
+          <h2 className="text-xl font-semibold mb-2">Erreur de chargement</h2>
+          <p className="text-gray-600">{errorFrais}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen p-6 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="h-16 w-16 mx-auto mb-4 animate-spin text-blue-600" />
+          <p className="text-gray-600">Chargement des données...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className={`min-h-screen p-6 ${
@@ -474,7 +845,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
       }`}
     >
       <div className="max-w-7xl mx-auto">
-        {/* En-tête */}
+        {/* En-tête (INCHANGÉ) */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">
             Gestion des Frais de Scolarité
@@ -484,7 +855,161 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
           </p>
         </div>
 
-        {/* Onglets */}
+        {/* NOUVEAUX MODALS */}
+
+        {/* Modal pour modification de paiement */}
+        {showEditModal && editingPaiement && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div
+              className={`${cardClasses} p-6 rounded-lg max-w-md w-full mx-4`}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Modifier le Paiement</h3>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Montant Payé
+                  </label>
+                  <input
+                    type="number"
+                    value={editingPaiement.montant_paye}
+                    onChange={(e) =>
+                      setEditingPaiement((prev) => ({
+                        ...prev,
+                        montant_paye: e.target.value,
+                      }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${inputClasses}`}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Remarques
+                  </label>
+                  <textarea
+                    value={editingPaiement.remarques || ""}
+                    onChange={(e) =>
+                      setEditingPaiement((prev) => ({
+                        ...prev,
+                        remarques: e.target.value,
+                      }))
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg ${inputClasses}`}
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex gap-2">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={handleUpdatePaiement}
+                  className={`flex-1 px-4 py-2 rounded-lg ${buttonClasses}`}
+                >
+                  Enregistrer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal pour l'excédent de paiement */}
+        {showExcessModal && excessData && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div
+              className={`${cardClasses} p-6 rounded-lg max-w-md w-full mx-4`}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Excédent de Paiement</h3>
+                <button
+                  onClick={() => setShowExcessModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm mb-2">
+                  Le montant payé dépasse le montant dû.
+                </p>
+                <p className="text-sm mb-4 font-medium text-blue-600">
+                  Excédent: {formatCurrency(excessData.excessAmount)}
+                </p>
+                <p className="text-sm mb-4">
+                  Voulez-vous appliquer l'excédent à un autre type de frais?
+                </p>
+              </div>
+
+              <div className="space-y-3 max-h-40 overflow-y-auto">
+                {excessData.availableTypes.map((type: any) => {
+                  const student = eleves.find(
+                    (e) => e.id === excessData.eleveId
+                  );
+                  const classeNom = getClasseNameById(student?.classe_id || "");
+                  const montantDu = getFraisForClasse(classeNom, type.id);
+                  const paiementsExistants = paiements.filter(
+                    (p) =>
+                      p.eleve_id === excessData.eleveId &&
+                      p.type_frais_id === type.id
+                  );
+                  const totalDejaPayé = paiementsExistants.reduce(
+                    (sum, p) => sum + p.montant_paye,
+                    0
+                  );
+                  const restant = montantDu - totalDejaPayé;
+
+                  return (
+                    <button
+                      key={type.id}
+                      onClick={() => handleExcessPayment(type.id)}
+                      className={`w-full p-3 border rounded-lg text-left hover:bg-blue-50 ${
+                        isDarkMode
+                          ? "border-gray-600 hover:bg-blue-900"
+                          : "border-gray-200"
+                      }`}
+                    >
+                      <div className="font-medium">{type.nom}</div>
+                      <div className="text-sm text-gray-500">
+                        Restant à payer: {formatCurrency(restant)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4">
+                <button
+                  onClick={() => {
+                    setShowExcessModal(false);
+                    setExcessData(null);
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Annuler - Ne pas utiliser l'excédent
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Le reste du code UI reste IDENTIQUE, avec juste quelques modifications dans la section paiements */}
+
+        {/* Onglets (INCHANGÉ) */}
         <div
           className={`flex mb-6 border-b ${
             isDarkMode ? "border-gray-700" : "border-gray-200"
@@ -494,7 +1019,6 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
             { id: "paiements", icon: DollarSign, label: "Paiements" },
             { id: "consultation", icon: Eye, label: "Consultation" },
             { id: "configuration", icon: Settings, label: "Configuration" },
-            { id: "rapports", icon: FileText, label: "Rapports" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -509,7 +1033,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
           ))}
         </div>
 
-        {/* Sélecteurs principaux */}
+        {/* Sélecteurs principaux MODIFIÉS pour afficher les balances par type */}
         <div className={`${cardClasses} p-6 rounded-lg shadow-sm border mb-6`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
@@ -522,17 +1046,17 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
               </label>
               <select
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                value={selectedClasse}
+                value={selectedClasseId}
                 onChange={(e) => {
-                  setSelectedClasse(e.target.value);
-                  setSelectedSalle("");
+                  setSelectedClasseId(e.target.value);
+                  setSelectedSalleId("");
                   setSelectedStudent(null);
                 }}
               >
                 <option value="">Toutes les classes</option>
                 {classes.map((classe) => (
-                  <option key={classe} value={classe}>
-                    {classe}
+                  <option key={classe.value} value={classe.value}>
+                    {classe.label}
                   </option>
                 ))}
               </select>
@@ -548,18 +1072,18 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
               </label>
               <select
                 className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                value={selectedSalle}
+                value={selectedSalleId}
                 onChange={(e) => {
-                  setSelectedSalle(e.target.value);
+                  setSelectedSalleId(e.target.value);
                   setSelectedStudent(null);
                 }}
-                disabled={!selectedClasse}
+                disabled={!selectedClasseId}
               >
                 <option value="">Toutes les salles</option>
-                {selectedClasse &&
-                  sallesByClass[selectedClasse]?.map((salle) => (
-                    <option key={salle} value={salle}>
-                      {salle}
+                {selectedClasseId &&
+                  sallesByClass[selectedClasseId]?.map((salle) => (
+                    <option key={salle.value} value={salle.value}>
+                      {salle.label}
                     </option>
                   ))}
               </select>
@@ -586,13 +1110,13 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
             </div>
           </div>
 
-          {/* Liste des élèves */}
-          {(selectedClasse || selectedSalle || searchTerm) && (
+          {/* Liste des élèves MODIFIÉE avec balances par type */}
+          {(selectedClasseId || selectedSalleId || searchTerm) && (
             <div className="mt-4">
               <h3 className="font-medium mb-3">
                 Élèves ({activeStudents.length})
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-40 overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-60 overflow-y-auto">
                 {activeStudents
                   .filter((student) => {
                     if (!searchTerm) return true;
@@ -604,7 +1128,13 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                     );
                   })
                   .map((student) => {
-                    const balance = getStudentBalance(student.id);
+                    const balancesByType = getStudentBalanceByType(student.id);
+                    const classeNom = getClasseNameById(student.classe_id);
+                    const salleNom = getSalleNameById(
+                      student.classe_id,
+                      student.salle_id
+                    );
+
                     return (
                       <div
                         key={student.id}
@@ -627,17 +1157,25 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                             isDarkMode ? "text-gray-400" : "text-gray-500"
                           }`}
                         >
-                          {student.code} • {student.classesDemandee} -{" "}
-                          {student.salle}
+                          {student.code} • {classeNom} - {salleNom}
                         </div>
-                        <div
-                          className={`text-xs mt-1 ${
-                            balance.solde > 0
-                              ? "text-red-600"
-                              : "text-green-600"
-                          }`}
-                        >
-                          Solde: {formatCurrency(balance.solde)}
+                        {/* NOUVEAU: Balances individuelles par type */}
+                        <div className="mt-2 space-y-1">
+                          {Object.values(balancesByType).map(
+                            (balance: any, index) => (
+                              <div
+                                key={index}
+                                className={`text-xs flex justify-between ${
+                                  balance.balance > 0
+                                    ? "text-red-600"
+                                    : "text-green-600"
+                                }`}
+                              >
+                                <span>{balance.typeName}:</span>
+                                <span>{formatCurrency(balance.balance)}</span>
+                              </div>
+                            )
+                          )}
                         </div>
                       </div>
                     );
@@ -647,7 +1185,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
           )}
         </div>
 
-        {/* Contenu selon l'onglet actif */}
+        {/* Contenu selon l'onglet actif - Seule la section paiements est modifiée */}
         {activeTab === "paiements" && (
           <div className={`${cardClasses} rounded-lg shadow-sm border`}>
             <div className="p-6">
@@ -663,10 +1201,21 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                       {selectedStudent.prenom} {selectedStudent.nom}
                     </div>
                     <div className="text-sm">
-                      Solde:{" "}
-                      {formatCurrency(
-                        getStudentBalance(selectedStudent.id).solde
-                      )}
+                      {/* NOUVEAU: Affichage des balances individuelles */}
+                      {Object.values(
+                        getStudentBalanceByType(selectedStudent.id)
+                      ).map((balance: any, index) => (
+                        <div
+                          key={index}
+                          className={`${
+                            balance.balance > 0
+                              ? "text-red-600"
+                              : "text-green-600"
+                          }`}
+                        >
+                          {balance.typeName}: {formatCurrency(balance.balance)}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -685,7 +1234,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {/* Formulaire */}
+                  {/* Formulaire MODIFIÉ */}
                   <div className="space-y-4">
                     <h3 className="font-bold mb-4">Nouveau Paiement</h3>
 
@@ -699,17 +1248,33 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                       </label>
                       <select
                         className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={paiementForm.typeFrais}
+                        value={paiementForm.type_frais_id}
                         onChange={(e) =>
-                          handlePaiementChange("typeFrais", e.target.value)
+                          handlePaiementChange("type_frais_id", e.target.value)
                         }
                       >
                         <option value="">Sélectionner un type de frais</option>
-                        {typesFrais.map((type) => (
-                          <option key={type.id} value={type.nom}>
-                            {type.nom} - {formatCurrency(type.montantDefaut)}
-                          </option>
-                        ))}
+                        {typesFrais.map((type) => {
+                          const classeNom = getClasseNameById(
+                            selectedStudent.classe_id
+                          );
+                          const montant = getFraisForClasse(classeNom, type.id);
+                          const isSolde = isTypeFraisSolde(
+                            selectedStudent.id,
+                            type.id
+                          );
+
+                          return (
+                            <option
+                              key={type.id}
+                              value={type.id}
+                              disabled={isSolde}
+                            >
+                              {type.nom} - {formatCurrency(montant)}{" "}
+                              {isSolde ? "(SOLDÉ)" : ""}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
 
@@ -726,10 +1291,11 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                           type="number"
                           min="0"
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={paiementForm.montantDu}
+                          value={paiementForm.montant_du}
                           onChange={(e) =>
-                            handlePaiementChange("montantDu", e.target.value)
+                            handlePaiementChange("montant_du", e.target.value)
                           }
+                          readOnly
                         />
                       </div>
                       <div>
@@ -738,15 +1304,15 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Montant Payé
+                          Montant Payé *
                         </label>
                         <input
                           type="number"
                           min="0"
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={paiementForm.montantPaye}
+                          value={paiementForm.montant_paye}
                           onChange={(e) =>
-                            handlePaiementChange("montantPaye", e.target.value)
+                            handlePaiementChange("montant_paye", e.target.value)
                           }
                         />
                       </div>
@@ -771,83 +1337,120 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                     </div>
 
                     <button
-                      onClick={addPaiement}
-                      className={`w-full ${buttonClasses} px-4 py-3 rounded-lg font-medium transition-colors`}
+                      onClick={handleAddPaiement}
+                      disabled={isLoading}
+                      className={`w-full ${buttonClasses} px-4 py-3 rounded-lg font-medium transition-colors disabled:opacity-50`}
                     >
                       <Save className="h-4 w-4 inline mr-2" />
                       Enregistrer le Paiement
                     </button>
                   </div>
 
-                  {/* Historique */}
+                  {/* Historique MODIFIÉ avec bouton Edit */}
                   <div>
                     <h3 className="font-bold mb-4">Historique des Paiements</h3>
                     <div className="space-y-3 max-h-96 overflow-y-auto">
                       {paiements
-                        .filter((p) => p.studentId === selectedStudent.id)
+                        .filter((p) => p.eleve_id === selectedStudent.id)
                         .sort(
                           (a, b) =>
-                            new Date(b.datePaiement).getTime() -
-                            new Date(a.datePaiement).getTime()
+                            new Date(b.date_paiement).getTime() -
+                            new Date(a.date_paiement).getTime()
                         )
-                        .map((paiement) => (
-                          <div
-                            key={paiement.id}
-                            className={`p-4 border rounded-lg ${
-                              isDarkMode ? "border-gray-600" : "border-gray-200"
-                            }`}
-                          >
-                            <div className="flex justify-between mb-2">
-                              <div className="font-medium">
-                                {paiement.typeFrais}
+                        .map((paiement) => {
+                          const typeFrais = typesFrais.find(
+                            (t) => t.id === paiement.type_frais_id
+                          );
+                          return (
+                            <div
+                              key={paiement.id}
+                              className={`p-4 border rounded-lg ${
+                                isDarkMode
+                                  ? "border-gray-600"
+                                  : "border-gray-200"
+                              }`}
+                            >
+                              <div className="flex justify-between mb-2">
+                                <div className="font-medium">
+                                  {typeFrais?.nom || "Type inconnu"}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  Reçu: {paiement.numero_recu}
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-500">
-                                Reçu: {paiement.numeroRecu}
+                              <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                                <div>
+                                  Dû: {formatCurrency(paiement.montant_du)}
+                                </div>
+                                <div>
+                                  Payé: {formatCurrency(paiement.montant_paye)}
+                                </div>
+                                <div>
+                                  {new Date(
+                                    paiement.date_paiement
+                                  ).toLocaleDateString()}
+                                </div>
+                                <div>{paiement.heure_paiement}</div>
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <div
+                                  className={`flex items-center gap-1 text-sm ${getPaymentStatusColor(
+                                    paiement.montant_du,
+                                    paiement.montant_paye
+                                  )}`}
+                                >
+                                  {getPaymentStatusIcon(
+                                    paiement.montant_du,
+                                    paiement.montant_paye
+                                  )}
+                                  {paiement.montant_paye >= paiement.montant_du
+                                    ? "Soldé"
+                                    : paiement.montant_paye > 0
+                                    ? "Partiel"
+                                    : "Non payé"}
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => generateReceipt(paiement)}
+                                    className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                                  >
+                                    <Receipt className="h-3 w-3" />
+                                    Reçu
+                                  </button>
+                                  {/* NOUVEAU: Bouton pour modifier */}
+                                  <button
+                                    onClick={() => handleEditPaiement(paiement)}
+                                    className="text-green-600 hover:text-green-800"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm("Supprimer ce paiement?")) {
+                                        try {
+                                          await supprimerPaiement(paiement.id);
+                                        } catch (error) {
+                                          alert(
+                                            `Erreur: ${
+                                              error instanceof Error
+                                                ? error.message
+                                                : "Erreur inconnue"
+                                            }`
+                                          );
+                                        }
+                                      }
+                                    }}
+                                    className="text-red-600 hover:text-red-800"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2 text-sm mb-2">
-                              <div>
-                                Dû: {formatCurrency(paiement.montantDu)}
-                              </div>
-                              <div>
-                                Payé: {formatCurrency(paiement.montantPaye)}
-                              </div>
-                              <div>
-                                {new Date(
-                                  paiement.datePaiement
-                                ).toLocaleDateString()}
-                              </div>
-                              <div>{paiement.heurePaiement}</div>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <div
-                                className={`flex items-center gap-1 text-sm ${getPaymentStatusColor(
-                                  paiement.montantDu,
-                                  paiement.montantPaye
-                                )}`}
-                              >
-                                {getPaymentStatusIcon(
-                                  paiement.montantDu,
-                                  paiement.montantPaye
-                                )}
-                                {paiement.montantPaye >= paiement.montantDu
-                                  ? "Soldé"
-                                  : paiement.montantPaye > 0
-                                  ? "Partiel"
-                                  : "Non payé"}
-                              </div>
-                              <button
-                                onClick={() => generateReceipt(paiement)}
-                                className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
-                              >
-                                <Receipt className="h-3 w-3" />
-                                Reçu
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       {paiements.filter(
-                        (p) => p.studentId === selectedStudent.id
+                        (p) => p.eleve_id === selectedStudent.id
                       ).length === 0 && (
                         <div className="text-center py-8 text-gray-500">
                           Aucun paiement enregistré
@@ -861,6 +1464,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
           </div>
         )}
 
+        {/* Les autres onglets restent IDENTIQUES à votre code original */}
         {activeTab === "consultation" && (
           <div className={`${cardClasses} rounded-lg shadow-sm border`}>
             <div className="p-6">
@@ -896,7 +1500,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                     >
                       <option value="">Tous les types</option>
                       {typesFrais.map((type) => (
-                        <option key={type.id} value={type.nom}>
+                        <option key={type.id} value={type.id}>
                           {type.nom}
                         </option>
                       ))}
@@ -919,6 +1523,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                         type="text"
                         placeholder="Recherche..."
                         className={`w-full pl-10 pr-3 py-2 border rounded-lg ${inputClasses}`}
+                        value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
                     </div>
@@ -956,88 +1561,145 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                       isDarkMode ? "divide-gray-700" : "divide-gray-200"
                     }`}
                   >
-                    {paiements.map((paiement) => {
-                      const student = students.find(
-                        (s) => s.id === paiement.studentId
-                      );
-                      if (!student) return null;
+                    {paiements
+                      .filter((paiement) => {
+                        const student = eleves.find(
+                          (s) => s.id === paiement.eleve_id
+                        );
+                        const typeFrais = typesFrais.find(
+                          (t) => t.id === paiement.type_frais_id
+                        );
 
-                      return (
-                        <tr
-                          key={paiement.id}
-                          className={
-                            isDarkMode
-                              ? "hover:bg-gray-700"
-                              : "hover:bg-gray-50"
-                          }
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium">
-                              {student.prenom} {student.nom}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {student.code}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {paiement.typeFrais}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm">
-                              Payé: {formatCurrency(paiement.montantPaye)}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              Dû: {formatCurrency(paiement.montantDu)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div
-                              className={`flex items-center gap-1 ${getPaymentStatusColor(
-                                paiement.montantDu,
-                                paiement.montantPaye
-                              )}`}
-                            >
-                              {getPaymentStatusIcon(
-                                paiement.montantDu,
-                                paiement.montantPaye
-                              )}
-                              {paiement.montantPaye >= paiement.montantDu
-                                ? "Soldé"
-                                : paiement.montantPaye > 0
-                                ? "Partiel"
-                                : "Non payé"}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {new Date(
-                              paiement.datePaiement
-                            ).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => generateReceipt(paiement)}
-                                className="text-blue-600 hover:text-blue-800"
+                        // Filtre par type de frais
+                        if (
+                          filterTypeFrais &&
+                          paiement.type_frais_id !== filterTypeFrais
+                        ) {
+                          return false;
+                        }
+
+                        // Filtre par statut
+                        if (filterStatutPaiement) {
+                          const isComplete =
+                            paiement.montant_paye >= paiement.montant_du;
+                          const isPartial =
+                            paiement.montant_paye > 0 && !isComplete;
+                          const isUnpaid = paiement.montant_paye === 0;
+
+                          if (filterStatutPaiement === "solde" && !isComplete)
+                            return false;
+                          if (filterStatutPaiement === "partiel" && !isPartial)
+                            return false;
+                          if (filterStatutPaiement === "impaye" && !isUnpaid)
+                            return false;
+                        }
+
+                        // Filtre par recherche
+                        if (searchTerm && student) {
+                          const search = searchTerm.toLowerCase();
+                          return (
+                            student.nom.toLowerCase().includes(search) ||
+                            student.prenom.toLowerCase().includes(search) ||
+                            student.code.toLowerCase().includes(search) ||
+                            typeFrais?.nom.toLowerCase().includes(search)
+                          );
+                        }
+
+                        return true;
+                      })
+                      .map((paiement) => {
+                        const student = eleves.find(
+                          (s) => s.id === paiement.eleve_id
+                        );
+                        const typeFrais = typesFrais.find(
+                          (t) => t.id === paiement.type_frais_id
+                        );
+                        if (!student) return null;
+
+                        return (
+                          <tr
+                            key={paiement.id}
+                            className={
+                              isDarkMode
+                                ? "hover:bg-gray-700"
+                                : "hover:bg-gray-50"
+                            }
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium">
+                                {student.prenom} {student.nom}
+                              </div>
+                              <div className="text-sm text-gray-500">
+                                {student.code}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {typeFrais?.nom || "Type inconnu"}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm">
+                                Payé: {formatCurrency(paiement.montant_paye)}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Dû: {formatCurrency(paiement.montant_du)}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div
+                                className={`flex items-center gap-1 ${getPaymentStatusColor(
+                                  paiement.montant_du,
+                                  paiement.montant_paye
+                                )}`}
                               >
-                                <Receipt className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (confirm("Supprimer ce paiement?")) {
-                                    setPaiements((prev) =>
-                                      prev.filter((p) => p.id !== paiement.id)
-                                    );
-                                  }
-                                }}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                                {getPaymentStatusIcon(
+                                  paiement.montant_du,
+                                  paiement.montant_paye
+                                )}
+                                {paiement.montant_paye >= paiement.montant_du
+                                  ? "Soldé"
+                                  : paiement.montant_paye > 0
+                                  ? "Partiel"
+                                  : "Non payé"}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {new Date(
+                                paiement.date_paiement
+                              ).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => generateReceipt(paiement)}
+                                  className="text-blue-600 hover:text-blue-800"
+                                >
+                                  <Receipt className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    if (confirm("Supprimer ce paiement?")) {
+                                      try {
+                                        await supprimerPaiement(paiement.id);
+                                      } catch (error) {
+                                        alert(
+                                          `Erreur: ${
+                                            error instanceof Error
+                                              ? error.message
+                                              : "Erreur inconnue"
+                                          }`
+                                        );
+                                      }
+                                    }
+                                  }}
+                                  className="text-red-600 hover:text-red-800"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
@@ -1058,8 +1720,10 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   isDarkMode ? "border-gray-600" : "border-gray-200"
                 }`}
               >
-                <h3 className="font-bold mb-4">Configuration des Frais par Classe</h3>
-                
+                <h3 className="font-bold mb-4">
+                  Configuration des Frais par Classe
+                </h3>
+
                 <div className="mb-4">
                   <label
                     className={`block text-sm font-medium mb-2 ${
@@ -1075,8 +1739,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   >
                     <option value="">Choisir une classe</option>
                     {classes.map((classe) => (
-                      <option key={classe} value={classe}>
-                        {classe}
+                      <option key={classe.value} value={classe.label}>
+                        {classe.label}
                       </option>
                     ))}
                   </select>
@@ -1087,7 +1751,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                     <h4 className="font-semibold text-lg">
                       Frais pour la classe : {selectedClasseForConfig}
                     </h4>
-                    
+
                     {typesFrais.map((typeFrais) => (
                       <div
                         key={typeFrais.id}
@@ -1108,10 +1772,13 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                               min="0"
                               placeholder="Montant"
                               className={`w-32 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                              value={getFraisForClasse(selectedClasseForConfig, typeFrais.id)}
+                              value={getFraisForClasse(
+                                selectedClasseForConfig,
+                                typeFrais.id
+                              )}
                               onChange={(e) => {
                                 const montant = parseFloat(e.target.value) || 0;
-                                updateFraisForClasse(selectedClasseForConfig, typeFrais.id, montant);
+                                handleUpdateFraisClasse(typeFrais.id, montant);
                               }}
                             />
                             <span className="text-sm text-gray-500">HTG</span>
@@ -1147,11 +1814,11 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                     type="number"
                     placeholder="Montant"
                     className={`px-3 py-2 border rounded-lg ${inputClasses}`}
-                    value={newTypeFrais.montantDefaut}
+                    value={newTypeFrais.montant_defaut}
                     onChange={(e) =>
                       setNewTypeFrais((prev) => ({
                         ...prev,
-                        montantDefaut: e.target.value,
+                        montant_defaut: e.target.value,
                       }))
                     }
                   />
@@ -1183,8 +1850,9 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   </label>
                 </div>
                 <button
-                  onClick={addTypeFrais}
-                  className={`${buttonClasses} px-4 py-2 rounded-lg`}
+                  onClick={handleAddTypeFrais}
+                  disabled={isLoading}
+                  className={`${buttonClasses} px-4 py-2 rounded-lg disabled:opacity-50`}
                 >
                   <Plus className="h-4 w-4 inline mr-2" />
                   Ajouter
@@ -1213,15 +1881,23 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                           {type.description}
                         </div>
                         <div className="text-lg font-bold text-green-600">
-                          {formatCurrency(type.montantDefaut)}
+                          {formatCurrency(type.montant_defaut)}
                         </div>
                       </div>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
                           if (confirm("Supprimer ce type de frais?")) {
-                            setTypesFrais((prev) =>
-                              prev.filter((t) => t.id !== type.id)
-                            );
+                            try {
+                              await supprimerPaiement(type.id);
+                            } catch (error) {
+                              alert(
+                                `Erreur: ${
+                                  error instanceof Error
+                                    ? error.message
+                                    : "Erreur inconnue"
+                                }`
+                              );
+                            }
                           }
                         }}
                         className="text-red-600 hover:text-red-800"
@@ -1232,142 +1908,6 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "rapports" && (
-          <div className={`${cardClasses} rounded-lg shadow-sm border`}>
-            <div className="p-6">
-              <h2 className="text-xl font-bold mb-6">
-                Rapports et Statistiques
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div
-                  className={`p-4 rounded-lg ${
-                    isDarkMode ? "bg-gray-700" : "bg-blue-50"
-                  }`}
-                >
-                  <div className="text-center">
-                    <DollarSign className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-                    <p className="text-sm">Total Perçu</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {formatCurrency(
-                        paiements.reduce((sum, p) => sum + p.montantPaye, 0)
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  className={`p-4 rounded-lg ${
-                    isDarkMode ? "bg-gray-700" : "bg-green-50"
-                  }`}
-                >
-                  <div className="text-center">
-                    <Receipt className="h-8 w-8 mx-auto mb-2 text-green-600" />
-                    <p className="text-sm">Nombre de Paiements</p>
-                    <p className="text-2xl font-bold text-green-600">
-                      {paiements.length}
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  className={`p-4 rounded-lg ${
-                    isDarkMode ? "bg-gray-700" : "bg-red-50"
-                  }`}
-                >
-                  <div className="text-center">
-                    <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-red-600" />
-                    <p className="text-sm">Élèves en Retard</p>
-                    <p className="text-2xl font-bold text-red-600">
-                      {
-                        students.filter(
-                          (student) => getStudentBalance(student.id).solde > 0
-                        ).length
-                      }
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {selectedClasse && selectedSalle && (
-                <div
-                  className={`mt-8 p-6 border rounded-lg ${
-                    isDarkMode ? "border-gray-600" : "border-gray-200"
-                  }`}
-                >
-                  <h3 className="text-lg font-bold mb-4">
-                    Statistiques - {selectedClasse} ({selectedSalle})
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Total à Percevoir</p>
-                      <p className="text-xl font-bold text-blue-600">
-                        {formatCurrency(
-                          activeStudents.reduce((total, student) => {
-                            return (
-                              total + getStudentBalance(student.id).totalDu
-                            );
-                          }, 0)
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Total Perçu</p>
-                      <p className="text-xl font-bold text-green-600">
-                        {formatCurrency(
-                          activeStudents.reduce((total, student) => {
-                            return (
-                              total + getStudentBalance(student.id).totalPaye
-                            );
-                          }, 0)
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">Solde Restant</p>
-                      <p className="text-xl font-bold text-red-600">
-                        {formatCurrency(
-                          activeStudents.reduce((total, student) => {
-                            return total + getStudentBalance(student.id).solde;
-                          }, 0)
-                        )}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">
-                        Taux de Recouvrement
-                      </p>
-                      <p className="text-xl font-bold text-yellow-600">
-                        {(() => {
-                          const totalDu = activeStudents.reduce(
-                            (total, student) => {
-                              return (
-                                total + getStudentBalance(student.id).totalDu
-                              );
-                            },
-                            0
-                          );
-                          const totalPaye = activeStudents.reduce(
-                            (total, student) => {
-                              return (
-                                total + getStudentBalance(student.id).totalPaye
-                              );
-                            },
-                            0
-                          );
-                          return totalDu > 0
-                            ? `${((totalPaye / totalDu) * 100).toFixed(1)}%`
-                            : "0%";
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

@@ -1,0 +1,194 @@
+"use client";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { useAnneeScolaire } from "./ContextAnneeScolaire";
+import { Eleve, EleveFormData } from "../types/EleveType";
+import { SelectData, InsertDataReturn, UpdateData, DeleteData, DataExsite } from "@/Config/SupabaseData";
+
+interface EleveDB {
+  id: string;
+  code: string;
+  nom: string;
+  prenom: string;
+  date_naissance: string;
+  lieu_naissance: string;
+  sexe: "M" | "F";
+  adresse_actuelle: string;
+  telephone_parents: string;
+  adresse_parents: string;
+  nif_parents: string;
+  moyenne_generale: number;
+  etablissement_precedent: string;
+  statut: "actif" | "inactif" | "suspendu";
+  date_inscription: string;
+  observations?: string;
+  photo_url?: string;
+  annee_scolaire_id: string;
+  classe_id: string;
+  salle_id: string;
+  deleted: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ElevesContextType {
+  eleves: Eleve[];
+  isLoading: boolean;
+  error: string | null;
+  ajouterEleve: (data: EleveFormData) => Promise<void>;
+  modifierEleve: (id: string, data: Partial<EleveFormData>) => Promise<void>;
+  supprimerEleve: (id: string) => Promise<void>;           // logique
+  supprimerEleveDefinitif: (id: string) => Promise<void>;  // hard
+  restaurerEleve: (id: string) => Promise<void>;
+  rechercherEleves: (terme: string) => Eleve[];
+  genererNouveauCode: () => Promise<string>;
+  rechargerEleves: () => Promise<void>;
+}
+
+const ElevesContext = createContext<ElevesContextType | undefined>(undefined);
+
+export const ElevesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [eleves, setEleves] = useState<Eleve[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { currentYear } = useAnneeScolaire();
+
+  const toEleve = (r: EleveDB): Eleve => ({
+    id: r.id,
+    code: r.code,
+    nom: r.nom,
+    prenom: r.prenom,
+    date_naissance: r.date_naissance,
+    lieu_naissance: r.lieu_naissance,
+    sexe: r.sexe,
+    adresse_actuelle: r.adresse_actuelle,
+    telephone_parents: r.telephone_parents,
+    adresse_parents: r.adresse_parents,
+    nif_parents: r.nif_parents,
+    moyenne_generale: r.moyenne_generale,
+    etablissement_precedent: r.etablissement_precedent,
+    statut: r.statut,
+    date_inscription: r.date_inscription,
+    observations: r.observations,
+    photo_url: r.photo_url,
+    annee_scolaire_id: r.annee_scolaire_id,
+    classe_id: r.classe_id,
+    salle_id: r.salle_id,
+    deleted: r.deleted,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  });
+
+  const rechargerEleves = async () => {
+    try {
+      setIsLoading(true);
+      const data = await SelectData("eleves");
+      const list = (data || []).filter((r: EleveDB) => !r.deleted && (!currentYear || r.annee_scolaire_id === currentYear.id));
+      setEleves(list.map(toEleve));
+    } catch (e) {
+      setError("Erreur lors du chargement des élèves");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const genererNouveauCode = async (nom?: string, prenom?: string): Promise<string> => {
+    const initialNom = (nom || "").trim().toUpperCase().slice(0, 1) || "X";
+    const initialPrenom = (prenom || "").trim().toUpperCase().slice(0, 1) || "X";
+    const rand1 = Math.floor(Math.random() * 10); // 0-9
+    const rand2 = Math.floor(Math.random() * 100);
+    const rand2Str = String(rand2).padStart(2, "0");
+    // Format: EL + N + P + d + _ + dd  ex: ELJM3_47
+    return `EL${initialNom}${initialPrenom}${rand1}_${rand2Str}`;
+  };
+
+  const ajouterEleve = async (data: EleveFormData) => {
+    try {
+      setIsLoading(true);
+      if (await DataExsite("eleves", "code", data.code)) throw new Error("Ce code élève existe déjà");
+      const payload: Omit<EleveDB, "id" | "created_at" | "updated_at"> = {
+        ...data,
+        deleted: false,
+      } as EleveDB;
+      const res = await InsertDataReturn("eleves", payload);
+      if (!res.success) throw new Error(res.error?.message || "Erreur lors de l'ajout de l'élève");
+      await rechargerEleves();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur lors de l'ajout de l'élève");
+      throw e;
+    } finally { setIsLoading(false); }
+  };
+
+  const modifierEleve = async (id: string, data: Partial<EleveFormData>) => {
+    try {
+      setIsLoading(true);
+      const ok = await UpdateData("eleves", id, data);
+      if (!ok) throw new Error("Erreur lors de la modification de l'élève");
+      await rechargerEleves();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur lors de la modification de l'élève");
+      throw e;
+    } finally { setIsLoading(false); }
+  };
+
+  const supprimerEleve = async (id: string) => {
+    try {
+      setIsLoading(true);
+      const ok = await UpdateData("eleves", id, { deleted: true });
+      if (!ok) throw new Error("Erreur lors de la suppression de l'élève");
+      setEleves((prev) => prev.filter((e) => e.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur lors de la suppression de l'élève");
+      throw e;
+    } finally { setIsLoading(false); }
+  };
+
+  const supprimerEleveDefinitif = async (id: string) => {
+    try {
+      setIsLoading(true);
+      const ok = await DeleteData("eleves", id);
+      if (!ok) throw new Error("Erreur lors de la suppression définitive de l'élève");
+      await rechargerEleves();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur lors de la suppression définitive de l'élève");
+      throw e;
+    } finally { setIsLoading(false); }
+  };
+
+  const restaurerEleve = async (id: string) => {
+    try {
+      setIsLoading(true);
+      const ok = await UpdateData("eleves", id, { deleted: false });
+      if (!ok) throw new Error("Erreur lors de la restauration de l'élève");
+      await rechargerEleves();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur lors de la restauration de l'élève");
+      throw e;
+    } finally { setIsLoading(false); }
+  };
+
+  const rechercherEleves = (terme: string): Eleve[] => {
+    if (!terme.trim()) return eleves;
+    const q = terme.toLowerCase().trim();
+    return eleves.filter((e) =>
+      [e.code, e.nom, e.prenom, `${e.prenom} ${e.nom}`]
+        .filter(Boolean)
+        .some((v) => (v as string).toLowerCase().includes(q))
+    );
+  };
+
+  useEffect(() => { rechargerEleves(); }, [currentYear]);
+
+  return (
+    <ElevesContext.Provider value={{ eleves, isLoading, error, ajouterEleve, modifierEleve, supprimerEleve, supprimerEleveDefinitif, restaurerEleve, rechercherEleves, genererNouveauCode, rechargerEleves }}>
+      {children}
+    </ElevesContext.Provider>
+  );
+};
+
+export const useEleves = () => {
+  const ctx = useContext(ElevesContext);
+  if (!ctx) throw new Error("useEleves must be used within an ElevesProvider");
+  return ctx;
+};
+
+

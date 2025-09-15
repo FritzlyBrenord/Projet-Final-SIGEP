@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Search,
   Plus,
@@ -6,214 +6,310 @@ import {
   Trash2,
   Eye,
   Save,
+  Printer,
   X,
   User,
   Users,
   CheckCircle,
   AlertTriangle,
+  ChevronDown,
+  Check,
+  Loader2,
   Filter,
-  Briefcase,
 } from "lucide-react";
-
-// Types
-interface Employe {
-  id: string;
-  code: string;
-  nom: string;
-  prenom: string;
-  email: string;
-  telephone: string;
-  adresse: string;
-  dateEmbauche: string;
-  typeEmploye: TypeEmploye;
-  departement: string;
-  responsabilites: string;
-  diplomes: string;
-  statut: "actif" | "inactif";
-}
-
-type TypeEmploye =
-  | "secretaire"
-  | "censeur"
-  | "surveillant"
-  | "gradient"
-  | "econome"
-  | "directeur"
-  | "directeur_pedagogique";
+import {
+  Employer,
+  EmployerFormData,
+  FONCTIONS,
+  DEPARTEMENTS,
+} from "../../types/EmployerType";
+import { useEmployer } from "../../Context/ContextEmployer";
+import { useAnneeScolaire } from "../../Context/ContextAnneeScolaire";
 
 interface Props {
   isDarkMode?: boolean;
 }
 
-const TYPE_EMPLOYE_OPTIONS = [
-  { value: "secretaire", label: "Secrétaire" },
-  { value: "censeur", label: "Censeur" },
-  { value: "surveillant", label: "Surveillant" },
-  { value: "gradient", label: "Gradient" },
-  { value: "econome", label: "Économe" },
-  { value: "directeur", label: "Directeur" },
-  { value: "directeur_pedagogique", label: "Directeur Pédagogique" },
-];
+const SelectWithSearch = ({
+  options,
+  selectedValues,
+  onChange,
+  placeholder,
+  multiple = false,
+  isDarkMode = false,
+  disabled = false,
+}: {
+  options: { value: string; label: string }[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+  placeholder: string;
+  multiple?: boolean;
+  isDarkMode?: boolean;
+  disabled?: boolean;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-const GestionEmployer = ({ isDarkMode = false }: Props) => {
-  // État des employés
-  const [employes, setEmployes] = useState<Employe[]>([
-    {
-      id: "1",
-      code: "EMP001",
-      nom: "Dupont",
-      prenom: "Jean",
-      email: "jean.dupont@institut.edu",
-      telephone: "+509 1234-5678",
-      adresse: "123 Rue des Écoles, Port-au-Prince",
-      dateEmbauche: "2020-09-01",
-      typeEmploye: "directeur",
-      departement: "Direction Générale",
-      responsabilites: "Supervision générale, gestion administrative",
-      diplomes: "Master en Administration",
-      statut: "actif",
-    },
-    {
-      id: "2",
-      code: "EMP002",
-      nom: "Martin",
-      prenom: "Marie",
-      email: "marie.martin@institut.edu",
-      telephone: "+509 8765-4321",
-      adresse: "456 Avenue de l'Éducation, Port-au-Prince",
-      dateEmbauche: "2019-08-15",
-      typeEmploye: "secretaire",
-      departement: "Administration",
-      responsabilites: "Gestion des dossiers, accueil, correspondance",
-      diplomes: "Licence en Secrétariat",
-      statut: "actif",
-    },
-    {
-      id: "3",
-      code: "EMP003",
-      nom: "Bernard",
-      prenom: "Pierre",
-      email: "pierre.bernard@institut.edu",
-      telephone: "+509 9876-5432",
-      adresse: "789 Boulevard des Sciences, Port-au-Prince",
-      dateEmbauche: "2021-01-10",
-      typeEmploye: "surveillant",
-      departement: "Vie Scolaire",
-      responsabilites: "Surveillance des élèves, discipline",
-      diplomes: "Baccalauréat",
-      statut: "inactif",
-    },
-    {
-      id: "4",
-      code: "EMP004",
-      nom: "Rousseau",
-      prenom: "Sophie",
-      email: "sophie.rousseau@institut.edu",
-      telephone: "+509 3456-7890",
-      adresse: "321 Rue de la Pédagogie, Port-au-Prince",
-      dateEmbauche: "2018-03-20",
-      typeEmploye: "directeur_pedagogique",
-      departement: "Pédagogie",
-      responsabilites: "Coordination pédagogique, formation des enseignants",
-      diplomes: "Master en Sciences de l'Éducation",
-      statut: "actif",
-    },
-  ]);
+  const inputClasses = isDarkMode
+    ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+    : "bg-white border-gray-300 text-gray-900";
+  const dropdownClasses = isDarkMode
+    ? "bg-gray-700 border-gray-600"
+    : "bg-white border-gray-300";
 
-  // États d'interface
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter((option) =>
+    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  const selectedLabels = options
+    .filter((option) => selectedValues.includes(option.value))
+    .map((option) => option.label);
+
+  const handleOptionClick = (value: string) => {
+    if (multiple) {
+      const newValues = selectedValues.includes(value)
+        ? selectedValues.filter((v) => v !== value)
+        : [...selectedValues, value];
+      onChange(newValues);
+    } else {
+      onChange([value]);
+      setIsOpen(false);
+      setSearchTerm("");
+    }
+  };
+
+  const displayText =
+    selectedLabels.length > 0
+      ? multiple
+        ? selectedLabels.join(", ")
+        : selectedLabels[0]
+      : placeholder;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div
+        className={`w-full px-3 py-2 border rounded-lg cursor-pointer flex items-center justify-between ${inputClasses} ${
+          disabled
+            ? "opacity-50 cursor-not-allowed"
+            : "focus:ring-2 focus:ring-blue-500"
+        }`}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+      >
+        <span className={selectedLabels.length > 0 ? "" : "text-gray-400"}>
+          {displayText}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 transition-transform ${
+            isOpen ? "rotate-180" : ""
+          }`}
+        />
+      </div>
+
+      {isOpen && (
+        <div
+          className={`absolute z-50 w-full mt-1 border rounded-lg shadow-lg ${dropdownClasses}`}
+        >
+          <div className="p-2">
+            <input
+              type="text"
+              placeholder="Rechercher..."
+              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputClasses}`}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-gray-500">
+                Aucun résultat trouvé
+              </div>
+            ) : (
+              filteredOptions.map((option) => (
+                <div
+                  key={option.value}
+                  className={`px-3 py-2 cursor-pointer hover:${
+                    isDarkMode ? "bg-gray-600" : "bg-gray-100"
+                  } flex items-center justify-between`}
+                  onClick={() => handleOptionClick(option.value)}
+                >
+                  <span>{option.label}</span>
+                  {selectedValues.includes(option.value) && (
+                    <Check className="h-4 w-4 text-blue-500" />
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {multiple && selectedLabels.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {selectedLabels.map((label, index) => (
+            <span
+              key={index}
+              className={`inline-flex items-center px-2 py-1 rounded-full text-xs ${
+                isDarkMode
+                  ? "bg-blue-900 text-blue-200"
+                  : "bg-blue-100 text-blue-800"
+              }`}
+            >
+              {label}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const optionValue = options.find(
+                    (opt) => opt.label === label
+                  )?.value;
+                  if (optionValue) {
+                    const newValues = selectedValues.filter(
+                      (v) => v !== optionValue
+                    );
+                    onChange(newValues);
+                  }
+                }}
+                className="ml-2 hover:bg-blue-200 rounded-full"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const validateNifCin = (value: string): boolean => {
+  const cleanValue = value.replace(/\D/g, "");
+  return cleanValue.length === 10;
+};
+
+const formatNifCin = (value: string): string => {
+  const cleanValue = value.replace(/\D/g, "");
+  if (cleanValue.length === 10 && cleanValue.startsWith("0")) {
+    return `${cleanValue.slice(0, 3)}-${cleanValue.slice(
+      3,
+      6
+    )}-${cleanValue.slice(6, 9)}-${cleanValue.slice(9)}`;
+  }
+  return cleanValue;
+};
+
+const GestionEmployes = ({ isDarkMode = false }: Props) => {
+  const {
+    employes,
+    ajouterEmployer,
+    modifierEmployer,
+    supprimerEmployer,
+    rechercherEmployes,
+    genererNouveauCode,
+  } = useEmployer();
+  const { currentYear } = useAnneeScolaire();
+
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState<
     "add" | "edit" | "view" | "delete"
   >("add");
-  const [selectedEmploye, setSelectedEmploye] = useState<Employe | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<TypeEmploye | "tous">("tous");
+  const [selectedEmp, setSelectedEmp] = useState<Employer | null>(null);
 
-  // État du formulaire
-  const [formData, setFormData] = useState<Omit<Employe, "id">>({
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterFonction, setFilterFonction] = useState<string>("");
+  const [filterDepartement, setFilterDepartement] = useState<string>("");
+  const [filterStatut, setFilterStatut] = useState<string>("");
+  const [showFilters, setShowFilters] = useState<boolean>(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+
+  const [printHeader, setPrintHeader] = useState({
+    companyName: "",
+    address: "",
+    phone: "",
+  });
+  const [printColumns, setPrintColumns] = useState({
+    code: true,
+    nom: true,
+    prenom: true,
+    email: false,
+    telephone: true,
+    nifcin: false,
+    fonction: true,
+    departement: true,
+  });
+
+  const [formData, setFormData] = useState<EmployerFormData>({
     code: "",
     nom: "",
     prenom: "",
     email: "",
     telephone: "",
     adresse: "",
-    dateEmbauche: "",
-    typeEmploye: "secretaire",
-    departement: "",
-    responsabilites: "",
+    date_embauche: "",
+    nif_cin: "",
     diplomes: "",
+    responsabilites: "",
+    fonction: "",
+    departement: "",
     statut: "actif",
+    annee_scolaire_id: "",
   });
 
-  // Styles conditionnels
   const baseClasses = isDarkMode
     ? "min-h-screen bg-gray-900 text-white"
     : "min-h-screen bg-gray-50 text-gray-900";
-
   const cardClasses = isDarkMode
     ? "bg-gray-800 border-gray-700"
     : "bg-white border-gray-200";
-
   const inputClasses = isDarkMode
     ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-blue-400 focus:border-blue-400"
     : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500";
-
   const buttonPrimaryClasses = isDarkMode
     ? "bg-blue-700 hover:bg-blue-600 text-white"
     : "bg-blue-600 hover:bg-blue-700 text-white";
-
   const buttonSecondaryClasses = isDarkMode
     ? "bg-gray-600 hover:bg-gray-500 text-white"
     : "bg-gray-300 hover:bg-gray-400 text-gray-700";
-
   const buttonDangerClasses = isDarkMode
     ? "bg-red-700 hover:bg-red-600 text-white"
     : "bg-red-600 hover:bg-red-700 text-white";
-
   const tableHeaderClasses = isDarkMode
     ? "bg-gray-700 text-gray-300"
     : "bg-gray-50 text-gray-500";
-
   const tableRowClasses = isDarkMode ? "hover:bg-gray-700" : "hover:bg-gray-50";
-
   const tableBorderClasses = isDarkMode ? "divide-gray-700" : "divide-gray-200";
 
-  // Utilitaires
-  const getTypeEmployeLabel = (type: TypeEmploye) => {
-    return (
-      TYPE_EMPLOYE_OPTIONS.find((option) => option.value === type)?.label ||
-      type
-    );
-  };
+  // Règles d'auto-département selon la fonction
+  useEffect(() => {
+    if (!formData.fonction) return;
+    const f = formData.fonction.toLowerCase();
+    let suggested = "";
+    if (["censeur", "surveillant"].includes(f)) suggested = "Censora";
+    else if (
+      ["directeur", "directeur pédagogique", "directeur pedagogique"].includes(
+        f
+      )
+    )
+      suggested = "Direction";
+    else if (["économe", "econome"].includes(f)) suggested = "Economat";
+    if (suggested && !formData.departement)
+      setFormData((p) => ({ ...p, departement: suggested }));
+  }, [formData.fonction]);
 
-  const getTypeEmployeColor = (type: TypeEmploye) => {
-    const colors = {
-      directeur: isDarkMode
-        ? "bg-purple-900 text-purple-300"
-        : "bg-purple-100 text-purple-800",
-      directeur_pedagogique: isDarkMode
-        ? "bg-indigo-900 text-indigo-300"
-        : "bg-indigo-100 text-indigo-800",
-      censeur: isDarkMode
-        ? "bg-orange-900 text-orange-300"
-        : "bg-orange-100 text-orange-800",
-      econome: isDarkMode
-        ? "bg-yellow-900 text-yellow-300"
-        : "bg-yellow-100 text-yellow-800",
-      secretaire: isDarkMode
-        ? "bg-green-900 text-green-300"
-        : "bg-green-100 text-green-800",
-      surveillant: isDarkMode
-        ? "bg-blue-900 text-blue-300"
-        : "bg-blue-100 text-blue-800",
-      gradient: isDarkMode
-        ? "bg-gray-700 text-gray-300"
-        : "bg-gray-100 text-gray-800",
-    };
-    return colors[type];
-  };
-
-  // Réinitialiser le formulaire
   const resetForm = () => {
     setFormData({
       code: "",
@@ -222,179 +318,343 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
       email: "",
       telephone: "",
       adresse: "",
-      dateEmbauche: "",
-      typeEmploye: "secretaire",
-      departement: "",
-      responsabilites: "",
+      date_embauche: "",
+      nif_cin: "",
       diplomes: "",
+      responsabilites: "",
+      fonction: "",
+      departement: "",
       statut: "actif",
+      annee_scolaire_id: "",
     });
   };
 
-  // Générer un nouveau code employé
-  const generateEmpCode = () => {
-    const lastCode = employes.reduce((max, emp) => {
-      const num = parseInt(emp.code.slice(-3));
-      return num > max ? num : max;
-    }, 0);
-    return `EMP${String(lastCode + 1).padStart(3, "0")}`;
-  };
-
-  // Ouvrir modal
-  const openModal = (
+  const openModal = async (
     type: "add" | "edit" | "view" | "delete",
-    emp: Employe | null = null
+    emp: Employer | null = null
   ) => {
     setModalType(type);
-    setSelectedEmploye(emp);
+    setSelectedEmp(emp);
 
     if (type === "add") {
       resetForm();
-      setFormData((prev) => ({ ...prev, code: generateEmpCode() }));
+      try {
+        const newCode = await genererNouveauCode();
+        setFormData((prev) => ({ ...prev, code: newCode }));
+      } catch {
+        const lastNum = employes.reduce((m, e) => {
+          const n = parseInt((e.code || "").replace("EMP", ""));
+          return isNaN(n) ? m : Math.max(m, n);
+        }, 0);
+        setFormData((prev) => ({
+          ...prev,
+          code: `EMP${String(lastNum + 1).padStart(3, "0")}`,
+        }));
+      }
     } else if (type === "edit" && emp) {
-      setFormData({ ...emp });
+      setFormData({
+        code: emp.code,
+        nom: emp.nom,
+        prenom: emp.prenom,
+        email: emp.email,
+        telephone: emp.telephone,
+        adresse: emp.adresse,
+        date_embauche: emp.date_embauche,
+        nif_cin: emp.nif_cin,
+        diplomes: emp.diplomes || "",
+        responsabilites: emp.responsabilites || "",
+        fonction: emp.fonction || "",
+        departement: emp.departement || "",
+        statut: emp.statut,
+        annee_scolaire_id: emp.annee_scolaire_id,
+      });
     }
-
     setShowModal(true);
   };
 
-  // Fermer modal
   const closeModal = () => {
     setShowModal(false);
-    setSelectedEmploye(null);
+    setSelectedEmp(null);
     resetForm();
   };
 
-  // Soumettre le formulaire
-  const handleSubmit = () => {
-    if (!formData.nom || !formData.prenom || !formData.email) {
-      alert(
-        "Veuillez remplir tous les champs obligatoires (nom, prénom, email)"
-      );
-      return;
-    }
-
-    if (modalType === "add") {
-      if (employes.some((e) => e.code === formData.code)) {
-        alert("Ce code employé existe déjà");
-        return;
-      }
-
-      const nouvelEmploye: Employe = {
-        ...formData,
-        id: Date.now().toString(),
-      };
-
-      setEmployes((prev) => [...prev, nouvelEmploye]);
-      alert("Employé ajouté avec succès!");
-    } else if (modalType === "edit" && selectedEmploye) {
-      setEmployes((prev) =>
-        prev.map((e) =>
-          e.id === selectedEmploye.id
-            ? { ...formData, id: selectedEmploye.id }
-            : e
-        )
-      );
-      alert("Employé modifié avec succès!");
-    }
-
-    closeModal();
-  };
-
-  // Supprimer employé
-  const handleDelete = () => {
-    if (!selectedEmploye) return;
-
-    setEmployes((prev) => prev.filter((e) => e.id !== selectedEmploye.id));
-    alert("Employé supprimé avec succès!");
-    closeModal();
-  };
-
-  // Gérer les changements d'input
-  const handleInputChange = (
-    field: keyof Omit<Employe, "id">,
-    value: string
-  ) => {
+  const handleInputChange = (field: keyof EmployerFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Filtrer les employés
-  const filteredEmployes = employes.filter((emp) => {
-    const matchSearch =
-      searchTerm === "" ||
-      emp.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.prenom.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      getTypeEmployeLabel(emp.typeEmploye)
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      emp.departement.toLowerCase().includes(searchTerm.toLowerCase());
+  const handleSubmit = async () => {
+    if (!formData.nom || !formData.prenom || !formData.email) {
+      alert("Veuillez remplir nom, prénom et email");
+      return;
+    }
+    if (formData.nif_cin && !validateNifCin(formData.nif_cin)) {
+      alert("Le NIF/CIN doit contenir exactement 10 chiffres");
+      return;
+    }
+    if (!currentYear) {
+      alert("Veuillez d'abord sélectionner une année scolaire.");
+      return;
+    }
 
-    const matchFilter = filterType === "tous" || emp.typeEmploye === filterType;
+    try {
+      setIsSubmitting(true);
+      const employerData = {
+        ...formData,
+        annee_scolaire_id: currentYear.id,
+      } as EmployerFormData;
+      if (modalType === "add") {
+        await ajouterEmployer(employerData);
+        alert("Employé ajouté avec succès!");
+      } else if (modalType === "edit" && selectedEmp) {
+        await modifierEmployer(selectedEmp.id, employerData);
+        alert("Employé modifié avec succès!");
+      }
+      closeModal();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erreur lors de la sauvegarde");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    return matchSearch && matchFilter;
+  const handleDelete = async () => {
+    if (!selectedEmp) return;
+    try {
+      setIsDeleting(true);
+      await supprimerEmployer(selectedEmp.id);
+      setTimeout(() => {
+        alert("Employé supprimé avec succès!");
+        closeModal();
+      }, 100);
+    } catch (e) {
+      alert("Erreur lors de la suppression de l'employé");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const filteredEmployes = (
+    searchTerm ? rechercherEmployes(searchTerm) : employes
+  ).filter((emp) => {
+    const okF = filterFonction ? (emp.fonction || "") === filterFonction : true;
+    const okD = filterDepartement
+      ? (emp.departement || "") === filterDepartement
+      : true;
+    const okS = filterStatut ? (emp.statut || "") === filterStatut : true;
+    return okF && okD && okS;
   });
+
+  const handlePrint = () => {
+    const list = filteredEmployes;
+    const style = `
+      <style>
+        body { font-family: Arial, sans-serif; color: #111; }
+        .header { text-align: center; margin-bottom: 16px; }
+        .title { font-size: 18px; font-weight: bold; margin-top: 4px; }
+        .meta { font-size: 12px; color: #555; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #444; padding: 6px 8px; font-size: 12px; }
+        th { background: #f0f0f0; text-align: left; }
+        @media print { .page-break { page-break-after: always; } }
+      </style>
+    `;
+    const columns: { key: string; label: string }[] = [];
+    if (printColumns.code) columns.push({ key: "code", label: "Code" });
+    if (printColumns.nom) columns.push({ key: "nom", label: "Nom" });
+    if (printColumns.prenom) columns.push({ key: "prenom", label: "Prénom" });
+    if (printColumns.email) columns.push({ key: "email", label: "Email" });
+    if (printColumns.telephone)
+      columns.push({ key: "telephone", label: "Téléphone" });
+    if (printColumns.nifcin) columns.push({ key: "nif_cin", label: "NIF/CIN" });
+    if (printColumns.fonction)
+      columns.push({ key: "fonction", label: "Fonction" });
+    if (printColumns.departement)
+      columns.push({ key: "departement", label: "Département" });
+
+    const rows = list.map(
+      (p) =>
+        ({
+          code: p.code,
+          nom: p.nom,
+          prenom: p.prenom,
+          email: p.email,
+          telephone: p.telephone,
+          nif_cin: p.nif_cin || "",
+          fonction: p.fonction || "",
+          departement: p.departement || "",
+        } as Record<string, string>)
+    );
+
+    const thead = `<tr>${columns
+      .map((c) => `<th>${c.label}</th>`)
+      .join("")}</tr>`;
+    const tbody = rows
+      .map(
+        (r) =>
+          `<tr>${columns
+            .map((c) => `<td>${(r as any)[c.key] || ""}</td>`)
+            .join("")}</tr>`
+      )
+      .join("");
+    const headerHtml = `
+      <div class="header">
+        <div class="title">${printHeader.companyName || ""}</div>
+        <div class="meta">${printHeader.address || ""}${
+      printHeader.phone ? " | " + printHeader.phone : ""
+    }</div>
+        ${
+          currentYear
+            ? `<div class="meta">Année scolaire: ${currentYear.year}</div>`
+            : ""
+        }
+      </div>
+    `;
+    const html = `
+      <html>
+        <head><meta charset="utf-8" />${style}</head>
+        <body>
+          ${headerHtml}
+          <table>
+            <thead>${thead}</thead>
+            <tbody>${tbody}</tbody>
+          </table>
+        </body>
+      </html>
+    `;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  };
+
+  const fonctionOptions = FONCTIONS.map((f) => ({ value: f, label: f }));
+  const departementOptions = DEPARTEMENTS.map((d) => ({ value: d, label: d }));
 
   return (
     <div className={`${baseClasses} p-6`}>
       <div className="max-w-7xl mx-auto">
-        {/* En-tête */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Gestion des Employés</h1>
           <p className={isDarkMode ? "text-gray-300" : "text-gray-600"}>
-            Système de gestion des Employés Scolaires - SIGEP
+            Système de gestion du personnel de l'établissement - SIGEP
           </p>
+          {currentYear && (
+            <p
+              className={`text-sm mt-2 ${
+                isDarkMode ? "text-blue-300" : "text-blue-600"
+              }`}
+            >
+              Année scolaire courante : <strong>{currentYear.year}</strong>
+            </p>
+          )}
+          {!currentYear && (
+            <p
+              className={`text-sm mt-2 ${
+                isDarkMode ? "text-yellow-300" : "text-yellow-600"
+              }`}
+            >
+              ⚠️ Aucune année scolaire sélectionnée. Veuillez d'abord
+              sélectionner une année scolaire.
+            </p>
+          )}
         </div>
 
-        {/* Barre d'actions */}
         <div className={`${cardClasses} rounded-lg shadow-sm border p-6 mb-6`}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <div className="flex flex-col sm:flex-row gap-4 flex-1">
-              {/* Recherche */}
-              <div className="relative flex-1 max-w-md">
-                <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Rechercher un employé..."
-                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-
-              {/* Filtre par type */}
-              <div className="relative min-w-[200px]">
-                <Filter className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
-                <select
-                  className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                  value={filterType}
-                  onChange={(e) =>
-                    setFilterType(e.target.value as TypeEmploye | "tous")
-                  }
-                >
-                  <option value="tous">Tous les types</option>
-                  {TYPE_EMPLOYE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div className="relative flex-1 max-w-md">
+              <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Rechercher un employé..."
+                className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
 
             <button
+              type="button"
+              onClick={() => setShowFilters((v) => !v)}
+              className={`px-3 py-2 rounded-lg flex items-center gap-2 ${buttonSecondaryClasses}`}
+              aria-label="Afficher/masquer les filtres"
+            >
+              <Filter className="h-4 w-4" />
+              Filtres
+            </button>
+
+            <button
               onClick={() => openModal("add")}
-              className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors`}
+              disabled={!currentYear}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
+                !currentYear
+                  ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                  : buttonPrimaryClasses
+              }`}
             >
               <Plus className="h-4 w-4" />
               Ajouter un Employé
             </button>
+
+            <button
+              onClick={() => setShowPrintModal(true)}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 ${buttonSecondaryClasses}`}
+            >
+              <Printer className="h-4 w-4" />
+              Imprimer la liste
+            </button>
           </div>
         </div>
 
-        {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        {showFilters && (
+          <div className="mt-4 mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div>
+              <SelectWithSearch
+                options={[
+                  { value: "", label: "Toutes les fonctions" },
+                  ...fonctionOptions,
+                ]}
+                selectedValues={filterFonction ? [filterFonction] : [""]}
+                onChange={(values) => setFilterFonction(values[0] || "")}
+                placeholder="Filtrer par fonction"
+                multiple={false}
+                isDarkMode={isDarkMode}
+              />
+            </div>
+            <div>
+              <SelectWithSearch
+                options={[
+                  { value: "", label: "Tous les départements" },
+                  ...departementOptions,
+                ]}
+                selectedValues={filterDepartement ? [filterDepartement] : [""]}
+                onChange={(values) => setFilterDepartement(values[0] || "")}
+                placeholder="Filtrer par département"
+                multiple={false}
+                isDarkMode={isDarkMode}
+              />
+            </div>
+            <div>
+              <SelectWithSearch
+                options={[
+                  { value: "", label: "Tous les statuts" },
+                  { value: "actif", label: "Actif" },
+                  { value: "inactif", label: "Inactif" },
+                ]}
+                selectedValues={filterStatut ? [filterStatut] : [""]}
+                onChange={(values) => setFilterStatut(values[0] || "")}
+                placeholder="Filtrer par statut"
+                multiple={false}
+                isDarkMode={isDarkMode}
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 ">
           <div className={`${cardClasses} p-6 rounded-lg shadow-sm border`}>
             <div className="flex items-center">
               <div
@@ -443,7 +703,7 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                   Actifs
                 </p>
                 <p className="text-2xl font-bold">
-                  {employes.filter((e) => e.statut === "actif").length}
+                  {employes.filter((p) => p.statut === "actif").length}
                 </p>
               </div>
             </div>
@@ -471,42 +731,13 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                   Inactifs
                 </p>
                 <p className="text-2xl font-bold">
-                  {employes.filter((e) => e.statut === "inactif").length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className={`${cardClasses} p-6 rounded-lg shadow-sm border`}>
-            <div className="flex items-center">
-              <div
-                className={`p-2 rounded-lg ${
-                  isDarkMode ? "bg-purple-900" : "bg-purple-100"
-                }`}
-              >
-                <Briefcase
-                  className={`h-6 w-6 ${
-                    isDarkMode ? "text-purple-300" : "text-purple-600"
-                  }`}
-                />
-              </div>
-              <div className="ml-4">
-                <p
-                  className={`text-sm font-medium ${
-                    isDarkMode ? "text-gray-300" : "text-gray-600"
-                  }`}
-                >
-                  Types de postes
-                </p>
-                <p className="text-2xl font-bold">
-                  {new Set(employes.map((e) => e.typeEmploye)).size}
+                  {employes.filter((p) => p.statut === "inactif").length}
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Liste des employés */}
         <div className={`${cardClasses} rounded-lg shadow-sm border`}>
           <div className="p-6">
             <h2 className="text-lg font-semibold mb-4">
@@ -536,10 +767,7 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                         Contact
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Poste
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Département
+                        Fonction / Département
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                         Statut
@@ -593,17 +821,27 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                             {emp.telephone}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTypeEmployeColor(
-                              emp.typeEmploye
-                            )}`}
-                          >
-                            {getTypeEmployeLabel(emp.typeEmploye)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm">{emp.departement}</div>
+                        <td className="px-6 py-4">
+                          <div className="text-sm space-y-1">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium ${
+                                isDarkMode
+                                  ? "bg-blue-900 text-blue-200"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}
+                            >
+                              {emp.fonction || "-"}
+                            </span>
+                            <span
+                              className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                                isDarkMode
+                                  ? "bg-purple-900 text-purple-200"
+                                  : "bg-purple-100 text-purple-800"
+                              }`}
+                            >
+                              {emp.departement || "-"}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
@@ -658,16 +896,14 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
           </div>
         </div>
 
-        {/* Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="fixed inset-0 bg-black/50 bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div
-              className={`relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 xl:w-1/2 shadow-lg rounded-md ${cardClasses} max-h-screen overflow-y-auto`}
+              className={`${cardClasses} rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto`}
             >
-              <div className="mt-3">
-                {/* En-tête du modal */}
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold">
                     {modalType === "add" && "Ajouter un Employé"}
                     {modalType === "edit" && "Modifier l'Employé"}
                     {modalType === "view" && "Détails de l'Employé"}
@@ -685,20 +921,19 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                   </button>
                 </div>
 
-                {/* Contenu du modal */}
                 {modalType === "delete" ? (
                   <div className="text-center">
                     <AlertTriangle className="h-12 w-12 mx-auto text-red-500 mb-4" />
                     <p
-                      className={`mb-6 ${
+                      className={`${
                         isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
+                      } mb-6`}
                     >
                       Êtes-vous sûr de vouloir supprimer l'employé{" "}
                       <strong>
-                        {selectedEmploye?.prenom} {selectedEmploye?.nom}
+                        {selectedEmp?.prenom} {selectedEmp?.nom}
                       </strong>{" "}
-                      ? Cette action est irréversible.
+                      ?
                     </p>
                     <div className="flex justify-center gap-4">
                       <button
@@ -709,76 +944,103 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                       </button>
                       <button
                         onClick={handleDelete}
-                        className={`px-4 py-2 rounded-lg ${buttonDangerClasses}`}
+                        disabled={isDeleting}
+                        className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                          isDeleting
+                            ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                            : buttonDangerClasses
+                        }`}
                       >
-                        Supprimer
+                        {isDeleting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                        {isDeleting ? "Suppression..." : "Supprimer"}
                       </button>
                     </div>
                   </div>
                 ) : modalType === "view" ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <p>
-                          <strong>Code:</strong> {selectedEmploye?.code}
-                        </p>
-                        <p>
-                          <strong>Nom:</strong> {selectedEmploye?.nom}
-                        </p>
-                        <p>
-                          <strong>Prénom:</strong> {selectedEmploye?.prenom}
-                        </p>
-                        <p>
-                          <strong>Email:</strong> {selectedEmploye?.email}
-                        </p>
-                        <p>
-                          <strong>Téléphone:</strong>{" "}
-                          {selectedEmploye?.telephone}
-                        </p>
-                        <p>
-                          <strong>Type d'employé:</strong>{" "}
-                          {selectedEmploye &&
-                            getTypeEmployeLabel(selectedEmploye.typeEmploye)}
-                        </p>
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="font-semibold mb-4">
+                          Informations personnelles
+                        </h4>
+                        <div className="space-y-3">
+                          <div>
+                            <strong>Code:</strong> {selectedEmp?.code}
+                          </div>
+                          <div>
+                            <strong>Nom:</strong> {selectedEmp?.nom}
+                          </div>
+                          <div>
+                            <strong>Prénom:</strong> {selectedEmp?.prenom}
+                          </div>
+                          <div>
+                            <strong>Email:</strong> {selectedEmp?.email}
+                          </div>
+                          <div>
+                            <strong>Téléphone:</strong> {selectedEmp?.telephone}
+                          </div>
+                          <div>
+                            <strong>Adresse:</strong> {selectedEmp?.adresse}
+                          </div>
+                          <div>
+                            <strong>NIF/CIN:</strong>{" "}
+                            {selectedEmp?.nif_cin || "Non renseigné"}
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <p>
-                          <strong>Date d'embauche:</strong>{" "}
-                          {selectedEmploye?.dateEmbauche &&
-                            new Date(
-                              selectedEmploye.dateEmbauche
-                            ).toLocaleDateString()}
-                        </p>
-                        <p>
-                          <strong>Statut:</strong> {selectedEmploye?.statut}
-                        </p>
-                        <p>
-                          <strong>Département:</strong>{" "}
-                          {selectedEmploye?.departement}
-                        </p>
-                        <p>
-                          <strong>Adresse:</strong> {selectedEmploye?.adresse}
-                        </p>
+                      <div>
+                        <h4 className="font-semibold mb-4">
+                          Informations professionnelles
+                        </h4>
+                        <div className="space-y-3">
+                          <div>
+                            <strong>Date d'embauche:</strong>{" "}
+                            {selectedEmp?.date_embauche
+                              ? new Date(
+                                  selectedEmp.date_embauche
+                                ).toLocaleDateString()
+                              : "N/A"}
+                          </div>
+                          <div>
+                            <strong>Statut:</strong>{" "}
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs ${
+                                selectedEmp?.statut === "actif"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {selectedEmp?.statut}
+                            </span>
+                          </div>
+                          <div>
+                            <strong>Fonction:</strong> {selectedEmp?.fonction}
+                          </div>
+                          <div>
+                            <strong>Département:</strong>{" "}
+                            {selectedEmp?.departement}
+                          </div>
+                          <div>
+                            <strong>Responsabilités:</strong>{" "}
+                            {selectedEmp?.responsabilites}
+                          </div>
+                          <div>
+                            <strong>Diplômes:</strong> {selectedEmp?.diplomes}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div>
-                      <p>
-                        <strong>Responsabilités:</strong>{" "}
-                        {selectedEmploye?.responsabilites}
-                      </p>
-                    </div>
-                    <div>
-                      <p>
-                        <strong>Diplômes:</strong> {selectedEmploye?.diplomes}
-                      </p>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                         <label
-                          className={`block text-sm font-medium mb-1 ${
+                          className={`block text-sm font-medium mb-2 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
@@ -797,124 +1059,7 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
 
                       <div>
                         <label
-                          className={`block text-sm font-medium mb-1 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          Type d'employé *
-                        </label>
-                        <select
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.typeEmploye}
-                          onChange={(e) =>
-                            handleInputChange(
-                              "typeEmploye",
-                              e.target.value as TypeEmploye
-                            )
-                          }
-                        >
-                          {TYPE_EMPLOYE_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label
-                          className={`block text-sm font-medium mb-1 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          Nom *
-                        </label>
-                        <input
-                          type="text"
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.nom}
-                          onChange={(e) =>
-                            handleInputChange("nom", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className={`block text-sm font-medium mb-1 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          Prénom *
-                        </label>
-                        <input
-                          type="text"
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.prenom}
-                          onChange={(e) =>
-                            handleInputChange("prenom", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className={`block text-sm font-medium mb-1 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          Email *
-                        </label>
-                        <input
-                          type="email"
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.email}
-                          onChange={(e) =>
-                            handleInputChange("email", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className={`block text-sm font-medium mb-1 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          Téléphone
-                        </label>
-                        <input
-                          type="tel"
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.telephone}
-                          onChange={(e) =>
-                            handleInputChange("telephone", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className={`block text-sm font-medium mb-1 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
-                          Département
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ex: Administration, Pédagogie..."
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.departement}
-                          onChange={(e) =>
-                            handleInputChange("departement", e.target.value)
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className={`block text-sm font-medium mb-1 ${
+                          className={`block text-sm font-medium mb-2 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
@@ -937,25 +1082,79 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
 
                       <div>
                         <label
-                          className={`block text-sm font-medium mb-1 ${
+                          className={`block text-sm font-medium mb-2 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Date d'embauche
+                          Nom *
                         </label>
                         <input
-                          type="date"
+                          type="text"
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.dateEmbauche}
+                          value={formData.nom}
                           onChange={(e) =>
-                            handleInputChange("dateEmbauche", e.target.value)
+                            handleInputChange("nom", e.target.value)
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Prénom *
+                        </label>
+                        <input
+                          type="text"
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                          value={formData.prenom}
+                          onChange={(e) =>
+                            handleInputChange("prenom", e.target.value)
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Email *
+                        </label>
+                        <input
+                          type="email"
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                          value={formData.email}
+                          onChange={(e) =>
+                            handleInputChange("email", e.target.value)
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Téléphone
+                        </label>
+                        <input
+                          type="tel"
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                          value={formData.telephone}
+                          onChange={(e) =>
+                            handleInputChange("telephone", e.target.value)
                           }
                         />
                       </div>
 
                       <div className="md:col-span-2">
                         <label
-                          className={`block text-sm font-medium mb-1 ${
+                          className={`block text-sm font-medium mb-2 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
@@ -971,46 +1170,140 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                         />
                       </div>
 
-                      <div className="md:col-span-2">
+                      <div>
                         <label
-                          className={`block text-sm font-medium mb-1 ${
+                          className={`block text-sm font-medium mb-2 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Responsabilités
+                          Date d'embauche
                         </label>
-                        <textarea
-                          rows={2}
-                          placeholder="Décrivez les principales responsabilités..."
+                        <input
+                          type="date"
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.responsabilites}
+                          value={formData.date_embauche}
                           onChange={(e) =>
-                            handleInputChange("responsabilites", e.target.value)
+                            handleInputChange("date_embauche", e.target.value)
                           }
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          NIF/CIN
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ex: 0024358933 ou 5784673767"
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                          value={formData.nif_cin}
+                          onChange={(e) =>
+                            handleInputChange(
+                              "nif_cin",
+                              formatNifCin(e.target.value)
+                            )
+                          }
+                          maxLength={13}
+                        />
+                        <p
+                          className={`text-xs mt-1 ${
+                            isDarkMode ? "text-gray-400" : "text-gray-500"
+                          }`}
+                        >
+                          Saisissez exactement 10 chiffres. Si le numéro
+                          commence par 0, il sera automatiquement formaté avec
+                          des tirets.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Fonction
+                        </label>
+                        <SelectWithSearch
+                          options={fonctionOptions}
+                          selectedValues={
+                            formData.fonction ? [formData.fonction] : []
+                          }
+                          onChange={(values) =>
+                            handleInputChange("fonction", values[0] || "")
+                          }
+                          placeholder="Sélectionner une fonction..."
+                          multiple={false}
+                          isDarkMode={isDarkMode}
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          className={`block text-sm font-medium mb-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Département
+                        </label>
+                        <SelectWithSearch
+                          options={departementOptions}
+                          selectedValues={
+                            formData.departement ? [formData.departement] : []
+                          }
+                          onChange={(values) =>
+                            handleInputChange("departement", values[0] || "")
+                          }
+                          placeholder="Sélectionner un département..."
+                          multiple={false}
+                          isDarkMode={isDarkMode}
                         />
                       </div>
 
                       <div className="md:col-span-2">
                         <label
-                          className={`block text-sm font-medium mb-1 ${
+                          className={`block text-sm font-medium mb-2 ${
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
                           Diplômes et qualifications
                         </label>
                         <textarea
-                          rows={2}
+                          rows={3}
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                           value={formData.diplomes}
                           onChange={(e) =>
                             handleInputChange("diplomes", e.target.value)
                           }
+                          placeholder="Ex: Licence, Master, ..."
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label
+                          className={`block text-sm font-medium mb-2 ${
+                            isDarkMode ? "text-gray-300" : "text-gray-700"
+                          }`}
+                        >
+                          Responsabilités
+                        </label>
+                        <textarea
+                          rows={3}
+                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                          value={formData.responsabilites}
+                          onChange={(e) =>
+                            handleInputChange("responsabilites", e.target.value)
+                          }
+                          placeholder="Décrivez les responsabilités..."
                         />
                       </div>
                     </div>
 
-                    {/* Boutons d'action */}
-                    <div className="flex justify-end gap-4 mt-6">
+                    <div className="flex justify-end gap-4 pt-6 border-t">
                       <button
                         onClick={closeModal}
                         className={`px-4 py-2 rounded-lg ${buttonSecondaryClasses}`}
@@ -1019,14 +1312,144 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
                       </button>
                       <button
                         onClick={handleSubmit}
-                        className={`px-4 py-2 rounded-lg flex items-center gap-2 ${buttonPrimaryClasses}`}
+                        disabled={isSubmitting}
+                        className={`px-4 py-2 rounded-lg flex items-center gap-2 ${
+                          isSubmitting
+                            ? "bg-gray-400 cursor-not-allowed text-gray-200"
+                            : buttonPrimaryClasses
+                        }`}
                       >
-                        <Save className="h-4 w-4" />
-                        {modalType === "add" ? "Ajouter" : "Modifier"}
+                        {isSubmitting ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                        {isSubmitting
+                          ? "Sauvegarde..."
+                          : modalType === "add"
+                          ? "Ajouter"
+                          : "Modifier"}
                       </button>
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showPrintModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div
+              className={`${cardClasses} rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto`}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold">
+                    Préparer l'impression
+                  </h3>
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className={`${
+                      isDarkMode
+                        ? "text-gray-400 hover:text-gray-200"
+                        : "text-gray-400 hover:text-gray-600"
+                    }`}
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="font-semibold mb-3">En-tête</h4>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Nom de l'établissement"
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                        value={printHeader.companyName}
+                        onChange={(e) =>
+                          setPrintHeader({
+                            ...printHeader,
+                            companyName: e.target.value,
+                          })
+                        }
+                      />
+                      <input
+                        type="text"
+                        placeholder="Adresse"
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                        value={printHeader.address}
+                        onChange={(e) =>
+                          setPrintHeader({
+                            ...printHeader,
+                            address: e.target.value,
+                          })
+                        }
+                      />
+                      <input
+                        type="text"
+                        placeholder="Téléphone"
+                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                        value={printHeader.phone}
+                        onChange={(e) =>
+                          setPrintHeader({
+                            ...printHeader,
+                            phone: e.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-semibold mb-3">Colonnes à imprimer</h4>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      {[
+                        { key: "code", label: "Code" },
+                        { key: "nom", label: "Nom" },
+                        { key: "prenom", label: "Prénom" },
+                        { key: "email", label: "Email" },
+                        { key: "telephone", label: "Téléphone" },
+                        { key: "nifcin", label: "NIF/CIN" },
+                        { key: "fonction", label: "Fonction" },
+                        { key: "departement", label: "Département" },
+                      ].map((col) => (
+                        <label
+                          key={col.key}
+                          className="flex items-center gap-2 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={(printColumns as any)[col.key]}
+                            onChange={(e) =>
+                              setPrintColumns({
+                                ...printColumns,
+                                [col.key]: e.target.checked,
+                              })
+                            }
+                          />
+                          {col.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    onClick={() => setShowPrintModal(false)}
+                    className={`px-4 py-2 rounded-lg ${buttonSecondaryClasses}`}
+                  >
+                    Fermer
+                  </button>
+                  <button
+                    onClick={() => handlePrint()}
+                    className={`px-4 py-2 rounded-lg ${buttonPrimaryClasses}`}
+                  >
+                    Imprimer
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1036,4 +1459,4 @@ const GestionEmployer = ({ isDarkMode = false }: Props) => {
   );
 };
 
-export default GestionEmployer;
+export default GestionEmployes;
