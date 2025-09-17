@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Filter,
   FileText,
+  AlertTriangle,
 } from "lucide-react";
 import ConfigurationAnee from "./ConfigurationAnee";
 
@@ -25,10 +26,246 @@ import {
   Classe,
   SchoolYear,
 } from "@/Context/ContextAnneeScolaire";
+import {
+  generateClassesPrintContent,
+  generateClassSchedulePrintContent,
+} from "./module";
 
 interface GestionAnneeScolaireProps {
   isDarkMode: boolean;
 }
+
+// Modal de confirmation pour la suppression
+interface ConfirmDeleteModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  schoolYear: SchoolYear | null;
+  isDarkMode: boolean;
+}
+
+const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  schoolYear,
+  isDarkMode,
+}) => {
+  const [confirmText, setConfirmText] = useState("");
+  const [isValid, setIsValid] = useState(false);
+  const expectedText = "je veux le faire";
+
+  useEffect(() => {
+    setIsValid(confirmText.toLowerCase().trim() === expectedText);
+  }, [confirmText]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setConfirmText("");
+      setIsValid(false);
+    }
+  }, [isOpen]);
+
+  const handleConfirm = () => {
+    if (isValid) {
+      onConfirm();
+      onClose();
+      setConfirmText("");
+    }
+  };
+
+  const handleClose = () => {
+    onClose();
+    setConfirmText("");
+  };
+
+  if (!isOpen || !schoolYear) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div
+        className={`w-full max-w-md rounded-2xl shadow-2xl border-2 ${
+          isDarkMode
+            ? "bg-gray-800 border-red-500/30"
+            : "bg-white border-red-200"
+        }`}
+      >
+        {/* Header avec icône d'alerte */}
+        <div className="p-6 text-center border-b border-red-200 dark:border-red-800/30">
+          <div className="flex justify-center mb-4">
+            <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/30">
+              <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+            </div>
+          </div>
+          <h3
+            className={`text-xl font-bold ${
+              isDarkMode ? "text-white" : "text-gray-900"
+            }`}
+          >
+            Supprimer l'année scolaire
+          </h3>
+          <p
+            className={`text-lg font-semibold mt-1 ${
+              isDarkMode ? "text-red-400" : "text-red-600"
+            }`}
+          >
+            {schoolYear.year}
+          </p>
+        </div>
+
+        {/* Corps du modal */}
+        <div className="p-6">
+          {/* Message d'avertissement */}
+          <div
+            className={`mb-6 p-4 rounded-lg border-l-4 ${
+              isDarkMode
+                ? "bg-red-900/20 border-red-500 text-red-200"
+                : "bg-red-50 border-red-500 text-red-800"
+            }`}
+          >
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium mb-2">⚠️ Action irréversible</p>
+                <p className="text-sm leading-relaxed">
+                  Cette action supprimera définitivement toutes les données de
+                  l'année{" "}
+                  <span className="font-semibold">{schoolYear.year}</span> :
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Liste des conséquences */}
+          <div
+            className={`mb-6 space-y-2 text-sm ${
+              isDarkMode ? "text-gray-300" : "text-gray-700"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span>
+                <strong>{schoolYear.classes.length}</strong> classe(s) et toutes
+                leurs configurations
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span>
+                <strong>
+                  {schoolYear.classes.reduce(
+                    (acc, classe) => acc + classe.salles.length,
+                    0
+                  )}
+                </strong>{" "}
+                salle(s) et leurs emplois du temps
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span>
+                <strong>
+                  {schoolYear.classes.reduce(
+                    (acc, classe) =>
+                      acc +
+                      classe.salles.reduce(
+                        (acc2, salle) => acc2 + salle.subjects.length,
+                        0
+                      ),
+                    0
+                  )}
+                </strong>{" "}
+                matière(s) configurées
+              </span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span>Tous les élèves et professeurs associés</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span>Tous les rapports et historiques</span>
+            </div>
+          </div>
+
+          {/* Champ de confirmation */}
+          <div className="mb-6">
+            <label
+              className={`block text-sm font-medium mb-2 ${
+                isDarkMode ? "text-gray-300" : "text-gray-700"
+              }`}
+            >
+              Pour confirmer, tapez exactement :{" "}
+              <span className="font-mono font-bold text-red-500">
+                "{expectedText}"
+              </span>
+            </label>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              className={`w-full px-4 py-3 rounded-lg border-2 transition-all ${
+                confirmText && !isValid
+                  ? isDarkMode
+                    ? "border-red-500 bg-red-900/20 text-white focus:border-red-400"
+                    : "border-red-500 bg-red-50 focus:border-red-500"
+                  : isValid
+                  ? isDarkMode
+                    ? "border-green-500 bg-green-900/20 text-white focus:border-green-400"
+                    : "border-green-500 bg-green-50 focus:border-green-500"
+                  : isDarkMode
+                  ? "border-gray-600 bg-gray-700 text-white focus:border-blue-500"
+                  : "border-gray-300 bg-white focus:border-blue-500"
+              } focus:outline-none focus:ring-0`}
+              placeholder="Tapez ici pour confirmer..."
+              autoComplete="off"
+            />
+            {confirmText && (
+              <p
+                className={`text-xs mt-1 ${
+                  isValid
+                    ? "text-green-600 dark:text-green-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {isValid ? "✓ Confirmation valide" : "✗ Texte incorrect"}
+              </p>
+            )}
+          </div>
+
+          {/* Boutons d'action */}
+          <div className="flex space-x-3">
+            <button
+              onClick={handleClose}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors ${
+                isDarkMode
+                  ? "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+              }`}
+            >
+              Annuler
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!isValid}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-all ${
+                isValid
+                  ? "bg-red-600 text-white hover:bg-red-700 hover:shadow-lg transform hover:scale-[1.02]"
+                  : isDarkMode
+                  ? "bg-red-900/30 text-red-700 cursor-not-allowed"
+                  : "bg-red-200 text-red-400 cursor-not-allowed"
+              }`}
+            >
+              {isValid
+                ? "Supprimer définitivement"
+                : "Confirmer pour supprimer"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Fonctions d'impression fournies par l'utilisateur
 const handlePrintSalleSchedule = (salle: Salle, classeName: string) => {
@@ -88,96 +325,6 @@ const handlePrintSubjectsList = (salle: Salle) => {
 };
 
 // Fonctions de génération HTML pour l'impression (à adapter selon votre implémentation)
-const generateClassSchedulePrintContent = (cls: any, classeName: string) => {
-  return `
-    <html>
-      <head>
-        <title>Emploi du temps - ${cls.name}</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          .schedule-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-          .day-column { border: 1px solid #ccc; padding: 10px; }
-          .day-header { font-weight: bold; text-align: center; background: #f5f5f5; padding: 8px; margin: -10px -10px 10px -10px; }
-          .course { background: #e8f5e9; padding: 8px; margin-bottom: 5px; border-radius: 4px; font-size: 12px; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Emploi du temps - ${cls.name}</h1>
-          <p>Généré le ${new Date().toLocaleDateString("fr-FR")}</p>
-        </div>
-        <div class="schedule-grid">
-          ${["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"]
-            .map(
-              (day) => `
-            <div class="day-column">
-              <div class="day-header">${day}</div>
-              ${cls.schedule
-                .filter((i: any) => i.day === day)
-                .map(
-                  (i: any) => `
-                <div class="course">
-                  ${i.startTime}-${i.endTime}<br>
-                  <strong>${i.subject}</strong><br>
-                  ${i.teacherName ? i.teacherName : ""}
-                </div>
-              `
-                )
-                .join("")}
-            </div>
-          `
-            )
-            .join("")}
-        </div>
-      </body>
-    </html>
-  `;
-};
-
-const generateClassesPrintContent = (levels: any[]) => {
-  return `
-    <html>
-      <head>
-        <title>Liste des matières</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; }
-          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-          .subject { background: #f0f0f0; padding: 5px; margin: 2px; border-radius: 3px; display: inline-block; }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1>Liste des matières</h1>
-          <p>Généré le ${new Date().toLocaleDateString("fr-FR")}</p>
-        </div>
-        ${levels
-          .map(
-            (level) => `
-          <h2>${level.name}</h2>
-          ${level.classes
-            .map(
-              (cls: any) => `
-            <h3>${cls.name}</h3>
-            <div>
-              ${cls.subjects
-                .map(
-                  (s: any) => `
-                <span class="subject">${s.name} (Coef: ${s.coefficient})</span>
-              `
-                )
-                .join("")}
-            </div>
-          `
-            )
-            .join("")}
-        `
-          )
-          .join("")}
-      </body>
-    </html>
-  `;
-};
 
 const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
   isDarkMode,
@@ -189,6 +336,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
     createSchoolYear,
     updateSchoolYear,
     deleteSchoolYear,
+    clearLocalStorage,
   } = useAnneeScolaire();
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
@@ -199,6 +347,10 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
     message: string;
   } | null>(null);
   const [showDetails, setShowDetails] = useState<SchoolYear | null>(null);
+
+  // États pour le modal de confirmation de suppression
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [yearToDelete, setYearToDelete] = useState<SchoolYear | null>(null);
 
   // États pour les filtres et accordéons
   const [expandedClasses, setExpandedClasses] = useState<{
@@ -284,12 +436,19 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
   };
 
   // Définir comme année actuelle
-  const handleSetCurrentYear = (schoolYear: SchoolYear) => {
-    setCurrentYear(schoolYear);
-    showNotification(
-      "success",
-      `Année ${schoolYear.year} définie comme année actuelle`
-    );
+  const handleSetCurrentYear = async (schoolYear: SchoolYear) => {
+    try {
+      await setCurrentYear(schoolYear);
+      showNotification(
+        "success",
+        `Année ${schoolYear.year} définie comme année actuelle et sauvegardée`
+      );
+    } catch (error) {
+      showNotification(
+        "error",
+        `Erreur lors de la définition de l'année ${schoolYear.year}`
+      );
+    }
   };
 
   // Éditer une année
@@ -302,24 +461,34 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
     setShowDetails(schoolYear);
   };
 
-  // Supprimer une année
+  // Supprimer une année - nouvelle implémentation avec modal de confirmation
   const handleDeleteYear = (yearId: string) => {
-    const yearToDelete = schoolYears.find((y) => y.id === yearId);
-    if (!yearToDelete) return;
+    const yearToDeleteData = schoolYears.find((y) => y.id === yearId);
+    if (!yearToDeleteData) return;
 
     if (currentYear?.id === yearId) {
       showNotification("error", "Impossible de supprimer l'année actuelle");
       return;
     }
 
-    if (
-      window.confirm(
-        `Êtes-vous sûr de vouloir supprimer l'année ${yearToDelete.year} ?`
-      )
-    ) {
-      deleteSchoolYear(yearId);
+    // Ouvrir le modal de confirmation
+    setYearToDelete(yearToDeleteData);
+    setShowDeleteModal(true);
+  };
+
+  // Confirmer la suppression
+  const handleConfirmDelete = () => {
+    if (yearToDelete) {
+      deleteSchoolYear(yearToDelete.id);
       showNotification("success", `Année ${yearToDelete.year} supprimée`);
+      setYearToDelete(null);
     }
+  };
+
+  // Fermer le modal de confirmation
+  const handleCloseDeleteModal = () => {
+    setShowDeleteModal(false);
+    setYearToDelete(null);
   };
 
   // Fermer le modal
@@ -710,6 +879,15 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
         </div>
       </div>
 
+      {/* Modal de confirmation de suppression */}
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        schoolYear={yearToDelete}
+        isDarkMode={isDarkMode}
+      />
+
       {/* Modal de configuration */}
       <ConfigurationAnee
         isOpen={showModal}
@@ -775,7 +953,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                       isDarkMode ? "text-white" : "text-gray-900"
                     }`}
                   >
-                    Emplois du temps par classe
+                    Emplois du temps par classe{" "}
                   </h4>
                 </div>
 
@@ -910,7 +1088,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                                     title="Imprimer emploi du temps"
                                   >
                                     <Printer className="w-3 h-3" />
-                                    EDT
+                                    EMPL
                                   </button>
                                   <button
                                     className={`px-2 py-1 rounded text-xs border flex items-center gap-1 ${

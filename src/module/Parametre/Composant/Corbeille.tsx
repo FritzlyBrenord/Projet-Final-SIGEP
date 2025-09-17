@@ -4,7 +4,8 @@ import { useProfesseur } from "@/Context/ContextProfesseur";
 import { useFraisScolarite } from "@/Context/ContextPaiement";
 import { useNotes } from "@/Context/ContextNotes";
 import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
-import { SelectData } from "@/Config/SupabaseData";
+import { SelectData, UpdateData } from "@/Config/SupabaseData";
+import { useEmployer } from "@/Context/ContextEmployer";
 
 interface Props {
   isDarkMode: boolean;
@@ -40,6 +41,7 @@ const Corbeille = ({ isDarkMode }: Props) => {
   const { notes, restaurerNote, supprimerNoteDefinitif, rechargerNotes } =
     useNotes();
   const { currentYear } = useAnneeScolaire();
+  const { restaurerEmployer, supprimerEmployerDefinitif, rechargerEmployes } = useEmployer();
 
   const [page, setPage] = useState(1);
   const [deletedItems, setDeletedItems] = useState<TrashItem[]>([]);
@@ -59,52 +61,70 @@ const Corbeille = ({ isDarkMode }: Props) => {
       try {
         setIsLoading(true);
         setError(null);
-        const [elevesDB, profsDB, paiementsDB, notesDB] = await Promise.all([
+        const [
+          elevesDB,
+          elevesInscriptionsDB,
+          enseignantsDB,
+          profsAffectationsDB,
+          paiementsDB,
+          notesDB,
+          employesDB,
+        ] = await Promise.all([
           SelectData("eleves"),
-          SelectData("professeurs"),
+          SelectData("eleves_inscriptions"),
+          SelectData("enseignants"),
+          SelectData("professeurs_affectations"),
           SelectData("paiements"),
           SelectData("notes"),
+          SelectData("employes"),
         ]);
 
         const anneeId = currentYear?.id;
 
-        const elevesDeleted: TrashItem[] = (elevesDB || [])
-          .filter((e: any) => e.deleted === true && (!anneeId || e.annee_scolaire_id === anneeId))
-          .map((e: any) => ({
-            id: e.id,
-            type: "Élève" as const,
-            title: `${e.prenom} ${e.nom}`,
-            subtitle: `Code: ${e.code}`,
-            restore: async () => {
-              await restaurerEleve(e.id);
-              await rechargerEleves();
-              await refreshDeleted();
-            },
-            hardDelete: async () => {
-              await supprimerEleveDefinitif(e.id);
-              await rechargerEleves();
-              await refreshDeleted();
-            },
-          }));
+        const elevesDeleted: TrashItem[] = (elevesInscriptionsDB || [])
+          .filter((ins: any) => ins.deleted === true && (!anneeId || ins.annee_scolaire_id === anneeId))
+          .map((ins: any) => {
+            const eleve = (elevesDB || []).find((e: any) => e.id === ins.eleve_id) || {};
+            return {
+              id: ins.id, // id de l'inscription supprimée
+              type: "Élève" as const,
+              title: `${eleve.prenom || ""} ${eleve.nom || ""}`.trim() || `Élève ${ins.eleve_id}`,
+              subtitle: `Code: ${eleve.code || ""}`,
+              restore: async () => {
+                await UpdateData("eleves_inscriptions", ins.id, { deleted: false });
+                await rechargerEleves();
+                await refreshDeleted();
+              },
+              hardDelete: async () => {
+                // Suppression définitive de l'élève (toutes années)
+                await supprimerEleveDefinitif(ins.eleve_id);
+                await rechargerEleves();
+                await refreshDeleted();
+              },
+            } as TrashItem;
+          });
 
-        const profsDeleted: TrashItem[] = (profsDB || [])
-          .filter((p: any) => p.deleted === true && (!anneeId || p.annee_scolaire_id === anneeId))
-          .map((p: any) => ({
-            id: p.id,
-            type: "Professeur" as const,
-            title: `${p.prenom} ${p.nom}`,
-            subtitle: p.email,
-            restore: async () => {
-              await restaurerProfesseur(p.id);
-              await rechargerProfesseurs();
-              await refreshDeleted();
-            },
-            hardDelete: async () => {
-              await supprimerProfesseurDefinitif(p.id);
-              await rechargerProfesseurs();
-              await refreshDeleted();
-            },
-          }));
+        const profsDeleted: TrashItem[] = (profsAffectationsDB || [])
+          .filter((a: any) => a.deleted === true && (!anneeId || a.annee_scolaire_id === anneeId))
+          .map((a: any) => {
+            const enseignant = (enseignantsDB || []).find((e: any) => e.id === a.enseignant_id) || {};
+            return {
+              id: a.id, // id de l'affectation supprimée
+              type: "Professeur" as const,
+              title: `${enseignant.prenom || ""} ${enseignant.nom || ""}`.trim() || a.code,
+              subtitle: a.code,
+              restore: async () => {
+                await restaurerProfesseur(a.id);
+                await rechargerProfesseurs();
+                await refreshDeleted();
+              },
+              hardDelete: async () => {
+                await supprimerProfesseurDefinitif(a.id);
+                await rechargerProfesseurs();
+                await refreshDeleted();
+              },
+            } as TrashItem;
+          });
 
         const paiementsDeleted: TrashItem[] = (paiementsDB || [])
           .filter((pa: any) => pa.deleted === true && (!anneeId || pa.annee_scolaire_id === anneeId))
@@ -144,11 +164,31 @@ const Corbeille = ({ isDarkMode }: Props) => {
             },
           }));
 
+        const employesDeleted: TrashItem[] = (employesDB || [])
+          .filter((emp: any) => emp.deleted === true && (!anneeId || emp.annee_scolaire_id === anneeId))
+          .map((emp: any) => ({
+            id: emp.id,
+            type: "Employé" as const,
+            title: `${emp.prenom} ${emp.nom}`,
+            subtitle: `Code: ${emp.code}`,
+            restore: async () => {
+              await restaurerEmployer(emp.id);
+              await rechargerEmployes();
+              await refreshDeleted();
+            },
+            hardDelete: async () => {
+              await supprimerEmployerDefinitif(emp.id);
+              await rechargerEmployes();
+              await refreshDeleted();
+            },
+          }));
+
         setDeletedItems([
           ...elevesDeleted,
           ...profsDeleted,
           ...paiementsDeleted,
           ...notesDeleted,
+          ...employesDeleted,
         ]);
         setPage(1);
       } catch (e) {

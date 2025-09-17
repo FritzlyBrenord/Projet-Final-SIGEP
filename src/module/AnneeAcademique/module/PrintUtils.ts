@@ -1,5 +1,198 @@
 import { Level, Class, Subject, ScheduleItem } from "../../../types/AnneeScolaireType";
 
+
+
+export const EntetIMFP = (titre: string): string => {
+  return `
+    <style>
+      body {
+        font-family: 'Arial', sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #fff;
+        color: #333;
+        line-height: 1.6;
+      }
+      
+      .header-container {
+        border-bottom: 3px solid #2563eb;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        position: relative;
+      }
+      
+      .school-name {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 8px;
+        color: #1e40af;
+        text-align: center;
+        letter-spacing: 0.5px;
+      }
+      
+      .separator {
+        width: 50px;
+        height: 2px;
+        background: linear-gradient(90deg, #2563eb, #059669);
+        margin: 8px auto;
+        border-radius: 2px;
+      }
+      
+      .info-section {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 10px;
+        gap: 20px;
+      }
+      
+      .address-contact {
+        text-align: center;
+      }
+      
+      .school-info {
+        font-size: 13px;
+        color: #64748b;
+        margin-bottom: 3px;
+        font-weight: 500;
+      }
+      
+      .contact-info {
+        font-size: 12px;
+        color: #475569;
+        margin-top: 5px;
+        font-style: italic;
+      }
+      
+      .logo-container {
+        flex-shrink: 0;
+      }
+      
+      .logo {
+        width: 90px;
+        height: 90px;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      
+      .logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      
+      .document-title {
+        font-size: 14px;
+        font-weight: bold;
+        color: #059669;
+        margin-top: 15px;
+        padding: 8px 16px;
+        background: rgba(5, 150, 105, 0.1);
+        border-radius: 6px;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        border: 1px solid rgba(5, 150, 105, 0.2);
+      }
+      
+      @media print {
+        body {
+          padding: 10px;
+        }
+        .header-container {
+          box-shadow: none;
+          padding: 10px 15px;
+        }
+        .logo {
+          width: 70px;
+          height: 70px;
+        }
+      }
+      
+      @media (max-width: 600px) {
+        .info-section {
+          flex-direction: column;
+          gap: 15px;
+        }
+        .logo {
+          width: 80px;
+          height: 80px;
+        }
+      }
+    </style>
+    
+    <div class="header-container">
+      <div class="school-name">INSTITUTION MIXTE FAUSTIN PREMIERE (IMFP)</div>
+      <div class="separator"></div>
+      
+      <div class="info-section">
+        <div class="address-contact">
+          <div class="school-info">156, avenue des Dattes, Gonaïves (Haïti) HT-4410</div>
+          <div class="school-info">Route Nationale #1</div>
+          <div class="contact-info">
+            Téléphone: +509 3373 4336 / 3764 4223<br>
+            Email: collegefaustin1er888@gmail.com
+          </div>
+        </div>
+        
+        <div class="logo-container">
+          <div class="logo">
+            <img src="/logo.png" alt="Logo IMFP" />
+          </div>
+        </div>
+      </div>
+      
+      <div class="document-title">${titre}</div>
+    </div>
+  `;
+};
+
+export const EntetIMFPSimple = (titre: string): string => {
+  return `
+    <div style="
+      border-bottom: 2px solid #2563eb; 
+      padding: 12px 15px; 
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f8fafc;
+      gap: 25px;
+    ">
+      <div style="text-align: center;">
+        <h1 style="color: #1e40af; margin: 0 0 8px 0; font-size: 20px;">
+          INSTITUTION MIXTE FAUSTIN PREMIERE (IMFP)
+        </h1>
+        <p style="color: #64748b; margin: 2px 0; font-size: 12px;">
+          156, avenue des Dattes, Gonaïves (Haïti) HT-4410
+        </p>
+        <p style="color: #64748b; margin: 2px 0; font-size: 11px;">
+          Tél: +509 3373 4336 / 3764 4223 | collegefaustin1er888@gmail.com
+        </p>
+        <h2 style="color: #059669; margin-top: 10px; font-size: 16px;">
+          ${titre}
+        </h2>
+      </div>
+      
+      <div>
+        <img src="/logo.png" alt="Logo IMFP" style="
+          width: 120px; 
+          height: 120px; 
+          object-fit: contain;
+          border-radius: 6px;
+          padding: 4px;
+         
+        " />
+      </div>
+    </div>
+  `;
+};
+
+
 // Fonction pour générer le contenu d'impression des classes et matières
 export const generateClassesPrintContent = (levels: Level[]) => {
   return `
@@ -170,13 +363,8 @@ export const generateClassesPrintContent = (levels: Level[]) => {
       </style>
     </head>
     <body>
-      <div class="header">
-      <div class="school-name">INSTITUTION MIXTE FAUSTIN PREMIERE (IMFP)</div>
-      <div class="school-info">123 Rue de l'Éducation, Port-au-Prince, Haïti</div>
-      <div class="school-info">Téléphone: +509 1234 5678 | Email: info@imfp.edu.ht</div>
-      <div class="document-title">Configuration des Classes et Matières</div>
-      </div>
-      
+   
+       ${EntetIMFP("Classes et Matières")}
       <div class="content">
         ${levels
           .map(
@@ -427,12 +615,8 @@ export const generateSchedulePrintContent = (levels: Level[]) => {
       </style>
     </head>
     <body>
-      <div class="header">
-      <div class="school-name">INSTITUTION MIXTE FAUSTIN PREMIERE (IMFP)</div>
-      <div class="school-info">123 Rue de l'Éducation, Port-au-Prince, Haïti</div>
-      <div class="school-info">Téléphone: +509 1234 5678 | Email: info@imfp.edu.ht</div>
-      <div class="document-title">Emplois du Temps Complets</div>
-      </div>
+     
+      ${EntetIMFP("Emplois du Temps")}
       
       <div class="content">
         ${levels
@@ -742,12 +926,8 @@ export const generateClassSchedulePrintContent = (cls: Class, levelName: string)
       </style>
     </head>
     <body>
-      <div class="header">
-      <div class="school-name">INSTITUTION MIXTE FAUSTIN PREMIERE (IMFP)</div>
-      <div class="school-info">123 Rue de l'Éducation, Port-au-Prince, Haïti</div>
-      <div class="school-info">Téléphone: +509 1234 5678 | Email: info@imfp.edu.ht</div>
-      <div class="document-title">Emploi du temps - ${cls.name}</div>
-      </div>
+     
+      ${EntetIMFP(`Emploi du Temps - ${cls.name}`)}
       
     <div class="class-info-section">
       <table class="class-info-table">
@@ -971,11 +1151,8 @@ export const generateCompleteConfigPrintContent = (
       </style>
     </head>
     <body>
-      <div class="header">
-      <div class="school-name">INSTITUTION MIXTE FAUSTIN PREMIERE (IMFP)</div>
-      <div class="school-info">123 Rue de l'Éducation, Port-au-Prince, Haïti</div>
-      <div class="school-info">Téléphone: +509 1234 5678 | Email: info@imfp.edu.ht</div>
-      <div class="document-title">Configuration Complète - Année Scolaire ${yearInput}</div>
+      
+      ${EntetIMFP(`Année Scolaire ${yearInput}`)}
       ${
         description
           ? `<div class="school-info" style="margin-top: 10px; font-style: italic;">${description}</div>`

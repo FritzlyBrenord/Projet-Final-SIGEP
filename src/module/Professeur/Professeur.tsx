@@ -31,6 +31,7 @@ import {
 import { useProfesseur } from "../../Context/ContextProfesseur";
 import { useAnneeScolaire } from "../../Context/ContextAnneeScolaire";
 import { SelectData } from "@/Config/SupabaseData";
+import { EntetIMFP } from "../AnneeAcademique/module";
 
 // Fonctions utilitaires pour NIF/CIN
 const validateNifCin = (value: string): boolean => {
@@ -474,11 +475,12 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
       );
 
       // 4. Charger TOUS les professeurs (affectations) de l'année précédente (nouvelle structure)
-      const [affectationsData, enseignantsData, sequencesData] = await Promise.all([
-        SelectData("professeurs_affectations"),
-        SelectData("enseignants"),
-        SelectData("sequences"),
-      ]);
+      const [affectationsData, enseignantsData, sequencesData] =
+        await Promise.all([
+          SelectData("professeurs_affectations"),
+          SelectData("enseignants"),
+          SelectData("sequences"),
+        ]);
       if (!affectationsData || !enseignantsData) return;
 
       const prevYearAffectations = affectationsData.filter(
@@ -501,16 +503,19 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
           );
           if (!enseignant) return null;
 
-          const sequences = (sequencesData as any[] | undefined)
-            ?.filter((s: any) => s.professeur_affectation_id === a.id && !s.deleted)
-            .map((s: any) => ({
-              id: s.id,
-              professeur_affectation_id: a.id,
-              classe: s.classe,
-              salle: s.salle,
-              matiere: s.matiere,
-              deleted: s.deleted,
-            })) || [];
+          const sequences =
+            (sequencesData as any[] | undefined)
+              ?.filter(
+                (s: any) => s.professeur_affectation_id === a.id && !s.deleted
+              )
+              .map((s: any) => ({
+                id: s.id,
+                professeur_affectation_id: a.id,
+                classe: s.classe,
+                salle: s.salle,
+                matiere: s.matiere,
+                deleted: s.deleted,
+              })) || [];
 
           const prof: Professeur = {
             id: a.id,
@@ -1123,37 +1128,66 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
     return salleId;
   };
 
-  // Impression: génération HTML et print
+  // Impression améliorée: génération HTML optimisée et print
   const handlePrint = () => {
-    const list = filteredProfesseurs;
+    try {
+      const list = filteredProfesseurs;
 
-    const style = `
-      <style>
-        body { font-family: Arial, sans-serif; color: #111; }
-        .header { text-align: center; margin-bottom: 16px; }
-        .title { font-size: 18px; font-weight: bold; margin-top: 4px; }
-        .meta { font-size: 12px; color: #555; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #444; padding: 6px 8px; font-size: 12px; }
-        th { background: #f0f0f0; text-align: left; }
-        @media print { .page-break { page-break-after: always; } }
-      </style>
-    `;
+      if (!list || list.length === 0) {
+        alert("Aucun professeur à imprimer");
+        return;
+      }
 
-    const columns: { key: string; label: string }[] = [];
-    if (printColumns.code) columns.push({ key: "code", label: "Code" });
-    if (printColumns.nom) columns.push({ key: "nom", label: "Nom" });
-    if (printColumns.prenom) columns.push({ key: "prenom", label: "Prénom" });
-    if (printColumns.email) columns.push({ key: "email", label: "Email" });
+      // Configuration des colonnes
+      const columns = getSelectedColumns();
+
+      // Génération des données
+      const rows = generateTableRows(list);
+
+      // Génération du HTML complet
+      const html = generatePrintHTML(columns, rows);
+
+      // Ouverture et impression
+      openPrintWindow(html);
+    } catch (error) {
+      console.error("Erreur lors de l'impression:", error);
+      alert("Erreur lors de la génération du document");
+    }
+  };
+
+  // Fonction pour obtenir les colonnes sélectionnées
+  const getSelectedColumns = (): {
+    key: string;
+    label: string;
+    width?: string;
+  }[] => {
+    const columns: { key: string; label: string; width?: string }[] = [];
+
+    if (printColumns.code)
+      columns.push({ key: "code", label: "Code", width: "80px" });
+    if (printColumns.nom)
+      columns.push({ key: "nom", label: "Nom", width: "120px" });
+    if (printColumns.prenom)
+      columns.push({ key: "prenom", label: "Prénom", width: "120px" });
+    if (printColumns.email)
+      columns.push({ key: "email", label: "Email", width: "180px" });
     if (printColumns.telephone)
-      columns.push({ key: "telephone", label: "Téléphone" });
-    if (printColumns.nifcin) columns.push({ key: "nif_cin", label: "NIF/CIN" });
-    if (printColumns.classe) columns.push({ key: "_classe", label: "Classe" });
-    if (printColumns.salle) columns.push({ key: "_salle", label: "Salle" });
+      columns.push({ key: "telephone", label: "Téléphone", width: "120px" });
+    if (printColumns.nifcin)
+      columns.push({ key: "nif_cin", label: "NIF/CIN", width: "100px" });
+    if (printColumns.classe)
+      columns.push({ key: "_classe", label: "Classe", width: "100px" });
+    if (printColumns.salle)
+      columns.push({ key: "_salle", label: "Salle", width: "100px" });
 
-    const rows = list.map((p) => {
-      // Pour classe/salle, on affiche la première séquence si dispo
-      const seq = p.sequences[0];
+    return columns;
+  };
+
+  // Fonction pour générer les lignes du tableau
+  const generateTableRows = (list: any[]) => {
+    return list.map((p, index) => {
+      // Pour classe/salle, on affiche la première séquence si disponible
+      const seq = p.sequences?.[0];
       const classeLabel = seq
         ? classes.find((c) => c.value === seq.classe)?.label || seq.classe
         : "";
@@ -1162,66 +1196,321 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
             .flat()
             .find((s) => s.value === seq.salle)?.label || seq.salle
         : "";
-      const row: Record<string, string> = {
-        code: p.code,
-        nom: p.nom,
-        prenom: p.prenom,
-        email: p.email,
-        telephone: p.telephone,
+
+      return {
+        index: index + 1,
+        code: p.code || "",
+        nom: p.nom || "",
+        prenom: p.prenom || "",
+        email: p.email || "",
+        telephone: p.telephone || "",
         nif_cin: (p as any).nif_cin || "",
         _classe: classeLabel,
         _salle: salleLabel,
       };
-      return row;
     });
+  };
 
-    const thead = `<tr>${columns
-      .map((c) => `<th>${c.label}</th>`)
-      .join("")}</tr>`;
-    const tbody = rows
-      .map(
-        (r) =>
-          `<tr>${columns
-            .map((c) => `<td>${(r as any)[c.key] || ""}</td>`)
-            .join("")}</tr>`
-      )
-      .join("");
+  // Styles CSS améliorés
+  const getStyles = () => `
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 12px;
+      line-height: 1.4;
+      color: #333;
+      background: white;
+    }
+    
+    .document {
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #2563eb;
+    }
+    
+    .company-name {
+      font-size: 22px;
+      font-weight: bold;
+      color: #1e40af;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .company-info {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .document-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #374151;
+      margin: 15px 0 5px 0;
+      text-transform: uppercase;
+    }
+    
+    .school-year {
+      font-size: 12px;
+      color: #6b7280;
+      font-style: italic;
+    }
+    
+    .stats {
+      text-align: right;
+      margin-bottom: 15px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+    
+    .table-container {
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+      background: white;
+    }
+    
+    th {
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      color: #374151;
+      font-weight: 600;
+      padding: 12px 8px;
+      text-align: left;
+      border: 1px solid #d1d5db;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    td {
+      padding: 10px 8px;
+      border: 1px solid #e5e7eb;
+      vertical-align: top;
+      font-size: 11px;
+    }
+    
+    tr:nth-child(even) {
+      background-color: #f9fafb;
+    }
+    
+    tr:hover {
+      background-color: #f3f4f6;
+    }
+    
+    .index-col {
+      width: 40px;
+      text-align: center;
+      font-weight: 600;
+      color: #6b7280;
+    }
+    
+    .footer {
+      margin-top: 30px;
+      padding-top: 15px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 10px;
+      color: #9ca3af;
+      text-align: center;
+    }
+    
+    .signature-area {
+      margin-top: 40px;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .signature-box {
+      width: 200px;
+      text-align: center;
+    }
+    
+    .signature-line {
+      border-top: 1px solid #374151;
+      margin-top: 50px;
+      padding-top: 5px;
+      font-size: 10px;
+      color: #6b7280;
+    }
+    
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+      }
+      
+      .document {
+        padding: 10px;
+      }
+      
+      .page-break {
+        page-break-after: always;
+      }
+      
+      .no-print {
+        display: none !important;
+      }
+      
+      table {
+        page-break-inside: auto;
+      }
+      
+      tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+      
+      thead {
+        display: table-header-group;
+      }
+      
+      tfoot {
+        display: table-footer-group;
+      }
+    }
+    
+    @page {
+      margin: 1cm;
+      size: A4;
+    }
+  </style>
+`;
 
-    const headerHtml = `
-      <div class="header">
-        <div class="title">${printHeader.companyName || ""}</div>
-        <div class="meta">${printHeader.address || ""}${
-      printHeader.phone ? " | " + printHeader.phone : ""
-    }</div>
-        ${
-          currentYear
-            ? `<div class="meta">Année scolaire: ${currentYear.year}</div>`
-            : ""
-        }
-      </div>
-    `;
+  // Fonction pour générer le tableau
+  const generateTable = (columns: any[], rows: any[]) => {
+    const thead = `
+    <thead>
+      <tr>
+        <th class="index-col">#</th>
+        ${columns
+          .map(
+            (c) =>
+              `<th style="${c.width ? `width: ${c.width}` : ""}">${
+                c.label
+              }</th>`
+          )
+          .join("")}
+      </tr>
+    </thead>
+  `;
 
-    const html = `
-      <html>
-        <head><meta charset="utf-8" />${style}</head>
-        <body>
-          ${headerHtml}
-          <table>
-            <thead>${thead}</thead>
-            <tbody>${tbody}</tbody>
-          </table>
-        </body>
-      </html>
-    `;
+    const tbody = `
+    <tbody>
+      ${rows
+        .map(
+          (row) => `
+        <tr>
+          <td class="index-col">${row.index}</td>
+          ${columns.map((c) => `<td>${row[c.key] || ""}</td>`).join("")}
+        </tr>
+      `
+        )
+        .join("")}
+    </tbody>
+  `;
 
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
+    return `
+    <div class="stats">
+      Total: ${rows.length} professeur${rows.length > 1 ? "s" : ""} • 
+      Généré le ${new Date().toLocaleDateString(
+        "fr-FR"
+      )} à ${new Date().toLocaleTimeString("fr-FR")}
+    </div>
+    <div class="table-container">
+      <table>
+        ${thead}
+        ${tbody}
+      </table>
+    </div>
+  `;
+  };
+
+  // Fonction pour générer le pied de page
+  const generateFooter = () => `
+  <div class="footer">
+    <div>Document généré automatiquement le ${new Date().toLocaleDateString(
+      "fr-FR"
+    )} à ${new Date().toLocaleTimeString("fr-FR")}</div>
+  </div>
+  
+  <div class="signature-area">
+    <div class="signature-box">
+      <div class="signature-line">Directeur</div>
+    </div>
+    <div class="signature-box">
+      <div class="signature-line">Responsable RH</div>
+    </div>
+  </div>
+`;
+
+  // Fonction principale pour générer le HTML
+  const generatePrintHTML = (columns: any[], rows: any[]) => {
+    return `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Liste des Professeurs - ${
+          printHeader.companyName || "École"
+        }</title>
+        ${getStyles()}
+      </head>
+      <body>
+        <div class="document">
+         ${EntetIMFP(`Liste des Professeurs `)}
+          ${generateTable(columns, rows)}
+          ${generateFooter()}
+        </div>
+      </body>
+    </html>
+  `;
+  };
+
+  // Fonction pour ouvrir la fenêtre d'impression
+  const openPrintWindow = (html: string) => {
+    const printWindow = window.open("", "_blank", "width=1000,height=700");
+
+    if (!printWindow) {
+      alert(
+        "Impossible d'ouvrir la fenêtre d'impression. Vérifiez les paramètres de votre navigateur."
+      );
+      return;
+    }
+
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+
+    // Attendre que le contenu soit chargé avant d'imprimer
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+
+        // Fermer la fenêtre après impression (optionnel)
+        printWindow.onafterprint = () => {
+          printWindow.close();
+        };
+      }, 500);
+    };
   };
 
   return (
@@ -1768,14 +2057,10 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                               {selectedProf &&
                               selectedProf.sequences.length > 0 ? (
                                 selectedProf.sequences.map((seq) => {
-                                  const classeLabel =
-                                    classes.find((c) => c.value === seq.classe)
-                                      ?.label || seq.classe;
-                                  const salleLabel =
-                                    Object.values(sallesData)
-                                      .flat()
-                                      .find((s) => s.value === seq.salle)
-                                      ?.label || seq.salle;
+                                  const classeLabel = getClasseLabel(
+                                    seq.classe
+                                  );
+                                  const salleLabel = getSalleLabel(seq.salle);
                                   const matiereLabel = getMatiereLabel(
                                     seq.matiere
                                   );
@@ -2472,7 +2757,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
         {showPrintModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div
-              className={`${cardClasses} rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto`}
+              className={`${cardClasses} rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto`}
             >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
@@ -2491,48 +2776,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-semibold mb-3">En-tête</h4>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Nom de l'établissement"
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={printHeader.companyName}
-                        onChange={(e) =>
-                          setPrintHeader({
-                            ...printHeader,
-                            companyName: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        type="text"
-                        placeholder="Adresse"
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={printHeader.address}
-                        onChange={(e) =>
-                          setPrintHeader({
-                            ...printHeader,
-                            address: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        type="text"
-                        placeholder="Téléphone"
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={printHeader.phone}
-                        onChange={(e) =>
-                          setPrintHeader({
-                            ...printHeader,
-                            phone: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1  gap-6">
                   <div>
                     <h4 className="font-semibold mb-3">Colonnes à imprimer</h4>
                     <div className="grid grid-cols-2 gap-3 text-sm">

@@ -25,6 +25,7 @@ import {
 import { useFraisScolarite } from "@/Context/ContextPaiement";
 import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 import { useEleves } from "@/Context/ContextEleves";
+import { EntetIMFP } from "../AnneeAcademique/module";
 
 interface Props {
   isDarkMode?: boolean;
@@ -289,7 +290,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
 
         if (confirmer) {
           await modifierPaiement(paiementExistant.id, {
-            montant_paye: parseFloat(paiementExistant.montant_paye) + montantPaye,
+            montant_paye:
+              parseFloat(paiementExistant.montant_paye) + montantPaye,
             remarques: paiementForm.remarques || undefined,
           });
 
@@ -417,14 +419,14 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
             remarques: excessData.remarques || undefined,
           });
         } else {
-        await ajouterPaiement({
-          eleve_id: excessData.eleveId,
-          type_frais_id: excessData.currentTypeId,
-          montant_du: excessData.amountForCurrent,
-          montant_paye: excessData.amountForCurrent,
-          remarques: excessData.remarques || undefined,
-          annee_scolaire_id: currentYear?.id,
-        });
+          await ajouterPaiement({
+            eleve_id: excessData.eleveId,
+            type_frais_id: excessData.currentTypeId,
+            montant_du: excessData.amountForCurrent,
+            montant_paye: excessData.amountForCurrent,
+            remarques: excessData.remarques || undefined,
+            annee_scolaire_id: currentYear?.id,
+          });
         }
 
         // 2) Pour le type sélectionné: ajouter le paiement avec l'excédent
@@ -687,15 +689,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
         </style>
       </head>
       <body>
-        <div class="header">
-          <div class="school-name">INSTITUT SAINT-JOSEPH</div>
-          <div class="school-info">
-            123 Rue de l'Éducation, Port-au-Prince, Haïti<br>
-            Tél: +509 1234-5678 | Email: contact@institut-sj.ht<br>
-            Site web: www.institut-sj.ht
-          </div>
-          <div class="receipt-title">FICHE DE PAIEMENT</div>
-        </div>
+        
+         ${EntetIMFP(`FICHE DE PAIEMENT`)}
         
         <div class="student-info">
           <div class="info-row">
@@ -778,11 +773,9 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
         }
 
         <div class="signature-area">
+        
           <div class="signature-box">
-            <div class="signature-line">Signature du Caissier</div>
-          </div>
-          <div class="signature-box">
-            <div class="signature-line">Signature du Parent/Élève</div>
+            <div class="signature-line">Signature du Responsable de l'économat</div>
           </div>
         </div>
 

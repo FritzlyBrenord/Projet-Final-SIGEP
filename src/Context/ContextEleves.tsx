@@ -31,8 +31,9 @@ export interface ElevesContextType {
   // Fonctions existantes (maintenues pour compatibilité)
   ajouterEleve: (data: EleveFormData) => Promise<void>;
   modifierEleve: (id: string, data: Partial<EleveFormData>) => Promise<void>;
-  supprimerEleve: (id: string) => Promise<void>; // logique
-  supprimerEleveDefinitif: (id: string) => Promise<void>; // hard
+  supprimerEleve: (id: string) => Promise<void>; // Supprime uniquement de l'année courante
+  supprimerEleveDefinitif: (id: string) => Promise<void>; // Supprime définitivement de toutes les années
+  supprimerEleveDeToutesAnnees: (id: string) => Promise<void>; // Supprime de toutes les années mais garde l'élève
   restaurerEleve: (id: string) => Promise<void>;
   rechercherEleves: (terme: string) => EleveAffiche[];
   genererNouveauCode: (nom?: string, prenom?: string) => Promise<string>;
@@ -314,25 +315,35 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   const supprimerEleve = async (id: string) => {
     try {
       setIsLoading(true);
-      // Marquer l'élève comme supprimé
-      const ok = await UpdateData("eleves", id, { deleted: true });
-      if (!ok) throw new Error("Erreur lors de la suppression de l'élève");
-
-      // Marquer également l'inscription de l'année courante comme supprimée si elle existe
-      if (currentYear) {
-        const inscriptions = await SelectData("eleves_inscriptions");
-        const currentInscription = (inscriptions || []).find(
-          (i: EleveInscription) =>
-            i.eleve_id === id && i.annee_scolaire_id === currentYear.id && !i.deleted
-        );
-        if (currentInscription) {
-          await UpdateData("eleves_inscriptions", currentInscription.id, {
-            deleted: true,
-          });
-        }
+      
+      if (!currentYear) {
+        throw new Error("Aucune année scolaire sélectionnée");
       }
 
-      setEleves((prev) => prev.filter((e) => e.id !== id));
+      // Trouver l'inscription de l'année courante pour cet élève
+      const inscriptions = await SelectData("eleves_inscriptions");
+      const currentInscription = (inscriptions || []).find(
+        (i: EleveInscription) =>
+          i.eleve_id === id && 
+          i.annee_scolaire_id === currentYear.id && 
+          !i.deleted
+      );
+
+      if (!currentInscription) {
+        throw new Error("Aucune inscription trouvée pour cet élève dans l'année courante");
+      }
+
+      // Supprimer uniquement l'inscription de l'année courante
+      const ok = await UpdateData("eleves_inscriptions", currentInscription.id, {
+        deleted: true,
+      });
+      
+      if (!ok) {
+        throw new Error("Erreur lors de la suppression de l'inscription de l'élève");
+      }
+
+      // Recharger les données pour mettre à jour l'affichage
+      await rechargerEleves();
     } catch (e) {
       setError(
         e instanceof Error
@@ -348,15 +359,59 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   const supprimerEleveDefinitif = async (id: string) => {
     try {
       setIsLoading(true);
+      
+      // Supprimer toutes les inscriptions de cet élève
+      const inscriptions = await SelectData("eleves_inscriptions");
+      const eleveInscriptions = (inscriptions || []).filter(
+        (i: EleveInscription) => i.eleve_id === id
+      );
+      
+      // Marquer toutes les inscriptions comme supprimées
+      for (const inscription of eleveInscriptions) {
+        await UpdateData("eleves_inscriptions", inscription.id, { deleted: true });
+      }
+      
+      // Supprimer définitivement l'élève de la table principale
       const ok = await DeleteData("eleves", id);
-      if (!ok)
+      if (!ok) {
         throw new Error("Erreur lors de la suppression définitive de l'élève");
+      }
+      
       await rechargerEleves();
     } catch (e) {
       setError(
         e instanceof Error
           ? e.message
           : "Erreur lors de la suppression définitive de l'élève"
+      );
+      throw e;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const supprimerEleveDeToutesAnnees = async (id: string) => {
+    try {
+      setIsLoading(true);
+      
+      // Supprimer toutes les inscriptions de cet élève (toutes années)
+      const inscriptions = await SelectData("eleves_inscriptions");
+      const eleveInscriptions = (inscriptions || []).filter(
+        (i: EleveInscription) => i.eleve_id === id && !i.deleted
+      );
+      
+      // Marquer toutes les inscriptions comme supprimées
+      for (const inscription of eleveInscriptions) {
+        await UpdateData("eleves_inscriptions", inscription.id, { deleted: true });
+      }
+      
+      // L'élève reste dans la table principale mais n'apparaît plus dans aucune année
+      await rechargerEleves();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "Erreur lors de la suppression de l'élève de toutes les années"
       );
       throw e;
     } finally {
@@ -620,6 +675,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         modifierEleve,
         supprimerEleve,
         supprimerEleveDefinitif,
+        supprimerEleveDeToutesAnnees,
         restaurerEleve,
         rechercherEleves,
         genererNouveauCode,

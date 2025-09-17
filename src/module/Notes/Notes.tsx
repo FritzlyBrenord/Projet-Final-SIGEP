@@ -31,6 +31,7 @@ import { useDecisionFinAnnee } from "../../Context/ContextDecisionFinAnnee";
 import { Eleve } from "../../types/EleveType";
 import { Note } from "../../types/NoteType";
 import { Subject } from "../../Context/ContextAnneeScolaire";
+import { EntetIMFP } from "../AnneeAcademique/module";
 
 // Alias pour la compatibilité
 type Student = Eleve;
@@ -1084,11 +1085,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer</button>
         <div class="page">
-          <div class="header">
-            <div class="institution-name">INSTITUT SAINT-JOSEPH</div>
-            <div class="institution-address">123 Avenue de l'Éducation, Port-au-Prince, Haïti</div>
-            <div class="document-title">BULLETIN DE NOTES</div>
-          </div>
+         
+          ${EntetIMFP(`BULLETIN DE NOTES`)}
 
           <div class="student-info">
             <div>
@@ -1273,343 +1271,6 @@ const NotesPage = ({ isDarkMode }: Props) => {
     return tableHTML;
   };
 
-  const generateReleveHTML = (student: Student, trimestres: (1 | 2 | 3)[]) => {
-    const releveWindow = window.open("", "_blank", "width=1000,height=700");
-    if (!releveWindow) return;
-
-    const releveHTML = `
-      <!DOCTYPE html>
-      <html lang="fr">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Relevé de Notes - ${student.prenom} ${student.nom}</title>
-        <style>
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: 'Times New Roman', serif;
-            line-height: 1.3;
-            color: #333;
-            background: white;
-          }
-          
-          .page {
-            width: 8.5in;
-            height: 11in;
-            margin: 0 auto;
-            background: white;
-            padding: 0.5in;
-          }
-          
-          .header {
-            text-align: center;
-            border-bottom: 2px solid #10b981;
-            padding-bottom: 15px;
-            margin-bottom: 20px;
-          }
-          
-          .institution-name {
-            font-size: 22px;
-            font-weight: bold;
-            color: #10b981;
-            margin-bottom: 5px;
-          }
-          
-          .institution-address {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 8px;
-          }
-          
-          .document-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: #333;
-            margin-top: 8px;
-          }
-          
-          .student-info {
-            background: #f0fdf4;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-          }
-          
-          .info-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-          }
-          
-          .info-label {
-            font-weight: bold;
-            color: #333;
-          }
-          
-          .info-value {
-            color: #666;
-          }
-          
-          .notes-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-            font-size: 11px;
-          }
-          
-          .notes-table th {
-            background: #10b981;
-            color: white;
-            padding: 8px 6px;
-            text-align: center;
-            font-weight: bold;
-          }
-          
-          .notes-table td {
-            padding: 6px;
-            text-align: center;
-            border: 1px solid #ddd;
-          }
-          
-          .matiere-cell {
-            text-align: left !important;
-            font-weight: 500;
-          }
-          
-          .total-row {
-            background: #e6f2ff !important;
-            font-weight: bold;
-          }
-          
-          .summary-section {
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin: 20px 0;
-          }
-          
-          .summary-card {
-            background: white;
-            border: 2px solid #10b981;
-            border-radius: 8px;
-            padding: 15px;
-            text-align: center;
-            min-width: 130px;
-          }
-          
-          .summary-card h4 {
-            font-size: 12px;
-            margin-bottom: 8px;
-            color: #10b981;
-          }
-          
-          .summary-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: #10b981;
-          }
-          
-          .print-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #10b981;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 12px;
-          }
-          
-          @media print {
-            body { background: white; }
-            .print-btn { display: none; }
-            .page { margin: 0; padding: 0.3in; }
-          }
-        </style>
-      </head>
-      <body>
-        <button class="print-btn" onclick="window.print()">Imprimer</button>
-        <div class="page">
-          <div class="header">
-            <div class="institution-name">INSTITUT SAINT-JOSEPH</div>
-            <div class="institution-address">123 Avenue de l'Éducation, Port-au-Prince, Haïti</div>
-            <div class="document-title">RELEVÉ DE NOTES - TOUTES MATIÈRES</div>
-          </div>
-
-          <div class="student-info">
-            <div>
-              <div class="info-item">
-                <span class="info-label">Nom et Prénom :</span>
-                <span class="info-value">${student.prenom} ${student.nom}</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Code Élève :</span>
-                <span class="info-value">${student.code}</span>
-              </div>
-            </div>
-            <div>
-              <div class="info-item">
-                <span class="info-label">Classe :</span>
-                <span class="info-value">${
-                  currentYear?.classes.find((c) => c.id === student.classe_id)
-                    ?.name || "N/A"
-                }</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Salle :</span>
-                <span class="info-value">${
-                  currentYear?.classes
-                    .find((c) => c.id === student.classe_id)
-                    ?.salles.find((s) => s.id === student.salle_id)?.name ||
-                  "N/A"
-                }</span>
-              </div>
-            </div>
-          </div>
-
-          <table class="notes-table">
-            <thead>
-              <tr>
-                <th class="matiere-cell">Matière</th>
-                ${trimestres
-                  .map(
-                    (t) => `<th>${t}${t === 1 ? "er" : "ème"} Trimestre</th>`
-                  )
-                  .join("")}
-              </tr>
-            </thead>
-            <tbody>
-              ${matieres
-                .map((matiere) => {
-                  let row = `<tr><td class="matiere-cell">${matiere.name}</td>`;
-
-                  trimestres.forEach((trimestre) => {
-                    const noteMatiere = getNoteMatiereTrimestre(
-                      student.id,
-                      matiere.id,
-                      trimestre
-                    );
-                    if (noteMatiere !== null) {
-                      row += `<td>${noteMatiere.toFixed(0)}/100</td>`;
-                    } else {
-                      row += "<td>-</td>";
-                    }
-                  });
-
-                  row += "</tr>";
-                  return row;
-                })
-                .join("")}
-              
-              <tr class="total-row">
-                <td class="matiere-cell"><strong>TOTAL</strong></td>
-                ${trimestres
-                  .map((trimestre) => {
-                    let total = 0;
-                    matieres.forEach((matiere: Subject) => {
-                      const noteMatiere = getNoteMatiereTrimestre(
-                        student.id,
-                        matiere.id,
-                        trimestre
-                      );
-                      if (noteMatiere !== null) {
-                        total += noteMatiere;
-                      }
-                    });
-                    const coefficientTotal = matieres.reduce(
-                      (sum, m) => sum + m.coefficient,
-                      0
-                    );
-                    return `<td><strong>${total.toFixed(
-                      0
-                    )}/${coefficientTotal}</strong></td>`;
-                  })
-                  .join("")}
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="summary-section">
-            ${
-              trimestres.length === 1
-                ? (() => {
-                    const trimestre = trimestres[0];
-                    const moyenneGenerale = calculateMoyenneGeneraleTrimestre(
-                      student.id,
-                      trimestre
-                    );
-                    const observation = generateObservation(moyenneGenerale);
-                    return `
-                <div class="summary-card">
-                  <h4>Moyenne Générale</h4>
-                  <div class="summary-value">${moyenneGenerale.toFixed(
-                    2
-                  )}/10</div>
-                </div>
-                <div class="summary-card">
-                  <h4>Observation</h4>
-                  <div class="summary-value" style="font-size: 14px;">${observation}</div>
-                </div>
-              `;
-                  })()
-                : (() => {
-                    const moyennesTrimestres = trimestres.map((t) =>
-                      calculateMoyenneGeneraleTrimestre(student.id, t)
-                    );
-                    const moyenneAnnuelle =
-                      moyennesTrimestres.reduce(
-                        (sum: number, m: number) => sum + m,
-                        0
-                      ) / moyennesTrimestres.length;
-                    const observationAnnuelle =
-                      generateObservation(moyenneAnnuelle);
-
-                    let html = "";
-                    trimestres.forEach((trimestre, index) => {
-                      const moyenne = moyennesTrimestres[index];
-                      const obs = generateObservation(moyenne);
-                      html += `
-                  <div class="summary-card">
-                    <h4>T${trimestre}</h4>
-                    <div class="summary-value">${moyenne.toFixed(2)}/10</div>
-                    <div style="font-size: 10px; color: #666; margin-top: 3px;">${obs}</div>
-                  </div>
-                `;
-                    });
-
-                    html += `
-                <div class="summary-card" style="border-color: #f59e0b;">
-                  <h4 style="color: #f59e0b;">Moyenne Générale</h4>
-                  <div class="summary-value" style="color: #f59e0b;">${moyenneAnnuelle.toFixed(
-                    2
-                  )}/10</div>
-                  <div style="font-size: 10px; color: #f59e0b; margin-top: 3px;">${observationAnnuelle}</div>
-                </div>
-              `;
-
-                    return html;
-                  })()
-            }
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    releveWindow.document.write(releveHTML);
-    releveWindow.document.close();
-  };
-
   // Fonction alternative pour générer tous les bulletins dans une seule fenêtre
   const generateAllBulletinsInOneWindow = () => {
     if (selectedStudentsForBulletin.length === 0) {
@@ -1712,11 +1373,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
     return `
       <div class="bulletin-container">
         <div class="page">
-          <div class="header">
-            <div class="institution-name">INSTITUT SAINT-JOSEPH</div>
-            <div class="institution-address">123 Avenue de l'Éducation, Port-au-Prince, Haïti</div>
-            <div class="document-title">BULLETIN DE NOTES</div>
-          </div>
+         
+          ${EntetIMFP(`BULLETIN DE NOTES`)}
 
           <div class="student-info">
             <div>
@@ -1772,11 +1430,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
     return `
       <div class="releve-container">
         <div class="page">
-          <div class="header">
-            <div class="institution-name">INSTITUT SAINT-JOSEPH</div>
-            <div class="institution-address">123 Avenue de l'Éducation, Port-au-Prince, Haïti</div>
-            <div class="document-title">RELEVÉ DE NOTES - TOUTES MATIÈRES</div>
-          </div>
+         
+          ${EntetIMFP(`RELEVÉ DE NOTES`)}
 
           <div class="student-info">
             <div>
@@ -2058,10 +1713,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
       <body>
         <button class="print-btn" onclick="window.print()">Imprimer</button>
         <div class="page">
-          <div class="header">
-            <div class="institution-name">INSTITUT SAINT-JOSEPH</div>
-            <div class="document-title">BULLETIN DE CLASSE</div>
-          </div>
+         
+          ${EntetIMFP(`RESULTAT DE CLASSE`)}
 
           <div class="class-info">
             <div style="font-size: 16px; font-weight: bold; margin-bottom: 5px;">
@@ -3199,7 +2852,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
           </div>
         )}
 
-        {activeTab === "resultat" && (
+        {activeTab === "resultat" && selectedClasse && selectedSalle && (
           <div className={`${cardClasses} rounded-lg shadow-sm border`}>
             <div className="p-6">
               <h2 className="text-xl font-bold mb-6">
@@ -3460,12 +3113,12 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                     </td>
                                   );
                                 })}
-                                <td className="px-6 py-4 whitespace-nowrap bg-yellow-600">
+                                <td className="px-6 py-4 whitespace-nowrap bg-gray-500">
                                   <b className={`text-sm font-medium `}>
                                     {sommesTrimestres.join(" | ")}
                                   </b>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap bg-yellow-800">
+                                <td className="px-6 py-4 whitespace-nowrap bg-gray-500">
                                   <b className={`text-sm font-medium `}>
                                     {TotalCoef}
                                   </b>
@@ -3499,7 +3152,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                   </span>
                                 </td>
 
-                                <td className="px-6 py-4 whitespace-nowrap bg-yellow-800">
+                                <td className="px-6 py-4 whitespace-nowrap bg-gray-500">
                                   <span
                                     className={`text-sm font-medium ${getMoyenneColor(
                                       moyenneAnnuelle
@@ -3517,7 +3170,6 @@ const NotesPage = ({ isDarkMode }: Props) => {
                                   <div className="flex gap-1">
                                     <select
                                       className={`px-3 py-2 border rounded-lg ${inputClasses}`}
-                                      defaultValue=""
                                       value={
                                         getDecisionByEleve(student.id)
                                           ?.decision || ""

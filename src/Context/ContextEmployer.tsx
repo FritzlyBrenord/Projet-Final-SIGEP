@@ -1,5 +1,11 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
 import {
   SelectData,
@@ -39,7 +45,10 @@ export interface EmployerContextType {
   error: string | null;
 
   ajouterEmployer: (employer: EmployerFormData) => Promise<void>;
-  modifierEmployer: (id: string, employer: Partial<EmployerFormData>) => Promise<void>;
+  modifierEmployer: (
+    id: string,
+    employer: Partial<EmployerFormData>
+  ) => Promise<void>;
   supprimerEmployer: (id: string) => Promise<void>; // suppression logique
   supprimerEmployerDefinitif: (id: string) => Promise<void>;
   restaurerEmployer: (id: string) => Promise<void>;
@@ -53,14 +62,16 @@ export interface EmployerContextType {
   genererNouveauCode: () => Promise<string>; // EMP###
 }
 
-const EmployerContext = createContext<EmployerContextType | undefined>(undefined);
+const EmployerContext = createContext<EmployerContextType | undefined>(
+  undefined
+);
 
-export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const EmployerProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [employes, setEmployes] = useState<Employer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const { currentYear } = useAnneeScolaire();
 
   const handleError = (message: string) => {
     setError(message);
@@ -93,9 +104,7 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
     try {
       setIsLoading(true);
       const data = await SelectData("employes");
-      const filtered = currentYear
-        ? (data || []).filter((r: EmployerDB) => r.annee_scolaire_id === currentYear.id && !r.deleted)
-        : (data || []).filter((r: EmployerDB) => !r.deleted);
+      const filtered = (data || []).filter((r: EmployerDB) => !r.deleted);
       setEmployes(filtered.map(convertToEmployer));
     } catch (e) {
       handleError("Erreur lors du chargement des employés");
@@ -108,7 +117,9 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
     try {
       setIsLoading(true);
       const data = await SelectData("employes");
-      const filtered = (data || []).filter((r: EmployerDB) => r.annee_scolaire_id === anneeId && !r.deleted);
+      const filtered = (data || []).filter(
+        (r: EmployerDB) => r.annee_scolaire_id === anneeId && !r.deleted
+      );
       setEmployes(filtered.map(convertToEmployer));
     } catch (e) {
       handleError("Erreur lors du chargement des employés par année");
@@ -143,10 +154,16 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (await DataExsite("employes", "email", employer.email)) {
         throw new Error("Cet email est déjà utilisé par un autre employé");
       }
-      if (employer.telephone && (await DataExsite("employes", "telephone", employer.telephone))) {
+      if (
+        employer.telephone &&
+        (await DataExsite("employes", "telephone", employer.telephone))
+      ) {
         throw new Error("Ce numéro est déjà utilisé par un autre employé");
       }
-      if (employer.nif_cin && (await DataExsite("employes", "nif_cin", employer.nif_cin))) {
+      if (
+        employer.nif_cin &&
+        (await DataExsite("employes", "nif_cin", employer.nif_cin))
+      ) {
         throw new Error("Ce NIF/CIN est déjà utilisé par un autre employé");
       }
 
@@ -169,47 +186,74 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
         deleted: false,
       };
 
-      const { success, rows, error } = await InsertDataReturn("employes", payload);
+      const { success, rows, error } = await InsertDataReturn(
+        "employes",
+        payload
+      );
       if (!success || !rows || rows.length === 0) {
-        throw new Error(error?.message || "Erreur lors de l'ajout de l'employé");
+        throw new Error(
+          error?.message || "Erreur lors de l'ajout de l'employé"
+        );
       }
       await rechargerEmployes();
     } catch (e) {
-      handleError(e instanceof Error ? e.message : "Erreur lors de l'ajout de l'employé");
+      handleError(
+        e instanceof Error ? e.message : "Erreur lors de l'ajout de l'employé"
+      );
       throw e;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const modifierEmployer = async (id: string, employer: Partial<EmployerFormData>) => {
+  const modifierEmployer = async (
+    id: string,
+    employer: Partial<EmployerFormData>
+  ) => {
     try {
       setIsLoading(true);
       // vérifs basiques de collision
       if (employer.email) {
         const data = await SelectData("employes");
-        if ((data || []).some((r: EmployerDB) => r.email === employer.email && r.id !== id)) {
+        if (
+          (data || []).some(
+            (r: EmployerDB) => r.email === employer.email && r.id !== id
+          )
+        ) {
           throw new Error("Cet email est déjà utilisé par un autre employé");
         }
       }
       if (employer.telephone) {
         const data = await SelectData("employes");
-        if ((data || []).some((r: EmployerDB) => r.telephone === employer.telephone && r.id !== id)) {
+        if (
+          (data || []).some(
+            (r: EmployerDB) => r.telephone === employer.telephone && r.id !== id
+          )
+        ) {
           throw new Error("Ce numéro est déjà utilisé par un autre employé");
         }
       }
       if (employer.nif_cin) {
         const data = await SelectData("employes");
-        if ((data || []).some((r: EmployerDB) => r.nif_cin === employer.nif_cin && r.id !== id)) {
+        if (
+          (data || []).some(
+            (r: EmployerDB) => r.nif_cin === employer.nif_cin && r.id !== id
+          )
+        ) {
           throw new Error("Ce NIF/CIN est déjà utilisé par un autre employé");
         }
       }
 
       const result = await UpdateData("employes", id, employer);
-      if (!result) throw new Error("Erreur lors de la modification de l'employé");
+      if (!result)
+        throw new Error("Erreur lors de la modification de l'employé");
       await rechargerEmployes();
     } catch (e) {
-      handleError(e instanceof Error ? e.message : "Erreur lors de la modification de l'employé");
+      handleError(
+        e instanceof Error
+          ? e.message
+          : "Erreur lors de la modification de l'employé"
+      );
       throw e;
     } finally {
       setIsLoading(false);
@@ -224,7 +268,11 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
       setEmployes((prev) => prev.filter((e) => e.id !== id));
       await rechargerEmployes();
     } catch (e) {
-      handleError(e instanceof Error ? e.message : "Erreur lors de la suppression de l'employé");
+      handleError(
+        e instanceof Error
+          ? e.message
+          : "Erreur lors de la suppression de l'employé"
+      );
       throw e;
     } finally {
       setIsLoading(false);
@@ -235,10 +283,17 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
     try {
       setIsLoading(true);
       const ok = await DeleteData("employes", id);
-      if (!ok) throw new Error("Erreur lors de la suppression définitive de l'employé");
+      if (!ok)
+        throw new Error(
+          "Erreur lors de la suppression définitive de l'employé"
+        );
       await rechargerEmployes();
     } catch (e) {
-      handleError(e instanceof Error ? e.message : "Erreur lors de la suppression définitive de l'employé");
+      handleError(
+        e instanceof Error
+          ? e.message
+          : "Erreur lors de la suppression définitive de l'employé"
+      );
       throw e;
     } finally {
       setIsLoading(false);
@@ -252,7 +307,11 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (!ok) throw new Error("Erreur lors de la restauration de l'employé");
       await rechargerEmployes();
     } catch (e) {
-      handleError(e instanceof Error ? e.message : "Erreur lors de la restauration de l'employé");
+      handleError(
+        e instanceof Error
+          ? e.message
+          : "Erreur lors de la restauration de l'employé"
+      );
       throw e;
     } finally {
       setIsLoading(false);
@@ -269,11 +328,12 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
     );
   };
 
-  const obtenirEmployerParId = (id: string) => employes.find((e) => e.id === id);
+  const obtenirEmployerParId = (id: string) =>
+    employes.find((e) => e.id === id);
 
   useEffect(() => {
     rechargerEmployes();
-  }, [currentYear]);
+  }, [rechargerEmployes]);
 
   return (
     <EmployerContext.Provider
@@ -301,8 +361,7 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({ children }
 
 export const useEmployer = () => {
   const ctx = useContext(EmployerContext);
-  if (!ctx) throw new Error("useEmployer must be used within an EmployerProvider");
+  if (!ctx)
+    throw new Error("useEmployer must be used within an EmployerProvider");
   return ctx;
 };
-
-

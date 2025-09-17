@@ -47,6 +47,7 @@ import { useDecisionFinAnnee } from "@/Context/ContextDecisionFinAnnee";
 import { Note } from "@/types/NoteType";
 import { Eleve } from "@/types/EleveType";
 import { DecisionFinAnnee } from "@/types/DecisionFinAnneeType";
+import { EntetIMFP } from "../AnneeAcademique/module";
 
 // Types pour les activités utilisateur (gardé local car pas de contexte dédié)
 interface UserActivity {
@@ -204,13 +205,6 @@ const Rapport = ({ darkMode }: Props) => {
       })) || [],
     [currentYear?.classes]
   ) as { value: string; label: string }[];
-
-  const ETABLISSEMENT_INFO = {
-    nom: "Institution Mixte Faustin Premiere (IMFP)",
-    adresse: "Gonaives, Haiti",
-    telephone: "+509 3745-8901", // Remplacez par le vrai numéro
-    email: "contact@imfp.edu.ht", // Optionnel
-  };
 
   // Salles organisées par classe depuis le contexte
   const sallesByClass: Record<string, { value: string; label: string }[]> =
@@ -632,12 +626,8 @@ const Rapport = ({ darkMode }: Props) => {
 
   // Fonction utilitaire pour créer l'en-tête
   const createHeader = (reportType: any, selectedYear: any) => `
-  <div class="header">
-    <h1>${ETABLISSEMENT_INFO.nom}</h1>
-    <div class="subtitle">${ETABLISSEMENT_INFO.adresse}</div>
-    <div class="contact">Tél: ${ETABLISSEMENT_INFO.telephone}</div>
-    <div class="report-title">Rapport ${reportType} - Année ${selectedYear}</div>
-  </div>
+
+   ${EntetIMFP(`Rapport ${reportType} - Année ${selectedYear}`)}
 `;
 
   // Fonction utilitaire pour créer le pied de page
@@ -677,7 +667,7 @@ const Rapport = ({ darkMode }: Props) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Rapport Élèves et Résultats - ${ETABLISSEMENT_INFO.nom}</title>
+      <title>Rapport Élèves et Résultats - IMFP</title>
       ${PRINT_CSS}
     </head>
     <body>
@@ -792,7 +782,7 @@ const Rapport = ({ darkMode }: Props) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Rapport Paiements - ${ETABLISSEMENT_INFO.nom}</title>
+      <title>Rapport Paiements - IMFP</title>
       ${PRINT_CSS}
     </head>
     <body>
@@ -917,7 +907,7 @@ const Rapport = ({ darkMode }: Props) => {
     <html>
     <head>
       <meta charset="utf-8">
-      <title>Rapport Lauréats - ${ETABLISSEMENT_INFO.nom}</title>
+      <title>Rapport Lauréats - IMFP</title>
       ${PRINT_CSS}
     </head>
     <body>

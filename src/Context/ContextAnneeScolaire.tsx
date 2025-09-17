@@ -196,6 +196,7 @@ interface AnneeScolaireContextType {
   ) => boolean;
   getNextAvailableYear: () => string;
   resetError: () => void;
+  clearLocalStorage: () => void;
 }
 
 // Context
@@ -216,6 +217,16 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
 
   // Utilitaires
   const resetError = () => setError(null);
+
+  // Fonction pour nettoyer le localStorage
+  const clearLocalStorage = () => {
+    try {
+      localStorage.removeItem("currentSchoolYear");
+      console.log("localStorage nettoyé");
+    } catch (error) {
+      console.error("Erreur lors du nettoyage du localStorage:", error);
+    }
+  };
 
   const handleError = (message: string) => {
     setError(message);
@@ -388,11 +399,41 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         );
         setSchoolYears(schoolYearsConverted);
 
-        // Définir l'année active comme année courante
-        const anneeActive = data.find((a: AnneeScolaireDB) => a.active);
-        if (anneeActive) {
-          const currentYearConverted = await convertToSchoolYear(anneeActive);
-          setCurrentYearState(currentYearConverted);
+        // Vérifier s'il y a une année courante dans localStorage
+        const savedYear = localStorage.getItem("currentSchoolYear");
+        if (savedYear) {
+          try {
+            const parsedYear = JSON.parse(savedYear);
+            // Vérifier si l'année sauvegardée existe encore dans la base de données
+            const yearExists = schoolYearsConverted.find(y => y.id === parsedYear.id);
+            if (yearExists) {
+              setCurrentYearState(parsedYear);
+              console.log(`Année scolaire ${parsedYear.year} restaurée depuis localStorage`);
+            } else {
+              // Si l'année n'existe plus, utiliser l'année active de la base de données
+              const anneeActive = data.find((a: AnneeScolaireDB) => a.active);
+              if (anneeActive) {
+                const currentYearConverted = await convertToSchoolYear(anneeActive);
+                setCurrentYearState(currentYearConverted);
+                // Mettre à jour le localStorage
+                localStorage.setItem("currentSchoolYear", JSON.stringify(currentYearConverted));
+                console.log(`Année scolaire ${currentYearConverted.year} mise à jour dans localStorage`);
+              }
+            }
+          } catch (error) {
+            console.error("Erreur lors de la validation de l'année sauvegardée:", error);
+            localStorage.removeItem("currentSchoolYear");
+          }
+        } else {
+          // Définir l'année active comme année courante si pas de sauvegarde localStorage
+          const anneeActive = data.find((a: AnneeScolaireDB) => a.active);
+          if (anneeActive) {
+            const currentYearConverted = await convertToSchoolYear(anneeActive);
+            setCurrentYearState(currentYearConverted);
+            // Sauvegarder dans localStorage
+            localStorage.setItem("currentSchoolYear", JSON.stringify(currentYearConverted));
+            console.log(`Année scolaire ${currentYearConverted.year} sauvegardée dans localStorage`);
+          }
         }
       }
     } catch (err) {
@@ -491,10 +532,41 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const setCurrentYear = (schoolYear: SchoolYear) => {
-    setCurrentYearState(schoolYear);
-    // Stocker dans localStorage
-    localStorage.setItem("currentSchoolYear", JSON.stringify(schoolYear));
+  const setCurrentYear = async (schoolYear: SchoolYear) => {
+    try {
+      setCurrentYearState(schoolYear);
+      
+      // Stocker dans localStorage avec gestion d'erreurs
+      localStorage.setItem("currentSchoolYear", JSON.stringify(schoolYear));
+      console.log(`Année scolaire ${schoolYear.year} sauvegardée dans localStorage`);
+      
+      // Mettre à jour l'année active dans la base de données
+      await updateActiveYearInDatabase(schoolYear.id);
+      
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde de l'année scolaire:", error);
+      handleError("Erreur lors de la sauvegarde de l'année scolaire");
+    }
+  };
+
+  // Fonction pour mettre à jour l'année active dans la base de données
+  const updateActiveYearInDatabase = async (yearId: string) => {
+    try {
+      // Désactiver toutes les années
+      const allYears = await SelectData("annees_scolaires");
+      if (allYears) {
+        for (const year of allYears) {
+          if (year.id !== yearId) {
+            await UpdateData("annees_scolaires", year.id, { active: false });
+          }
+        }
+        // Activer l'année sélectionnée
+        await UpdateData("annees_scolaires", yearId, { active: true });
+        console.log(`Année ${yearId} définie comme active dans la base de données`);
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de l'année active:", error);
+    }
   };
 
   // === CLASSES ===
@@ -740,16 +812,33 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
 
   // Charger l'année courante depuis localStorage au démarrage
   useEffect(() => {
-    const savedYear = localStorage.getItem("currentSchoolYear");
-    if (savedYear) {
+    const loadCurrentYearFromStorage = () => {
       try {
-        const parsedYear = JSON.parse(savedYear);
-        setCurrentYearState(parsedYear);
+        const savedYear = localStorage.getItem("currentSchoolYear");
+        if (savedYear) {
+          const parsedYear = JSON.parse(savedYear);
+          
+          // Valider la structure de l'année scolaire
+          if (parsedYear && 
+              typeof parsedYear.id === 'string' && 
+              typeof parsedYear.year === 'string' && 
+              typeof parsedYear.description === 'string' &&
+              Array.isArray(parsedYear.classes)) {
+            
+            setCurrentYearState(parsedYear);
+            console.log(`Année scolaire ${parsedYear.year} chargée depuis localStorage`);
+          } else {
+            console.warn("Données d'année scolaire invalides dans localStorage, suppression...");
+            localStorage.removeItem("currentSchoolYear");
+          }
+        }
       } catch (error) {
-        console.error("Erreur lors du chargement de l'année courante:", error);
+        console.error("Erreur lors du chargement de l'année courante depuis localStorage:", error);
         localStorage.removeItem("currentSchoolYear");
       }
-    }
+    };
+
+    loadCurrentYearFromStorage();
   }, []);
 
   // Initialiser au montage
@@ -802,6 +891,7 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         validateYear,
         getNextAvailableYear,
         resetError,
+        clearLocalStorage,
       }}
     >
       {children}

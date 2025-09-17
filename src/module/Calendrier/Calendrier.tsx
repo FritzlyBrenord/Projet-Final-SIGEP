@@ -19,6 +19,7 @@ import {
   Download,
   AlertTriangle,
 } from "lucide-react";
+import { EntetIMFP } from "../AnneeAcademique/module";
 
 // Informations de l'établissement
 const ETABLISSEMENT_INFO = {
@@ -206,7 +207,13 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     const list = (classeId && sallesByClass[classeId]) || [];
     const found = list.find((s) => s.value === salleId);
     return found ? found.label : salleId;
-  }, [sallesByClass, selectedClasseId, selectedSalleId, newSchedule.className, newSchedule.room]);
+  }, [
+    sallesByClass,
+    selectedClasseId,
+    selectedSalleId,
+    newSchedule.className,
+    newSchedule.room,
+  ]);
 
   // Données gérées côté serveur via le contexte. Pas de localStorage ici.
 
@@ -806,18 +813,9 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
             </style>
           </head>
           <body>
-            <div class="header">
-              <div class="institution-name">${ETABLISSEMENT_INFO.nom}</div>
-              <div class="institution-details">
-                ${ETABLISSEMENT_INFO.adresse} | ${
-        ETABLISSEMENT_INFO.telephone
-      } | ${ETABLISSEMENT_INFO.email}
-              </div>
-              <div class="document-title">PLANNING DES ÉVÉNEMENTS</div>
-              <div class="print-date">Imprimé le ${new Date().toLocaleDateString(
-                "fr-FR"
-              )} à ${new Date().toLocaleTimeString("fr-FR")}</div>
-            </div>
+           
+
+            ${EntetIMFP(`PLANNING DES ÉVÉNEMENTS`)}
             
             <div class="events-container">
               ${monthSections}
@@ -977,15 +975,8 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
             </style>
           </head>
           <body>
-            <div class="header">
-              <div class="institution-name">${ETABLISSEMENT_INFO.nom}</div>
-              <div class="institution-details">
-                ${ETABLISSEMENT_INFO.adresse} | ${
-        ETABLISSEMENT_INFO.telephone
-      } | ${ETABLISSEMENT_INFO.email}
-              </div>
-              <div class="document-title">HORAIRE DE CLASSE</div>
-            </div>
+            
+            ${EntetIMFP(`HORAIRE DE CLASSE`)}
             
             <div class="schedule-info">
               <h3>${schedule.name}</h3>
@@ -1968,7 +1959,10 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                       value={newSchedule.room}
                       onChange={(e) => {
                         setSelectedSalleId(e.target.value);
-                        setNewSchedule({ ...newSchedule, room: e.target.value });
+                        setNewSchedule({
+                          ...newSchedule,
+                          room: e.target.value,
+                        });
                       }}
                       className={`w-full p-3 border rounded transition-colors ${
                         darkMode
@@ -2072,7 +2066,8 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
               <>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold">
-                    Définir les Horaires - {selectedClasseLabel} ({selectedSalleLabel})
+                    Définir les Horaires - {selectedClasseLabel} (
+                    {selectedSalleLabel})
                   </h3>
                   <button
                     onClick={resetScheduleForm}
@@ -2167,7 +2162,11 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                               <div className="col-span-5">
                                 <select
                                   onChange={(e) => {
-                                    addSubjectToSlot(dayIndex, slotIndex, e.target.value);
+                                    addSubjectToSlot(
+                                      dayIndex,
+                                      slotIndex,
+                                      e.target.value
+                                    );
                                     e.target.value = "";
                                   }}
                                   className={`w-full p-2 rounded border text-sm transition-colors ${

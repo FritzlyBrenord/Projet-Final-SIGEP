@@ -33,6 +33,9 @@ export interface Class {
   id: string;
   name: string;
   salles: Salle[];
+  maxStudents?: number;
+  subjects?: Subject[];
+  schedule?: ScheduleItem[];
 }
 
 export interface AnneeScolaireConfig {

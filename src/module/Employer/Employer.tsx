@@ -25,6 +25,7 @@ import {
 } from "../../types/EmployerType";
 import { useEmployer } from "../../Context/ContextEmployer";
 import { useAnneeScolaire } from "../../Context/ContextAnneeScolaire";
+import { EntetIMFP } from "../AnneeAcademique/module";
 
 interface Props {
   isDarkMode?: boolean;
@@ -496,24 +497,12 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
             .join("")}</tr>`
       )
       .join("");
-    const headerHtml = `
-      <div class="header">
-        <div class="title">${printHeader.companyName || ""}</div>
-        <div class="meta">${printHeader.address || ""}${
-      printHeader.phone ? " | " + printHeader.phone : ""
-    }</div>
-        ${
-          currentYear
-            ? `<div class="meta">Année scolaire: ${currentYear.year}</div>`
-            : ""
-        }
-      </div>
-    `;
+
     const html = `
       <html>
         <head><meta charset="utf-8" />${style}</head>
         <body>
-          ${headerHtml}
+         ${EntetIMFP(`Lise des Employés`)}
           <table>
             <thead>${thead}</thead>
             <tbody>${tbody}</tbody>
@@ -586,6 +575,53 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
               Filtres
             </button>
 
+            {showFilters && (
+              <div className="flex gap-3 w-full lg:w-auto">
+                <div className="w-48">
+                  <SelectWithSearch
+                    options={[
+                      { value: "", label: "Toutes les fonctions" },
+                      ...fonctionOptions,
+                    ]}
+                    selectedValues={filterFonction ? [filterFonction] : [""]}
+                    onChange={(values) => setFilterFonction(values[0] || "")}
+                    placeholder="Filtrer par fonction"
+                    multiple={false}
+                    isDarkMode={isDarkMode}
+                  />
+                </div>
+                <div className="w-56">
+                  <SelectWithSearch
+                    options={[
+                      { value: "", label: "Tous les départements" },
+                      ...departementOptions,
+                    ]}
+                    selectedValues={
+                      filterDepartement ? [filterDepartement] : [""]
+                    }
+                    onChange={(values) => setFilterDepartement(values[0] || "")}
+                    placeholder="Filtrer par département"
+                    multiple={false}
+                    isDarkMode={isDarkMode}
+                  />
+                </div>
+                <div className="w-40">
+                  <SelectWithSearch
+                    options={[
+                      { value: "", label: "Tous les statuts" },
+                      { value: "actif", label: "Actif" },
+                      { value: "inactif", label: "Inactif" },
+                    ]}
+                    selectedValues={filterStatut ? [filterStatut] : [""]}
+                    onChange={(values) => setFilterStatut(values[0] || "")}
+                    placeholder="Filtrer par statut"
+                    multiple={false}
+                    isDarkMode={isDarkMode}
+                  />
+                </div>
+              </div>
+            )}
+
             <button
               onClick={() => openModal("add")}
               disabled={!currentYear}
@@ -610,7 +646,7 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
         </div>
 
         {showFilters && (
-          <div className="mt-4 mb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <SelectWithSearch
                 options={[
@@ -654,7 +690,7 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 ">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className={`${cardClasses} p-6 rounded-lg shadow-sm border`}>
             <div className="flex items-center">
               <div
@@ -1341,7 +1377,7 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
         {showPrintModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
             <div
-              className={`${cardClasses} rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto`}
+              className={`${cardClasses} rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto`}
             >
               <div className="p-6">
                 <div className="flex items-center justify-between mb-6">
@@ -1360,48 +1396,7 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-semibold mb-3">En-tête</h4>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Nom de l'établissement"
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={printHeader.companyName}
-                        onChange={(e) =>
-                          setPrintHeader({
-                            ...printHeader,
-                            companyName: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        type="text"
-                        placeholder="Adresse"
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={printHeader.address}
-                        onChange={(e) =>
-                          setPrintHeader({
-                            ...printHeader,
-                            address: e.target.value,
-                          })
-                        }
-                      />
-                      <input
-                        type="text"
-                        placeholder="Téléphone"
-                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                        value={printHeader.phone}
-                        onChange={(e) =>
-                          setPrintHeader({
-                            ...printHeader,
-                            phone: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                  </div>
+                <div className="grid grid-cols-1  gap-6">
                   <div>
                     <h4 className="font-semibold mb-3">Colonnes à imprimer</h4>
                     <div className="grid grid-cols-2 gap-3 text-sm">
