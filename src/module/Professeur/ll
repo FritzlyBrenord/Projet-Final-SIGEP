@@ -326,10 +326,8 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
   const [compatibilityInfo, setCompatibilityInfo] = useState({
     hasCommonClasses: false,
     hasCommonSalles: false,
-    commonClasses: [] as string[], // class names
-    commonSalles: [] as string[], // keys "<ClassName>::<SalleName>"
-    sameClassesCount: false,
-    sameSallesCount: false,
+    commonClasses: [] as string[],
+    commonSalles: [] as string[],
   });
   // Impression - état UI
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -351,6 +349,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
 
   // État du formulaire
   const [formData, setFormData] = useState<ProfesseurFormData>({
+    enseignant_id: "",
     code: "",
     nom: "",
     prenom: "",
@@ -362,13 +361,12 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
     sequences: [],
     diplomes: "",
     statut: "actif",
-    type_contrat: "permanent",
     annee_scolaire_id: "",
   });
 
   // État pour la nouvelle séquence
   const [nouvelleSequence, setNouvelleSequence] = useState<
-    Omit<Sequence, "id" | "professeur_affectation_id">
+    Omit<Sequence, "id">
   >({
     classe: "",
     salle: "",
@@ -435,17 +433,12 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
         return;
       }
 
-      // Construire des sets basés sur les NOMS (plus robustes que les IDs qui changent par année)
-      const currentClassNameSet = new Set(
-        currentYear.classes.map((c) => c.name)
-      );
-      const currentSalleKeySet = new Set(
-        currentYear.classes.flatMap((c) =>
-          c.salles.map((s) => `${c.name}::${s.name}`)
-        )
+      const currentClasses = currentYear.classes.map((c) => c.id);
+      const currentSalles = currentYear.classes.flatMap((c) =>
+        c.salles.map((s) => s.id)
       );
 
-      if (currentSalleKeySet.size === 0) {
+      if (currentSalles.length === 0) {
         console.log("Aucune salle définie dans l'année actuelle");
         return;
       }
@@ -456,85 +449,66 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
         return;
       }
 
-      const previousClassNameSet = new Set(
-        previousYear.classes.map((c) => c.name)
-      );
-      const previousSalleKeySet = new Set(
-        previousYear.classes.flatMap((c) =>
-          c.salles.map((s) => `${c.name}::${s.name}`)
-        )
+      const prevClasses = previousYear.classes.map((c) => c.id);
+      const prevSalles = previousYear.classes.flatMap((c) =>
+        c.salles.map((s) => s.id)
       );
 
-      // 3. Trouver les classes et salles communes (par noms)
-      const commonClasses = Array.from(currentClassNameSet).filter((name) =>
-        previousClassNameSet.has(name)
+      // 3. Trouver les classes et salles communes
+      const commonClasses = currentClasses.filter((c) =>
+        prevClasses.includes(c)
       );
-      const commonSalles = Array.from(currentSalleKeySet).filter((key) =>
-        previousSalleKeySet.has(key)
-      );
+      const commonSalles = currentSalles.filter((s) => prevSalles.includes(s));
 
-      // 4. Charger TOUS les professeurs (affectations) de l'année précédente (nouvelle structure)
-      const [affectationsData, enseignantsData, sequencesData] = await Promise.all([
-        SelectData("professeurs_affectations"),
-        SelectData("enseignants"),
-        SelectData("sequences"),
-      ]);
-      if (!affectationsData || !enseignantsData) return;
+      // 4. Charger TOUS les professeurs de l'année précédente (sans filtrage)
+      const data = await SelectData("professeurs");
+      if (!data) return;
 
-      const prevYearAffectations = affectationsData.filter(
-        (a: any) => a.annee_scolaire_id === previousYear.id && !a.deleted
+      const prevYearProfs = data.filter(
+        (p: any) => p.annee_scolaire_id === previousYear.id && !p.deleted
       );
 
-      if (prevYearAffectations.length === 0) {
+      if (prevYearProfs.length === 0) {
         console.log("Aucun professeur trouvé dans l'année précédente");
-        // On affiche malgré tout le modal pour expliquer qu'il n'y a rien à synchroniser
-        setPreviousYearProfesseurs([]);
-        setShowSyncModal(true);
         return;
       }
 
-      // 5. Convertir TOUS les professeurs (affectations -> Professeur)
-      const professeursConverted: Professeur[] = prevYearAffectations
-        .map((a: any) => {
-          const enseignant = (enseignantsData as any[]).find(
-            (e: any) => e.id === a.enseignant_id
-          );
-          if (!enseignant) return null;
+      // 5. Convertir TOUS les professeurs (sans filtrage)
+      const professeursConverted = await Promise.all(
+        prevYearProfs.map(async (professeurDB: any) => {
+          const sequencesData = await SelectData("sequences");
+          const sequences =
+            sequencesData?.filter(
+              (s: any) => s.professeur_id === professeurDB.id && !s.deleted
+            ) || [];
 
-          const sequences = (sequencesData as any[] | undefined)
-            ?.filter((s: any) => s.professeur_affectation_id === a.id && !s.deleted)
-            .map((s: any) => ({
+          return {
+            id: professeurDB.id,
+            enseignant_id: professeurDB.enseignant_id,
+            code: professeurDB.code,
+            nom: professeurDB.nom,
+            prenom: professeurDB.prenom,
+            email: professeurDB.email,
+            telephone: professeurDB.telephone,
+            adresse: professeurDB.adresse,
+            date_embauche: professeurDB.date_embauche,
+            nif_cin: professeurDB.nif_cin,
+            sequences: sequences.map((s: any) => ({
               id: s.id,
-              professeur_affectation_id: a.id,
               classe: s.classe,
               salle: s.salle,
               matiere: s.matiere,
               deleted: s.deleted,
-            })) || [];
-
-          const prof: Professeur = {
-            id: a.id,
-            enseignant_id: a.enseignant_id,
-            code: a.code,
-            nom: enseignant.nom,
-            prenom: enseignant.prenom,
-            email: enseignant.email,
-            telephone: enseignant.telephone,
-            adresse: enseignant.adresse,
-            date_embauche: a.date_embauche,
-            nif_cin: enseignant.nif_cin,
-            sequences,
-            diplomes: enseignant.diplomes,
-            statut: (a.statut as any) ?? "actif",
-            type_contrat: (a.type_contrat as any) ?? "permanent",
-            annee_scolaire_id: a.annee_scolaire_id,
-            deleted: a.deleted,
-            created_at: a.created_at,
-            updated_at: a.updated_at,
+            })),
+            diplomes: professeurDB.diplomes,
+            statut: professeurDB.statut,
+            annee_scolaire_id: professeurDB.annee_scolaire_id,
+            deleted: professeurDB.deleted,
+            created_at: professeurDB.created_at,
+            updated_at: professeurDB.updated_at,
           };
-          return prof;
         })
-        .filter(Boolean) as Professeur[];
+      );
 
       // 6. Mettre à jour les états SANS filtrage préalable
       setPreviousYearProfesseurs(professeursConverted); // Tous les professeurs
@@ -543,9 +517,6 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
         hasCommonSalles: commonSalles.length > 0,
         commonClasses,
         commonSalles,
-        sameClassesCount:
-          currentClassNameSet.size === previousClassNameSet.size,
-        sameSallesCount: currentSalleKeySet.size === previousSalleKeySet.size,
       });
 
       // 7. Afficher le modal avec TOUS les professeurs
@@ -670,56 +641,26 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
 
   // Obtenir le statut de compatibilité pour un professeur
   const getProfCompatibilityStatus = (prof: Professeur) => {
-    if (!previousYear) {
-      return {
-        isCompatible: false,
-        compatibleSequencesCount: 0,
-        totalSequences: prof.sequences.length,
-      };
-    }
-
-    // Maps ID -> Name for previous year
-    const prevClassIdToName = new Map(
-      previousYear.classes.map((c) => [c.id, c.name])
+    const hasCompatibleSequences = prof.sequences.some(
+      (seq) =>
+        compatibilityInfo.commonClasses.includes(seq.classe) &&
+        compatibilityInfo.commonSalles.includes(seq.salle)
     );
-    const prevSalleIdToKey = new Map<string, string>();
-    previousYear.classes.forEach((c) => {
-      c.salles.forEach((s) => {
-        prevSalleIdToKey.set(s.id, `${c.name}::${s.name}`);
-      });
-    });
-
-    const hasCompatibleSequences = prof.sequences.some((seq) => {
-      const className = prevClassIdToName.get(seq.classe);
-      const salleKey = prevSalleIdToKey.get(seq.salle);
-      return (
-        !!className &&
-        !!salleKey &&
-        compatibilityInfo.commonClasses.includes(className) &&
-        compatibilityInfo.commonSalles.includes(salleKey)
-      );
-    });
-
-    const compatibleSequencesCount = prof.sequences.filter((seq) => {
-      const className = prevClassIdToName.get(seq.classe);
-      const salleKey = prevSalleIdToKey.get(seq.salle);
-      return (
-        !!className &&
-        !!salleKey &&
-        compatibilityInfo.commonClasses.includes(className) &&
-        compatibilityInfo.commonSalles.includes(salleKey)
-      );
-    }).length;
 
     return {
       isCompatible: hasCompatibleSequences,
-      compatibleSequencesCount,
+      compatibleSequencesCount: prof.sequences.filter(
+        (seq) =>
+          compatibilityInfo.commonClasses.includes(seq.classe) &&
+          compatibilityInfo.commonSalles.includes(seq.salle)
+      ).length,
       totalSequences: prof.sequences.length,
     };
   };
   // Réinitialiser le formulaire
   const resetForm = () => {
     setFormData({
+      enseignant_id: "",
       code: "",
       nom: "",
       prenom: "",
@@ -731,7 +672,6 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
       sequences: [],
       diplomes: "",
       statut: "actif",
-      type_contrat: "permanent",
       annee_scolaire_id: "",
     });
     setNouvelleSequence({
@@ -744,7 +684,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
   // Générer un nouveau code professeur
   const generateProfCode = async () => {
     try {
-      const newCode = await genererNouveauCode(currentYear?.id || "");
+      const newCode = await genererNouveauCode();
       return newCode;
     } catch (error) {
       console.error("Erreur lors de la génération du code:", error);
@@ -758,10 +698,11 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
   };
 
   useEffect(() => {
-    // Délais réduit pour réactivité
+    // Attendre un peu que les données se chargent
     const timer = setTimeout(() => {
       checkForAutoSync();
-    }, 1200);
+    }, 6000);
+
     return () => clearTimeout(timer);
   }, [checkForAutoSync, currentYear, previousYear, professeurs.length]);
   // Ouvrir modal
@@ -777,28 +718,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
       const newCode = await generateProfCode();
       setFormData((prev) => ({ ...prev, code: newCode }));
     } else if (type === "edit" && prof) {
-      setFormData({
-        code: prof.code,
-        nom: prof.nom,
-        prenom: prof.prenom,
-        email: prof.email,
-        telephone: prof.telephone,
-        adresse: prof.adresse,
-        date_embauche: prof.date_embauche,
-        nif_cin: prof.nif_cin,
-        sequences: prof.sequences.map((s) => ({
-          classe: s.classe,
-          salle: s.salle,
-          matiere: s.matiere,
-          volume_horaire: s.volume_horaire,
-          coefficient: s.coefficient,
-          deleted: s.deleted,
-        })),
-        diplomes: prof.diplomes,
-        statut: prof.statut,
-        type_contrat: prof.type_contrat,
-        annee_scolaire_id: prof.annee_scolaire_id,
-      });
+      setFormData({ ...prof });
     }
 
     setShowModal(true);
@@ -896,7 +816,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
 
   // Gérer les changements de la nouvelle séquence
   const handleSequenceChange = (
-    field: keyof Omit<Sequence, "id" | "professeur_affectation_id">,
+    field: keyof Omit<Sequence, "id">,
     value: string
   ) => {
     setNouvelleSequence((prev) => {
@@ -943,9 +863,14 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
       return;
     }
 
+    const sequence: Sequence = {
+      id: Date.now().toString(),
+      ...nouvelleSequence,
+    };
+
     setFormData((prev) => ({
       ...prev,
-      sequences: [...prev.sequences, { ...nouvelleSequence }],
+      sequences: [...prev.sequences, sequence],
     }));
 
     // Réinitialiser la nouvelle séquence
@@ -957,10 +882,10 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
   };
 
   // Supprimer une séquence (local pour le formulaire)
-  const supprimerSequenceLocal = (index: number) => {
+  const supprimerSequenceLocal = (sequenceId: string) => {
     setFormData((prev) => ({
       ...prev,
-      sequences: prev.sequences.filter((_, i) => i !== index),
+      sequences: prev.sequences.filter((seq) => seq.id !== sequenceId),
     }));
   };
 
@@ -1081,46 +1006,17 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
 
   // Obtenir le label d'une matière par son ID
   const getMatiereLabel = (matiereId: string) => {
-    if (currentYear) {
-      for (const classe of currentYear.classes) {
-        for (const salle of classe.salles) {
-          const matiere = salle.subjects.find((s) => s.id === matiereId);
-          if (matiere) return matiere.name;
-        }
-      }
-    }
-    if (previousYear) {
-      for (const classe of previousYear.classes) {
-        for (const salle of classe.salles) {
-          const matiere = salle.subjects.find((s) => s.id === matiereId);
-          if (matiere) return matiere.name;
+    if (!currentYear) return matiereId;
+
+    for (const classe of currentYear.classes) {
+      for (const salle of classe.salles) {
+        const matiere = salle.subjects.find((s) => s.id === matiereId);
+        if (matiere) {
+          return matiere.name;
         }
       }
     }
     return matiereId;
-  };
-
-  const getClasseLabel = (classeId: string) => {
-    const cur = currentYear?.classes.find((c) => c.id === classeId)?.name;
-    if (cur) return cur;
-    const prev = previousYear?.classes.find((c) => c.id === classeId)?.name;
-    return prev || classeId;
-  };
-
-  const getSalleLabel = (salleId: string) => {
-    if (currentYear) {
-      for (const classe of currentYear.classes) {
-        const salle = classe.salles.find((s) => s.id === salleId);
-        if (salle) return salle.name;
-      }
-    }
-    if (previousYear) {
-      for (const classe of previousYear.classes) {
-        const salle = classe.salles.find((s) => s.id === salleId);
-        if (salle) return salle.name;
-      }
-    }
-    return salleId;
   };
 
   // Impression: génération HTML et print
@@ -1525,8 +1421,14 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                         <td className="px-6 py-4">
                           <div className="text-sm space-y-1">
                             {prof.sequences.map((seq) => {
-                              const classeLabel = getClasseLabel(seq.classe);
-                              const salleLabel = getSalleLabel(seq.salle);
+                              const classeLabel =
+                                classes.find((c) => c.value === seq.classe)
+                                  ?.label || seq.classe;
+                              const salleLabel =
+                                Object.values(sallesData)
+                                  .flat()
+                                  .find((s) => s.value === seq.salle)?.label ||
+                                seq.salle;
                               const matiereLabel = getMatiereLabel(seq.matiere);
                               return (
                                 <div
@@ -2200,16 +2102,22 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                             </p>
                           ) : (
                             <div className="space-y-2">
-                              {formData.sequences.map((seq, index) => {
-                                const classeLabel = getClasseLabel(seq.classe);
-                                const salleLabel = getSalleLabel(seq.salle);
+                              {formData.sequences.map((seq) => {
+                                const classeLabel =
+                                  classes.find((c) => c.value === seq.classe)
+                                    ?.label || seq.classe;
+                                const salleLabel =
+                                  Object.values(sallesData)
+                                    .flat()
+                                    .find((s) => s.value === seq.salle)
+                                    ?.label || seq.salle;
                                 const matiereLabel = getMatiereLabel(
                                   seq.matiere
                                 );
 
                                 return (
                                   <div
-                                    key={`${seq.classe}-${seq.salle}-${seq.matiere}-${index}`}
+                                    key={seq.id}
                                     className={`p-3 rounded border flex items-center justify-between ${
                                       isDarkMode
                                         ? "bg-gray-700 border-gray-600"
@@ -2247,7 +2155,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                                     </div>
                                     <button
                                       onClick={() =>
-                                        supprimerSequenceLocal(index)
+                                        supprimerSequenceLocal(seq.id)
                                       }
                                       className={`p-1 rounded ${
                                         isDarkMode
@@ -2611,8 +2519,6 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                         hasCommonSalles: false,
                         commonClasses: [],
                         commonSalles: [],
-                        sameClassesCount: false,
-                        sameSallesCount: false,
                       });
                     }}
                     className={`${
@@ -2681,34 +2587,6 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                         <span className="font-medium">Salles communes</span>
                         <span className="text-lg font-bold text-green-600">
                           {compatibilityInfo.commonSalles.length}
-                        </span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-medium">
-                          Même nombre de classes
-                        </span>
-                        <span
-                          className={`text-lg font-bold ${
-                            compatibilityInfo.sameClassesCount
-                              ? "text-green-600"
-                              : "text-yellow-600"
-                          }`}
-                        >
-                          {compatibilityInfo.sameClassesCount ? "Oui" : "Non"}
-                        </span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="font-medium">
-                          Même nombre de salles
-                        </span>
-                        <span
-                          className={`text-lg font-bold ${
-                            compatibilityInfo.sameSallesCount
-                              ? "text-green-600"
-                              : "text-yellow-600"
-                          }`}
-                        >
-                          {compatibilityInfo.sameSallesCount ? "Oui" : "Non"}
                         </span>
                       </div>
                       <div className="flex flex-col">
@@ -3015,35 +2893,12 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                                                 seq.matiere
                                               );
 
-                                            const classNameForKey =
-                                              previousYear.classes.find(
-                                                (c) => c.id === seq.classe
-                                              )?.name;
-                                            const salleOwnerClassName =
-                                              previousYear.classes.find((c) =>
-                                                c.salles.some(
-                                                  (s) => s.id === seq.salle
-                                                )
-                                              )?.name;
-                                            const salleNameForKey =
-                                              previousYear.classes
-                                                .flatMap((c) => c.salles)
-                                                .find(
-                                                  (s) => s.id === seq.salle
-                                                )?.name;
-                                            const salleKey =
-                                              salleOwnerClassName &&
-                                              salleNameForKey
-                                                ? `${salleOwnerClassName}::${salleNameForKey}`
-                                                : undefined;
                                             const isCompatible =
-                                              !!classNameForKey &&
                                               compatibilityInfo.commonClasses.includes(
-                                                classNameForKey
+                                                seq.classe
                                               ) &&
-                                              !!salleKey &&
                                               compatibilityInfo.commonSalles.includes(
-                                                salleKey
+                                                seq.salle
                                               );
 
                                             return (
@@ -3181,26 +3036,6 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                           hasCommonSalles: false,
                           commonClasses: [],
                           commonSalles: [],
-                          sameClassesCount: false,
-                          sameSallesCount: false,
-                        });
-                      }}
-                    >
-                      Annuler
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowSyncModal(false);
-                        setSyncFilterClasse("");
-                        setSyncFilterSalle("");
-                        setPreviousYearProfesseurs([]);
-                        setCompatibilityInfo({
-                          hasCommonClasses: false,
-                          hasCommonSalles: false,
-                          commonClasses: [],
-                          commonSalles: [],
-                          sameClassesCount: false,
-                          sameSallesCount: false,
                         });
                       }}
                       disabled={isSyncing}

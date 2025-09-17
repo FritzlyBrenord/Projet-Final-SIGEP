@@ -13,88 +13,129 @@ import {
   UpdateData,
   DeleteData,
   DataExsite,
-  DeleteDataMultiple,
 } from "@/Config/SupabaseData";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
 
-// Types pour la gestion des professeurs (version simplifiée)
-export interface Sequence {
+// ===========================
+// TYPES (utiliser ceux définis précédemment)
+// ===========================
+
+// Types pour les tables DB
+interface EnseignantDB {
   id: string;
+  nom: string;
+  prenom: string;
+  email: string;
+  telephone: string;
+  adresse: string;
+  nif_cin: string;
+  date_naissance?: string;
+  diplomes: string;
+  photo_url?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface ProfesseurAffectationDB {
+  id: string;
+  enseignant_id: string;
+  annee_scolaire_id: string;
+  code: string;
+  enseignant_code?: string;
+  date_embauche?: string;
+  date_fin_contrat?: string;
+  statut: "actif" | "inactif" | "suspendu";
+  type_contrat: "permanent" | "temporaire" | "vacataire";
+  salaire_base?: number;
+  notes_rh?: string;
+  deleted: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface SequenceDB {
+  id: string;
+  professeur_affectation_id: string;
   classe: string;
   salle: string;
   matiere: string;
+  volume_horaire?: number;
+  coefficient?: number;
+  deleted: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Types pour l'interface
+export interface Sequence {
+  id: string;
+  professeur_affectation_id: string;
+  classe: string;
+  salle: string;
+  matiere: string;
+  volume_horaire?: number;
+  coefficient?: number;
   deleted?: boolean;
 }
 
 export interface Professeur {
-  id: string;
+  // Identifiants
+  id: string; // ID de l'affectation
   enseignant_id: string;
-  code: string;
+
+  // Informations personnelles
   nom: string;
   prenom: string;
   email: string;
   telephone: string;
   adresse: string;
-  date_embauche: string;
   nif_cin: string;
-  sequences: Sequence[];
   diplomes: string;
-  statut: "actif" | "inactif";
+
+  // Informations d'affectation
+  code: string;
+  enseignant_code?: string;
+  date_embauche: string;
+  date_fin_contrat?: string;
+  statut: "actif" | "inactif" | "suspendu";
+  type_contrat: "permanent" | "temporaire" | "vacataire";
+  salaire_base?: number;
+  notes_rh?: string;
   annee_scolaire_id: string;
   deleted?: boolean;
   created_at?: string;
   updated_at?: string;
+
+  // Séquences
+  sequences: Sequence[];
 }
 
 export interface ProfesseurFormData {
-  enseignant_id: string;
-  code: string;
+  // Informations personnelles
   nom: string;
   prenom: string;
   email: string;
   telephone: string;
   adresse: string;
-  date_embauche: string;
   nif_cin: string;
-  sequences: Sequence[];
   diplomes: string;
-  statut: "actif" | "inactif";
-  annee_scolaire_id: string;
-}
 
-// Types pour Supabase (structure de base de données)
-interface ProfesseurDB {
-  id: string;
-  enseignant_id: string;
+  // Informations d'affectation
   code: string;
-  nom: string;
-  prenom: string;
-  email: string;
-  telephone: string;
-  adresse: string;
+  enseignant_code?: string;
   date_embauche: string;
-  nif_cin: string;
-  diplomes: string;
-  statut: "actif" | "inactif";
+  date_fin_contrat?: string;
+  statut: "actif" | "inactif" | "suspendu";
+  type_contrat: "permanent" | "temporaire" | "vacataire";
+  salaire_base?: number;
+  notes_rh?: string;
   annee_scolaire_id: string;
-  deleted: boolean;
-  created_at?: string;
-  updated_at?: string;
+
+  // Séquences
+  sequences: Omit<Sequence, "id" | "professeur_affectation_id">[];
 }
 
-// Structure simplifiée pour les séquences
-interface SequenceDB {
-  id: string;
-  professeur_id: string;
-  classe: string;
-  salle: string;
-  matiere: string;
-  deleted: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-// Interface du Context
+// Interface du contexte
 export interface ProfesseurContextType {
   // États
   professeurs: Professeur[];
@@ -114,12 +155,12 @@ export interface ProfesseurContextType {
   // Fonctions de gestion des séquences
   ajouterSequence: (
     professeurId: string,
-    sequence: Omit<Sequence, "id">
+    sequence: Omit<Sequence, "id" | "professeur_affectation_id">
   ) => Promise<void>;
   modifierSequence: (
     professeurId: string,
     sequenceId: string,
-    sequence: Partial<Sequence>
+    sequence: Partial<Omit<Sequence, "id" | "professeur_affectation_id">>
   ) => Promise<void>;
   supprimerSequence: (
     professeurId: string,
@@ -140,17 +181,24 @@ export interface ProfesseurContextType {
   chargerProfesseursParAnnee: (anneeId: string) => Promise<void>;
   validerCodeProfesseur: (
     code: string,
-    professeurId?: string
+    professeurId?: string,
+    anneeId?: string
   ) => Promise<boolean>;
-  validerEmailProfesseur: (
+  validerEmailEnseignant: (
     email: string,
-    professeurId?: string
+    enseignantId?: string
   ) => Promise<boolean>;
-  genererNouveauCode: () => Promise<string>;
+  genererNouveauCode: (anneeId: string) => Promise<string>;
 
   // Actions par lots
   supprimerPlusieursProfesseurs: (ids: string[]) => Promise<void>;
   restaurerPlusieursProfesseurs: (ids: string[]) => Promise<void>;
+
+  // Copie vers nouvelle année
+  copierProfesseursVersNouvelleAnnee: (
+    anneeSourceId: string,
+    anneeDestinationId: string
+  ) => Promise<void>;
 }
 
 // Context
@@ -176,92 +224,122 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     console.error(message);
   };
 
-  // Convertir ProfesseurDB vers Professeur (version simplifiée)
-  const convertToProfesseur = async (
-    professeurDB: ProfesseurDB
-  ): Promise<Professeur> => {
-    try {
-      // Charger les séquences pour ce professeur
-      const sequencesData = await SelectData("sequences");
-      const sequencesFiltered =
-        sequencesData?.filter(
-          (s: SequenceDB) => s.professeur_id === professeurDB.id && !s.deleted
-        ) || [];
+  // ===========================
+  // FONCTIONS DE RÉCUPÉRATION DES DONNÉES
+  // ===========================
 
-      const sequences: Sequence[] = sequencesFiltered.map(
-        (sequenceDB: SequenceDB) => ({
-          id: sequenceDB.id,
-          classe: sequenceDB.classe,
-          salle: sequenceDB.salle,
-          matiere: sequenceDB.matiere,
-          deleted: sequenceDB.deleted,
-        })
-      );
+  // Récupérer toutes les données des 3 tables
+  const recupererDonneesCompletes = async () => {
+    try {
+      const [enseignantsData, affectationsData, sequencesData] =
+        await Promise.all([
+          SelectData("enseignants"),
+          SelectData("professeurs_affectations"),
+          SelectData("sequences"),
+        ]);
 
       return {
-        id: professeurDB.id,
-        enseignant_id: professeurDB.enseignant_id,
-        code: professeurDB.code,
-        nom: professeurDB.nom,
-        prenom: professeurDB.prenom,
-        email: professeurDB.email,
-        telephone: professeurDB.telephone,
-        adresse: professeurDB.adresse,
-        date_embauche: professeurDB.date_embauche,
-        nif_cin: professeurDB.nif_cin,
-        sequences,
-        diplomes: professeurDB.diplomes,
-        statut: professeurDB.statut,
-        annee_scolaire_id: professeurDB.annee_scolaire_id,
-        deleted: professeurDB.deleted,
-        created_at: professeurDB.created_at,
-        updated_at: professeurDB.updated_at,
+        enseignants: enseignantsData || [],
+        affectations: affectationsData || [],
+        sequences: sequencesData || [],
       };
     } catch (error) {
-      console.error("Erreur lors de la conversion du professeur:", error);
-      return {
-        id: professeurDB.id,
-        enseignant_id: professeurDB.enseignant_id,
-        code: professeurDB.code,
-        nom: professeurDB.nom,
-        prenom: professeurDB.prenom,
-        email: professeurDB.email,
-        telephone: professeurDB.telephone,
-        adresse: professeurDB.adresse,
-        date_embauche: professeurDB.date_embauche,
-        nif_cin: professeurDB.nif_cin,
-        sequences: [],
-        diplomes: professeurDB.diplomes,
-        statut: professeurDB.statut,
-        annee_scolaire_id: professeurDB.annee_scolaire_id,
-        deleted: professeurDB.deleted,
-        created_at: professeurDB.created_at,
-        updated_at: professeurDB.updated_at,
-      };
+      console.error("Erreur lors de la récupération des données:", error);
+      throw error;
     }
   };
 
-  // === CHARGEMENT DES PROFESSEURS ===
+  // Convertir les données DB vers le type Professeur
+  const convertToProfesseur = (
+    affectation: ProfesseurAffectationDB,
+    enseignant: EnseignantDB,
+    sequences: SequenceDB[]
+  ): Professeur => {
+    const sequencesFiltrees = sequences
+      .filter(
+        (s) => s.professeur_affectation_id === affectation.id && !s.deleted
+      )
+      .map((s) => ({
+        id: s.id,
+        professeur_affectation_id: s.professeur_affectation_id,
+        classe: s.classe,
+        salle: s.salle,
+        matiere: s.matiere,
+        volume_horaire: s.volume_horaire,
+        coefficient: s.coefficient,
+        deleted: s.deleted,
+      }));
+
+    return {
+      // Identifiants
+      id: affectation.id,
+      enseignant_id: enseignant.id,
+
+      // Informations personnelles
+      nom: enseignant.nom,
+      prenom: enseignant.prenom,
+      email: enseignant.email,
+      telephone: enseignant.telephone,
+      adresse: enseignant.adresse,
+      nif_cin: enseignant.nif_cin,
+      diplomes: enseignant.diplomes,
+
+      // Informations d'affectation
+      code: affectation.code,
+      enseignant_code: affectation.enseignant_code,
+      date_embauche: affectation.date_embauche || "",
+      date_fin_contrat: affectation.date_fin_contrat,
+      statut: affectation.statut,
+      type_contrat: affectation.type_contrat,
+      salaire_base: affectation.salaire_base,
+      notes_rh: affectation.notes_rh,
+      annee_scolaire_id: affectation.annee_scolaire_id,
+      deleted: affectation.deleted,
+      created_at: affectation.created_at,
+      updated_at: affectation.updated_at,
+
+      // Séquences
+      sequences: sequencesFiltrees,
+    };
+  };
+
+  // ===========================
+  // CHARGEMENT DES PROFESSEURS
+  // ===========================
+
   const rechargerProfesseurs = async (): Promise<void> => {
     try {
       setIsLoading(true);
-      const data = await SelectData("professeurs");
-      if (data) {
-        // Filtrer par année scolaire courante et exclure les professeurs supprimés logiquement
-        const dataFiltered = currentYear
-          ? data.filter(
-              (p: ProfesseurDB) =>
-                p.annee_scolaire_id === currentYear.id && !p.deleted
-            )
-          : data.filter((p: ProfesseurDB) => !p.deleted);
 
-        const professeursConverted = await Promise.all(
-          dataFiltered.map((professeurDB: ProfesseurDB) =>
-            convertToProfesseur(professeurDB)
+      const { enseignants, affectations, sequences } =
+        await recupererDonneesCompletes();
+
+      // Filtrer par année courante et non supprimés
+      const affectationsFiltrees = currentYear
+        ? affectations.filter(
+            (a: ProfesseurAffectationDB) =>
+              a.annee_scolaire_id === currentYear.id && !a.deleted
           )
+        : affectations.filter((a: ProfesseurAffectationDB) => !a.deleted);
+
+      // Convertir en objets Professeur
+      const professeursConverted: Professeur[] = [];
+
+      for (const affectation of affectationsFiltrees) {
+        const enseignant = enseignants.find(
+          (e: EnseignantDB) => e.id === affectation.enseignant_id
         );
-        setProfesseurs(professeursConverted);
+        if (enseignant) {
+          const professeur = convertToProfesseur(
+            affectation,
+            enseignant,
+            sequences
+          );
+          professeursConverted.push(professeur);
+        }
       }
+
+      setProfesseurs(professeursConverted);
     } catch (err) {
       handleError("Erreur lors du chargement des professeurs");
     } finally {
@@ -272,18 +350,32 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
   const chargerProfesseursParAnnee = async (anneeId: string): Promise<void> => {
     try {
       setIsLoading(true);
-      const data = await SelectData("professeurs");
-      if (data) {
-        const professeursFiltres = data.filter(
-          (p: ProfesseurDB) => p.annee_scolaire_id === anneeId && !p.deleted
+
+      const { enseignants, affectations, sequences } =
+        await recupererDonneesCompletes();
+
+      const affectationsFiltrees = affectations.filter(
+        (a: ProfesseurAffectationDB) =>
+          a.annee_scolaire_id === anneeId && !a.deleted
+      );
+
+      const professeursConverted: Professeur[] = [];
+
+      for (const affectation of affectationsFiltrees) {
+        const enseignant = enseignants.find(
+          (e: EnseignantDB) => e.id === affectation.enseignant_id
         );
-        const professeursConverted = await Promise.all(
-          professeursFiltres.map((professeurDB: ProfesseurDB) =>
-            convertToProfesseur(professeurDB)
-          )
-        );
-        setProfesseurs(professeursConverted);
+        if (enseignant) {
+          const professeur = convertToProfesseur(
+            affectation,
+            enseignant,
+            sequences
+          );
+          professeursConverted.push(professeur);
+        }
       }
+
+      setProfesseurs(professeursConverted);
     } catch (err) {
       handleError("Erreur lors du chargement des professeurs par année");
     } finally {
@@ -291,112 +383,169 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // === CRUD PROFESSEURS ===
+  // ===========================
+  // CRUD PROFESSEURS
+  // ===========================
+
   const ajouterProfesseur = async (
     professeur: ProfesseurFormData
   ): Promise<void> => {
     try {
       setIsLoading(true);
 
-      // Vérifier si le code professeur existe déjà
-      const codeExists = await DataExsite(
-        "professeurs",
-        "code",
-        professeur.code
+      // Vérifications de base
+      if (!professeur.nom || !professeur.prenom || !professeur.email) {
+        throw new Error("Nom, prénom et email sont obligatoires");
+      }
+
+      if (!currentYear) {
+        throw new Error("Aucune année scolaire sélectionnée");
+      }
+
+      // 1. Vérifier si l'enseignant existe déjà par email
+      const enseignantsData = await SelectData("enseignants");
+      let enseignantExistant = enseignantsData?.find(
+        (e: EnseignantDB) => e.email === professeur.email
       );
+
+      let enseignantId: string;
+
+      if (enseignantExistant) {
+        // 1a. Enseignant existe déjà - vérifier s'il n'a pas déjà une affectation cette année
+        const affectationsData = await SelectData("professeurs_affectations");
+        const affectationExistante = affectationsData?.find(
+          (a: ProfesseurAffectationDB) =>
+            a.enseignant_id === enseignantExistant.id &&
+            a.annee_scolaire_id === professeur.annee_scolaire_id
+        );
+
+        if (affectationExistante) {
+          throw new Error(
+            "Cet enseignant a déjà une affectation pour cette année scolaire"
+          );
+        }
+
+        enseignantId = enseignantExistant.id;
+
+        // Mettre à jour les infos de l'enseignant si nécessaire
+        const enseignantUpdate = {
+          nom: professeur.nom,
+          prenom: professeur.prenom,
+          telephone: professeur.telephone,
+          adresse: professeur.adresse,
+          nif_cin: professeur.nif_cin,
+          diplomes: professeur.diplomes,
+        };
+
+        await UpdateData("enseignants", enseignantId, enseignantUpdate);
+      } else {
+        // 1b. Créer un nouvel enseignant
+        const nouvelEnseignant: Omit<
+          EnseignantDB,
+          "id" | "created_at" | "updated_at"
+        > = {
+          nom: professeur.nom,
+          prenom: professeur.prenom,
+          email: professeur.email,
+          telephone: professeur.telephone,
+          adresse: professeur.adresse,
+          nif_cin: professeur.nif_cin,
+          diplomes: professeur.diplomes,
+        };
+
+        const { success, rows, error } = await InsertDataReturn(
+          "enseignants",
+          nouvelEnseignant
+        );
+
+        if (!success || !rows || rows.length === 0) {
+          throw new Error(
+            error?.message || "Erreur lors de la création de l'enseignant"
+          );
+        }
+
+        enseignantId = rows[0].id as string;
+      }
+
+      // 2. Vérifier l'unicité du code pour cette année
+      const affectationsData = await SelectData("professeurs_affectations");
+      const codeExists = affectationsData?.some(
+        (a: ProfesseurAffectationDB) =>
+          a.code === professeur.code &&
+          a.annee_scolaire_id === professeur.annee_scolaire_id
+      );
+
       if (codeExists) {
-        throw new Error("Ce code professeur existe déjà");
-      }
-
-      // Vérifier si l'email existe déjà
-      const emailExists = await DataExsite(
-        "professeurs",
-        "email",
-        professeur.email
-      );
-      if (emailExists) {
-        throw new Error("Cet email est déjà utilisé par un autre professeur");
-      }
-
-      // Vérifier si le téléphone existe déjà (si renseigné)
-      if (professeur.telephone) {
-        const phoneExists = await DataExsite(
-          "professeurs",
-          "telephone",
-          professeur.telephone
+        throw new Error(
+          "Ce code professeur existe déjà pour cette année scolaire"
         );
-        if (phoneExists) {
-          throw new Error(
-            "Ce numéro de téléphone est déjà utilisé par un autre professeur"
-          );
-        }
       }
 
-      // Vérifier si NIF/CIN existe déjà (si renseigné)
-      if (professeur.nif_cin) {
-        const nifExists = await DataExsite(
-          "professeurs",
-          "nif_cin",
-          professeur.nif_cin
-        );
-        if (nifExists) {
-          throw new Error(
-            "Ce NIF/CIN est déjà utilisé par un autre professeur"
-          );
-        }
-      }
-
-      // Convertir vers le format DB (sans les séquences)
-      const professeurDB: Omit<
-        ProfesseurDB,
+      // 3. Créer l'affectation
+      const nouvelleAffectation: Omit<
+        ProfesseurAffectationDB,
         "id" | "created_at" | "updated_at"
       > = {
-        enseignant_id: professeur.enseignant_id,
-        code: professeur.code,
-        nom: professeur.nom,
-        prenom: professeur.prenom,
-        email: professeur.email,
-        telephone: professeur.telephone,
-        adresse: professeur.adresse,
-        date_embauche: professeur.date_embauche,
-        nif_cin: professeur.nif_cin,
-        diplomes: professeur.diplomes,
-        statut: professeur.statut,
+        enseignant_id: enseignantId,
         annee_scolaire_id: professeur.annee_scolaire_id,
+        code: professeur.code,
+        enseignant_code: professeur.enseignant_code,
+        date_embauche: professeur.date_embauche,
+        date_fin_contrat: professeur.date_fin_contrat,
+        statut: professeur.statut,
+        type_contrat: professeur.type_contrat,
+        salaire_base: professeur.salaire_base,
+        notes_rh: professeur.notes_rh,
         deleted: false,
       };
 
-      const { success, rows, error } = await InsertDataReturn(
-        "professeurs",
-        professeurDB
+      const {
+        success: affectationSuccess,
+        rows: affectationRows,
+        error: affectationError,
+      } = await InsertDataReturn(
+        "professeurs_affectations",
+        nouvelleAffectation
       );
 
-      if (!success || !rows || rows.length === 0) {
+      if (
+        !affectationSuccess ||
+        !affectationRows ||
+        affectationRows.length === 0
+      ) {
         throw new Error(
-          error?.message || "Erreur lors de l'ajout du professeur"
+          affectationError?.message ||
+            "Erreur lors de la création de l'affectation"
         );
       }
 
-      const newProfId = rows[0].id as string;
+      const nouvelleAffectationId = affectationRows[0].id as string;
 
+      // 4. Ajouter les séquences
       if (professeur.sequences && professeur.sequences.length > 0) {
         for (const sequence of professeur.sequences) {
-          const sequenceDB: Omit<
+          const nouvelleSequence: Omit<
             SequenceDB,
             "id" | "created_at" | "updated_at"
           > = {
-            professeur_id: newProfId,
+            professeur_affectation_id: nouvelleAffectationId,
             classe: sequence.classe,
             salle: sequence.salle,
             matiere: sequence.matiere,
+            volume_horaire: sequence.volume_horaire,
+            coefficient: sequence.coefficient,
             deleted: false,
           };
-          const insertSeqResult = await InsertData("sequences", sequenceDB);
-          if (insertSeqResult !== true) {
-            const message =
-              (insertSeqResult as any)?.message ||
-              "Erreur lors de l'ajout d'une séquence";
-            throw new Error(message);
+
+          const sequenceResult = await InsertData(
+            "sequences",
+            nouvelleSequence
+          );
+          if (sequenceResult !== true) {
+            console.error(
+              "Erreur lors de l'ajout d'une séquence:",
+              sequenceResult
+            );
           }
         }
       }
@@ -421,83 +570,127 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setIsLoading(true);
 
-      // Si on modifie l'email, vérifier qu'il n'existe pas déjà
-      if (professeur.email) {
-        const data = await SelectData("professeurs");
-        const emailExists = data?.some(
-          (p: ProfesseurDB) => p.email === professeur.email && p.id !== id
-        );
-        if (emailExists) {
-          throw new Error("Cet email est déjà utilisé par un autre professeur");
-        }
+      // Récupérer l'affectation existante
+      const affectationsData = await SelectData("professeurs_affectations");
+      const affectationExistante = affectationsData?.find(
+        (a: ProfesseurAffectationDB) => a.id === id
+      );
+
+      if (!affectationExistante) {
+        throw new Error("Affectation non trouvée");
       }
 
-      // Si on modifie le téléphone, vérifier qu'il n'existe pas déjà
-      if (professeur.telephone) {
-        const data = await SelectData("professeurs");
-        const phoneExists = data?.some(
-          (p: ProfesseurDB) => p.telephone === professeur.telephone && p.id !== id
-        );
-        if (phoneExists) {
-          throw new Error(
-            "Ce numéro de téléphone est déjà utilisé par un autre professeur"
+      // 1. Mettre à jour l'enseignant si nécessaire
+      if (
+        professeur.nom ||
+        professeur.prenom ||
+        professeur.email ||
+        professeur.telephone ||
+        professeur.adresse ||
+        professeur.nif_cin ||
+        professeur.diplomes
+      ) {
+        const enseignantUpdate: any = {};
+        if (professeur.nom) enseignantUpdate.nom = professeur.nom;
+        if (professeur.prenom) enseignantUpdate.prenom = professeur.prenom;
+        if (professeur.email) enseignantUpdate.email = professeur.email;
+        if (professeur.telephone)
+          enseignantUpdate.telephone = professeur.telephone;
+        if (professeur.adresse) enseignantUpdate.adresse = professeur.adresse;
+        if (professeur.nif_cin) enseignantUpdate.nif_cin = professeur.nif_cin;
+        if (professeur.diplomes)
+          enseignantUpdate.diplomes = professeur.diplomes;
+
+        // Vérifier l'unicité de l'email
+        if (professeur.email) {
+          const enseignantsData = await SelectData("enseignants");
+          const emailExists = enseignantsData?.some(
+            (e: EnseignantDB) =>
+              e.email === professeur.email &&
+              e.id !== affectationExistante.enseignant_id
           );
-        }
-      }
-
-      // Si on modifie le NIF/CIN, vérifier qu'il n'existe pas déjà
-      if (professeur.nif_cin) {
-        const data = await SelectData("professeurs");
-        const nifExists = data?.some(
-          (p: ProfesseurDB) => p.nif_cin === professeur.nif_cin && p.id !== id
-        );
-        if (nifExists) {
-          throw new Error(
-            "Ce NIF/CIN est déjà utilisé par un autre professeur"
-          );
-        }
-      }
-
-      // Préparer les données pour la mise à jour (exclure les séquences)
-      const { sequences, ...professeurData } = professeur;
-
-      const result = await UpdateData("professeurs", id, professeurData);
-
-      if (result) {
-        // Gérer les séquences si elles sont fournies
-        if (sequences) {
-          // Supprimer les anciennes séquences (suppression logique)
-          const sequencesData = await SelectData("sequences");
-          const anciennesSequences =
-            sequencesData?.filter((s: SequenceDB) => s.professeur_id === id) ||
-            [];
-
-          for (const ancienneSequence of anciennesSequences) {
-            await UpdateData("sequences", ancienneSequence.id, {
-              deleted: true,
-            });
-          }
-
-          // Ajouter les nouvelles séquences
-          for (const sequence of sequences) {
-            const sequenceDB: Omit<
-              SequenceDB,
-              "id" | "created_at" | "updated_at"
-            > = {
-              professeur_id: id,
-              classe: sequence.classe,
-              salle: sequence.salle,
-              matiere: sequence.matiere,
-              deleted: false,
-            };
-            await InsertData("sequences", sequenceDB);
+          if (emailExists) {
+            throw new Error(
+              "Cet email est déjà utilisé par un autre enseignant"
+            );
           }
         }
 
-        await rechargerProfesseurs();
-      } else {
-        throw new Error("Erreur lors de la modification du professeur");
+        await UpdateData(
+          "enseignants",
+          affectationExistante.enseignant_id,
+          enseignantUpdate
+        );
       }
+
+      // 2. Mettre à jour l'affectation
+      const affectationUpdate: any = {};
+      if (professeur.code) {
+        // Vérifier l'unicité du code pour cette année
+        const codeExists = affectationsData?.some(
+          (a: ProfesseurAffectationDB) =>
+            a.code === professeur.code &&
+            a.annee_scolaire_id === affectationExistante.annee_scolaire_id &&
+            a.id !== id
+        );
+        if (codeExists) {
+          throw new Error(
+            "Ce code professeur existe déjà pour cette année scolaire"
+          );
+        }
+        affectationUpdate.code = professeur.code;
+      }
+
+      if (professeur.enseignant_code !== undefined)
+        affectationUpdate.enseignant_code = professeur.enseignant_code;
+      if (professeur.date_embauche)
+        affectationUpdate.date_embauche = professeur.date_embauche;
+      if (professeur.date_fin_contrat !== undefined)
+        affectationUpdate.date_fin_contrat = professeur.date_fin_contrat;
+      if (professeur.statut) affectationUpdate.statut = professeur.statut;
+      if (professeur.type_contrat)
+        affectationUpdate.type_contrat = professeur.type_contrat;
+      if (professeur.salaire_base !== undefined)
+        affectationUpdate.salaire_base = professeur.salaire_base;
+      if (professeur.notes_rh !== undefined)
+        affectationUpdate.notes_rh = professeur.notes_rh;
+
+      if (Object.keys(affectationUpdate).length > 0) {
+        await UpdateData("professeurs_affectations", id, affectationUpdate);
+      }
+
+      // 3. Gérer les séquences si fournies
+      if (professeur.sequences) {
+        // Supprimer les anciennes séquences (suppression logique)
+        const sequencesData = await SelectData("sequences");
+        const anciennesSequences =
+          sequencesData?.filter(
+            (s: SequenceDB) => s.professeur_affectation_id === id
+          ) || [];
+
+        for (const ancienneSequence of anciennesSequences) {
+          await UpdateData("sequences", ancienneSequence.id, { deleted: true });
+        }
+
+        // Ajouter les nouvelles séquences
+        for (const sequence of professeur.sequences) {
+          const nouvelleSequence: Omit<
+            SequenceDB,
+            "id" | "created_at" | "updated_at"
+          > = {
+            professeur_affectation_id: id,
+            classe: sequence.classe,
+            salle: sequence.salle,
+            matiere: sequence.matiere,
+            volume_horaire: sequence.volume_horaire,
+            coefficient: sequence.coefficient,
+            deleted: false,
+          };
+          await InsertData("sequences", nouvelleSequence);
+        }
+      }
+
+      await rechargerProfesseurs();
     } catch (err) {
       const errorMessage =
         err instanceof Error
@@ -514,26 +707,42 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setIsLoading(true);
 
-      // Suppression logique du professeur
-      const result = await UpdateData("professeurs", id, { deleted: true });
+      // Sécurité: ne supprimer que dans l'année scolaire courante
+      if (!currentYear) {
+        throw new Error("Aucune année scolaire sélectionnée");
+      }
+      const affectationsData = await SelectData("professeurs_affectations");
+      const affectation = affectationsData?.find(
+        (a: ProfesseurAffectationDB) => a.id === id
+      );
+      if (!affectation) {
+        throw new Error("Affectation non trouvée");
+      }
+      if (affectation.annee_scolaire_id !== currentYear.id) {
+        throw new Error(
+          "Suppression refusée: l'affectation ne correspond pas à l'année sélectionnée"
+        );
+      }
+
+      // Suppression logique de l'affectation
+      const result = await UpdateData("professeurs_affectations", id, {
+        deleted: true,
+      });
 
       if (result) {
         // Suppression logique des séquences associées
         const sequencesData = await SelectData("sequences");
         const sequences =
           sequencesData?.filter(
-            (s: SequenceDB) => s.professeur_id === id && !s.deleted
+            (s: SequenceDB) => s.professeur_affectation_id === id && !s.deleted
           ) || [];
 
-        // Supprimer logiquement toutes les séquences associées
         for (const sequence of sequences) {
           await UpdateData("sequences", sequence.id, { deleted: true });
         }
 
-        // Mettre à jour l'état local immédiatement pour une meilleure UX
+        // Mettre à jour l'état local
         setProfesseurs((prev) => prev.filter((p) => p.id !== id));
-
-        // Recharger les données pour s'assurer de la cohérence
         await rechargerProfesseurs();
       } else {
         throw new Error("Erreur lors de la suppression du professeur");
@@ -554,17 +763,36 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setIsLoading(true);
 
-      // Supprimer définitivement toutes les séquences associées
+      // Sécurité: ne supprimer que dans l'année scolaire courante
+      if (!currentYear) {
+        throw new Error("Aucune année scolaire sélectionnée");
+      }
+      const affectationsData = await SelectData("professeurs_affectations");
+      const affectation = affectationsData?.find(
+        (a: ProfesseurAffectationDB) => a.id === id
+      );
+      if (!affectation) {
+        throw new Error("Affectation non trouvée");
+      }
+      if (affectation.annee_scolaire_id !== currentYear.id) {
+        throw new Error(
+          "Suppression définitive refusée: l'affectation ne correspond pas à l'année sélectionnée"
+        );
+      }
+
+      // Supprimer définitivement les séquences
       const sequencesData = await SelectData("sequences");
       const sequences =
-        sequencesData?.filter((s: SequenceDB) => s.professeur_id === id) || [];
+        sequencesData?.filter(
+          (s: SequenceDB) => s.professeur_affectation_id === id
+        ) || [];
 
       for (const sequence of sequences) {
         await DeleteData("sequences", sequence.id);
       }
 
-      // Supprimer définitivement le professeur
-      const result = await DeleteData("professeurs", id);
+      // Supprimer définitivement l'affectation
+      const result = await DeleteData("professeurs_affectations", id);
 
       if (result) {
         await rechargerProfesseurs();
@@ -589,15 +817,34 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setIsLoading(true);
 
-      // Restaurer le professeur
-      const result = await UpdateData("professeurs", id, { deleted: false });
+      // Sécurité: ne restaurer que dans l'année scolaire courante
+      if (!currentYear) {
+        throw new Error("Aucune année scolaire sélectionnée");
+      }
+      const affectationsData = await SelectData("professeurs_affectations");
+      const affectation = affectationsData?.find(
+        (a: ProfesseurAffectationDB) => a.id === id
+      );
+      if (!affectation) {
+        throw new Error("Affectation non trouvée");
+      }
+      if (affectation.annee_scolaire_id !== currentYear.id) {
+        throw new Error(
+          "Restauration refusée: l'affectation ne correspond pas à l'année sélectionnée"
+        );
+      }
+
+      // Restaurer l'affectation
+      const result = await UpdateData("professeurs_affectations", id, {
+        deleted: false,
+      });
 
       if (result) {
         // Restaurer les séquences associées
         const sequencesData = await SelectData("sequences");
         const sequences =
           sequencesData?.filter(
-            (s: SequenceDB) => s.professeur_id === id && s.deleted
+            (s: SequenceDB) => s.professeur_affectation_id === id && s.deleted
           ) || [];
 
         for (const sequence of sequences) {
@@ -620,36 +867,35 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // === GESTION DES SÉQUENCES (version simplifiée) ===
+  // ===========================
+  // GESTION DES SÉQUENCES
+  // ===========================
+
   const ajouterSequence = async (
     professeurId: string,
-    sequence: Omit<Sequence, "id">
+    sequence: Omit<Sequence, "id" | "professeur_affectation_id">
   ): Promise<void> => {
     try {
-      console.log("Ajout de séquence:", { professeurId, sequence });
-
-      const sequenceDB: Omit<SequenceDB, "id" | "created_at" | "updated_at"> = {
-        professeur_id: professeurId,
+      const nouvelleSequence: Omit<
+        SequenceDB,
+        "id" | "created_at" | "updated_at"
+      > = {
+        professeur_affectation_id: professeurId,
         classe: sequence.classe,
         salle: sequence.salle,
         matiere: sequence.matiere,
+        volume_horaire: sequence.volume_horaire,
+        coefficient: sequence.coefficient,
         deleted: false,
       };
 
-      console.log("Données à insérer:", sequenceDB);
-
-      const result = await InsertData("sequences", sequenceDB);
-      console.log("Résultat de l'insertion:", result);
-
+      const result = await InsertData("sequences", nouvelleSequence);
       if (result === true) {
         await rechargerProfesseurs();
       } else {
-        const message = (result as any)?.message ||
-          "Erreur lors de l'ajout de la séquence";
-        throw new Error(message);
+        throw new Error("Erreur lors de l'ajout de la séquence");
       }
     } catch (err) {
-      console.error("Erreur détaillée lors de l'ajout de la séquence:", err);
       const errorMessage =
         err instanceof Error
           ? err.message
@@ -662,15 +908,17 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
   const modifierSequence = async (
     professeurId: string,
     sequenceId: string,
-    sequence: Partial<Sequence>
+    sequence: Partial<Omit<Sequence, "id" | "professeur_affectation_id">>
   ): Promise<void> => {
     try {
       const sequenceUpdate: any = {};
       if (sequence.classe) sequenceUpdate.classe = sequence.classe;
       if (sequence.salle) sequenceUpdate.salle = sequence.salle;
       if (sequence.matiere) sequenceUpdate.matiere = sequence.matiere;
-      if (sequence.deleted !== undefined)
-        sequenceUpdate.deleted = sequence.deleted;
+      if (sequence.volume_horaire !== undefined)
+        sequenceUpdate.volume_horaire = sequence.volume_horaire;
+      if (sequence.coefficient !== undefined)
+        sequenceUpdate.coefficient = sequence.coefficient;
 
       const result = await UpdateData("sequences", sequenceId, sequenceUpdate);
       if (result) {
@@ -711,7 +959,10 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // === RECHERCHE ET FILTRAGE ===
+  // ===========================
+  // RECHERCHE ET FILTRAGE
+  // ===========================
+
   const rechercherProfesseurs = (terme: string): Professeur[] => {
     if (!terme.trim()) return professeurs;
 
@@ -722,7 +973,6 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
         prof.prenom.toLowerCase().includes(termeMinuscule) ||
         prof.email.toLowerCase().includes(termeMinuscule) ||
         prof.code.toLowerCase().includes(termeMinuscule) ||
-        prof.enseignant_id.toLowerCase().includes(termeMinuscule) ||
         `${prof.prenom} ${prof.nom}`.toLowerCase().includes(termeMinuscule)
     );
   };
@@ -766,15 +1016,22 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     });
   };
 
-  // === FONCTIONS UTILITAIRES ===
+  // ===========================
+  // FONCTIONS UTILITAIRES
+  // ===========================
+
   const validerCodeProfesseur = async (
     code: string,
-    professeurId?: string
+    professeurId?: string,
+    anneeId?: string
   ): Promise<boolean> => {
     try {
-      const data = await SelectData("professeurs");
-      const codeExists = data?.some(
-        (p: ProfesseurDB) => p.code === code && p.id !== professeurId
+      const affectationsData = await SelectData("professeurs_affectations");
+      const codeExists = affectationsData?.some(
+        (a: ProfesseurAffectationDB) =>
+          a.code === code &&
+          a.id !== professeurId &&
+          (!anneeId || a.annee_scolaire_id === anneeId)
       );
       return !codeExists;
     } catch (err) {
@@ -783,14 +1040,14 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const validerEmailProfesseur = async (
+  const validerEmailEnseignant = async (
     email: string,
-    professeurId?: string
+    enseignantId?: string
   ): Promise<boolean> => {
     try {
-      const data = await SelectData("professeurs");
-      const emailExists = data?.some(
-        (p: ProfesseurDB) => p.email === email && p.id !== professeurId
+      const enseignantsData = await SelectData("enseignants");
+      const emailExists = enseignantsData?.some(
+        (e: EnseignantDB) => e.email === email && e.id !== enseignantId
       );
       return !emailExists;
     } catch (err) {
@@ -799,15 +1056,20 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const genererNouveauCode = async (): Promise<string> => {
+  const genererNouveauCode = async (anneeId: string): Promise<string> => {
     try {
-      const data = await SelectData("professeurs");
-      const codes = data?.map((p: ProfesseurDB) => p.code) || [];
+      const affectationsData = await SelectData("professeurs_affectations");
+      const codesAnnee =
+        affectationsData
+          ?.filter(
+            (a: ProfesseurAffectationDB) => a.annee_scolaire_id === anneeId
+          )
+          .map((a: ProfesseurAffectationDB) => a.code) || [];
 
       let numero = 1;
       let nouveauCode = `PROF${String(numero).padStart(3, "0")}`;
 
-      while (codes.includes(nouveauCode)) {
+      while (codesAnnee.includes(nouveauCode)) {
         numero++;
         nouveauCode = `PROF${String(numero).padStart(3, "0")}`;
       }
@@ -819,13 +1081,15 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // === ACTIONS PAR LOTS ===
+  // ===========================
+  // ACTIONS PAR LOTS
+  // ===========================
+
   const supprimerPlusieursProfesseurs = async (
     ids: string[]
   ): Promise<void> => {
     try {
       setIsLoading(true);
-
       for (const id of ids) {
         await supprimerProfesseur(id);
       }
@@ -846,7 +1110,6 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
   ): Promise<void> => {
     try {
       setIsLoading(true);
-
       for (const id of ids) {
         await restaurerProfesseur(id);
       }
@@ -862,7 +1125,195 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Initialiser au montage et recharger quand l'année courante change
+  // ===========================
+  // COPIE VERS NOUVELLE ANNÉE SCOLAIRE
+  // ===========================
+
+  const copierProfesseursVersNouvelleAnnee = async (
+    anneeSourceId: string,
+    anneeDestinationId: string
+  ): Promise<void> => {
+    try {
+      setIsLoading(true);
+
+      console.log("=== COPIE AVEC NOUVELLE STRUCTURE ===");
+      console.log("Année source:", anneeSourceId);
+      console.log("Année destination:", anneeDestinationId);
+
+      // Récupérer toutes les données
+      const { affectations, sequences } = await recupererDonneesCompletes();
+
+      // Filtrer les affectations source
+      const affectationsSource = affectations.filter(
+        (a: ProfesseurAffectationDB) =>
+          a.annee_scolaire_id === anneeSourceId && !a.deleted
+      );
+
+      if (affectationsSource.length === 0) {
+        handleError("Aucune affectation trouvée dans l'année source");
+        return;
+      }
+
+      // Vérifier les affectations existantes dans l'année destination
+      const affectationsDestination = affectations.filter(
+        (a: ProfesseurAffectationDB) =>
+          a.annee_scolaire_id === anneeDestinationId
+      );
+
+      const enseignantsDejaAffectes = affectationsDestination.map(
+        (a) => a.enseignant_id
+      );
+      const codesDejaUtilises = affectationsDestination.map((a) => a.code);
+
+      let professeursCopies = 0;
+      let sequenceCopiees = 0;
+      let professeursIgnores = 0;
+      const erreurs: string[] = [];
+
+      // Copier chaque affectation
+      for (const affectationSource of affectationsSource) {
+        try {
+          // Vérifier si l'enseignant a déjà une affectation
+          if (
+            enseignantsDejaAffectes.includes(affectationSource.enseignant_id)
+          ) {
+            console.log(
+              `Enseignant ${affectationSource.enseignant_id} déjà affecté - ignoré`
+            );
+            professeursIgnores++;
+            continue;
+          }
+
+          // Générer un code unique
+          let nouveauCode = affectationSource.code;
+          let compteur = 1;
+          while (codesDejaUtilises.includes(nouveauCode)) {
+            nouveauCode = `${affectationSource.code}_${compteur}`;
+            compteur++;
+          }
+          codesDejaUtilises.push(nouveauCode);
+
+          // Créer la nouvelle affectation
+          const nouvelleAffectation: Omit<
+            ProfesseurAffectationDB,
+            "id" | "created_at" | "updated_at"
+          > = {
+            enseignant_id: affectationSource.enseignant_id,
+            annee_scolaire_id: anneeDestinationId,
+            code: nouveauCode,
+            enseignant_code: affectationSource.enseignant_code,
+            date_embauche: affectationSource.date_embauche,
+            date_fin_contrat: affectationSource.date_fin_contrat,
+            statut: affectationSource.statut,
+            type_contrat: affectationSource.type_contrat,
+            salaire_base: affectationSource.salaire_base,
+            notes_rh: affectationSource.notes_rh,
+            deleted: false,
+          };
+
+          const insertResult = await InsertDataReturn(
+            "professeurs_affectations",
+            nouvelleAffectation
+          );
+
+          if (
+            !insertResult.success ||
+            !insertResult.rows ||
+            insertResult.rows.length === 0
+          ) {
+            const errorMessage =
+              insertResult.error?.message ||
+              "Erreur lors de l'insertion de l'affectation";
+            console.error(
+              `Erreur pour l'enseignant ${affectationSource.enseignant_id}:`,
+              insertResult.error
+            );
+            erreurs.push(
+              `Enseignant ${affectationSource.enseignant_id}: ${errorMessage}`
+            );
+            continue;
+          }
+
+          const nouvelleAffectationId = insertResult.rows[0].id as string;
+          professeursCopies++;
+          enseignantsDejaAffectes.push(affectationSource.enseignant_id);
+
+          // Copier les séquences
+          const sequencesSource = sequences.filter(
+            (s: SequenceDB) =>
+              s.professeur_affectation_id === affectationSource.id && !s.deleted
+          );
+
+          for (const sequenceSource of sequencesSource) {
+            try {
+              const nouvelleSequence: Omit<
+                SequenceDB,
+                "id" | "created_at" | "updated_at"
+              > = {
+                professeur_affectation_id: nouvelleAffectationId,
+                classe: sequenceSource.classe,
+                salle: sequenceSource.salle,
+                matiere: sequenceSource.matiere,
+                volume_horaire: sequenceSource.volume_horaire,
+                coefficient: sequenceSource.coefficient,
+                deleted: false,
+              };
+
+              const sequenceResult = await InsertData(
+                "sequences",
+                nouvelleSequence
+              );
+              if (sequenceResult === true) {
+                sequenceCopiees++;
+              } else {
+                erreurs.push(`Séquence: ${JSON.stringify(sequenceResult)}`);
+              }
+            } catch (sequenceError) {
+              erreurs.push(`Séquence: ${sequenceError}`);
+            }
+          }
+        } catch (affectationError) {
+          erreurs.push(
+            `Affectation ${affectationSource.code}: ${affectationError}`
+          );
+          continue;
+        }
+      }
+
+      await rechargerProfesseurs();
+
+      const messageResume = [
+        `Copie terminée:`,
+        `- ${professeursCopies} professeurs copiés`,
+        `- ${sequenceCopiees} séquences copiées`,
+        `- ${professeursIgnores} professeurs ignorés`,
+        erreurs.length > 0 ? `- ${erreurs.length} erreurs` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      console.log(messageResume);
+
+      if (erreurs.length > 0) {
+        console.warn("Erreurs:", erreurs);
+        handleError(
+          `Copie partiellement réussie. ${professeursCopies} professeurs copiés, ${erreurs.length} erreurs.`
+        );
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la copie des professeurs";
+      console.error("Erreur globale:", err);
+      handleError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initialisation
   useEffect(() => {
     rechargerProfesseurs();
   }, [currentYear]);
@@ -900,12 +1351,15 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
         rechargerProfesseurs,
         chargerProfesseursParAnnee,
         validerCodeProfesseur,
-        validerEmailProfesseur,
+        validerEmailEnseignant,
         genererNouveauCode,
 
         // Actions par lots
         supprimerPlusieursProfesseurs,
         restaurerPlusieursProfesseurs,
+
+        // Copie vers nouvelle année scolaire
+        copierProfesseursVersNouvelleAnnee,
       }}
     >
       {children}
@@ -921,28 +1375,3 @@ export const useProfesseur = () => {
   }
   return context;
 };
-
-// Types supplémentaires pour les composants
-export interface ProfesseurModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  mode: "add" | "edit" | "view" | "delete";
-  professeur?: Professeur;
-  isDarkMode?: boolean;
-}
-
-export interface SequenceFormProps {
-  professeurId: string;
-  sequence?: Sequence;
-  onSave: (sequence: Omit<Sequence, "id">) => void;
-  onCancel: () => void;
-  isDarkMode?: boolean;
-}
-
-export interface ProfesseurListProps {
-  professeurs: Professeur[];
-  onEdit: (professeur: Professeur) => void;
-  onDelete: (professeur: Professeur) => void;
-  onView: (professeur: Professeur) => void;
-  isDarkMode?: boolean;
-}
