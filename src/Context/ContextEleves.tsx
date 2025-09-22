@@ -452,26 +452,102 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
     data: EleveFormData
   ): Promise<DoublonEleve[]> => {
     try {
-      const query = `
-        SELECT 
-          e.id, e.code, e.nom, e.prenom, e.date_naissance, e.lieu_naissance,
-          e.telephone_parents, e.nif_parents,
-          a.libelle as annee_scolaire, c.nom as classe, i.statut
-        FROM eleves e
-        JOIN eleves_inscriptions i ON e.id = i.eleve_id
-        JOIN annees_scolaires a ON i.annee_scolaire_id = a.id
-        JOIN classes c ON i.classe_id = c.id
-        WHERE e.deleted = false 
-        AND i.deleted = false
-        AND e.nom = $1 
-        AND e.prenom = $2 
-        AND e.lieu_naissance = $3
-        AND (e.telephone_parents = $4 OR e.nif_parents = $5)
-      `;
+      // Récupérer tous les élèves existants et les données de référence
+      const [elevesRows, inscriptionsRows, anneesRows, classesRows, sallesRows] = await Promise.all([
+        SelectData("eleves"),
+        SelectData("eleves_inscriptions"),
+        SelectData("annees_scolaires"),
+        SelectData("classes"),
+        SelectData("salles"),
+      ]);
 
-      const result = await SelectData("eleves");
+      const elevesActifs = (elevesRows || []).filter(
+        (e: any) => !e.deleted
+      );
 
-      return result || [];
+      const inscriptionsActuelles = (inscriptionsRows || []).filter(
+        (i: any) => !i.deleted
+      );
+
+      // Créer des maps pour les noms
+      const anneesMap = new Map((anneesRows || []).map((a: any) => [a.id, a.libelle]));
+      const classesMap = new Map((classesRows || []).map((c: any) => [c.id, c.nom]));
+      const sallesMap = new Map((sallesRows || []).map((s: any) => [s.id, s.nom]));
+
+      // Normaliser les données pour la comparaison
+      const normalizeString = (str: string) => 
+        str?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+
+      const normalizeNIF = (nif: string) => 
+        nif?.replace(/\D/g, '') || '';
+
+      const normalizePhone = (phone: string) => 
+        phone?.replace(/\D/g, '') || '';
+
+      const newData = {
+        nom: normalizeString(data.nom),
+        prenom: normalizeString(data.prenom),
+        date_naissance: data.date_naissance,
+        lieu_naissance: normalizeString(data.lieu_naissance),
+        telephone_parents: normalizePhone(data.telephone_parents),
+        nif_parents: normalizeNIF(data.nif_parents),
+      };
+
+      // Chercher les doublons potentiels
+      const doublons: DoublonEleve[] = [];
+
+      for (const eleve of elevesActifs) {
+        const existingData = {
+          nom: normalizeString(eleve.nom),
+          prenom: normalizeString(eleve.prenom),
+          date_naissance: eleve.date_naissance,
+          lieu_naissance: normalizeString(eleve.lieu_naissance),
+          telephone_parents: normalizePhone(eleve.telephone_parents),
+          nif_parents: normalizeNIF(eleve.nif_parents),
+        };
+
+        // Critères de doublon : nom + prénom + date de naissance + lieu de naissance
+        // ET (même téléphone OU même NIF)
+        const isDuplicate = 
+          existingData.nom === newData.nom &&
+          existingData.prenom === newData.prenom &&
+          existingData.date_naissance === newData.date_naissance &&
+          existingData.lieu_naissance === newData.lieu_naissance &&
+          (
+            (newData.telephone_parents && existingData.telephone_parents === newData.telephone_parents) ||
+            (newData.nif_parents && existingData.nif_parents === newData.nif_parents)
+          );
+
+        if (isDuplicate) {
+          // Trouver l'inscription actuelle de cet élève
+          const currentInscription = inscriptionsActuelles.find(
+            (i: any) => i.eleve_id === eleve.id
+          );
+
+          if (currentInscription) {
+            // Récupérer les noms des classes et salles
+            const classeName = classesMap.get(currentInscription.classe_id) || currentInscription.classe_id;
+            const salleName = sallesMap.get(currentInscription.salle_id) || currentInscription.salle_id;
+            const anneeName = anneesMap.get(currentInscription.annee_scolaire_id) || currentInscription.annee_scolaire_id;
+
+            doublons.push({
+              id: eleve.id,
+              code: eleve.code,
+              nom: eleve.nom,
+              prenom: eleve.prenom,
+              date_naissance: eleve.date_naissance,
+              lieu_naissance: eleve.lieu_naissance,
+              telephone_parents: eleve.telephone_parents,
+              nif_parents: eleve.nif_parents,
+              annee_scolaire: anneeName,
+              classe: `${classeName} - ${salleName}`,
+              statut: currentInscription.statut,
+            });
+          }
+        }
+      }
+
+      return doublons;
     } catch (error) {
       console.error("Erreur lors de la vérification des doublons:", error);
       return [];

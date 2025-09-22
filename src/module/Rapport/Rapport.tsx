@@ -42,6 +42,7 @@ import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 import { useEleves } from "@/Context/ContextEleves";
 import { useNotes } from "@/Context/ContextNotes";
 import { useDecisionFinAnnee } from "@/Context/ContextDecisionFinAnnee";
+import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 
 // Import des types
 import { Note } from "@/types/NoteType";
@@ -91,75 +92,7 @@ interface Props {
   darkMode: boolean;
 }
 
-// Données d'exemple pour les activités utilisateur (pas de contexte dédié)
-const sampleUserActivities: UserActivity[] = [
-  {
-    id: "1",
-    userId: "user1",
-    userName: "Admin Principal",
-    action: "Connexion au système",
-    module: "Système",
-    date: "2024-12-19",
-    heure: "08:30:15",
-    details: "Connexion réussie depuis l'adresse IP 192.168.1.100",
-    typeAction: "connexion",
-  },
-  {
-    id: "2",
-    userId: "user2",
-    userName: "Marie Martin",
-    action: "Ajout d'un nouvel élève",
-    module: "Gestion Élèves",
-    date: "2024-12-19",
-    heure: "09:15:22",
-    details: "Ajout de l'élève Duval Marie (ETU001)",
-    typeAction: "ajout",
-  },
-  {
-    id: "3",
-    userId: "user1",
-    userName: "Admin Principal",
-    action: "Modification des notes",
-    module: "Notes et Évaluations",
-    date: "2024-12-19",
-    heure: "10:45:10",
-    details: "Modification notes trimestre T2 pour Pierre Sophie",
-    typeAction: "modification",
-  },
-  {
-    id: "4",
-    userId: "user3",
-    userName: "Pierre Bernard",
-    action: "Consultation des rapports",
-    module: "Rapports",
-    date: "2024-12-19",
-    heure: "11:20:33",
-    details: "Consultation rapport classe 9ème AF",
-    typeAction: "consultation",
-  },
-  {
-    id: "5",
-    userId: "user2",
-    userName: "Marie Martin",
-    action: "Déconnexion",
-    module: "Système",
-    date: "2024-12-18",
-    heure: "16:45:18",
-    details: "Déconnexion normale du système",
-    typeAction: "connexion",
-  },
-  {
-    id: "6",
-    userId: "user4",
-    userName: "Sophie Leroy",
-    action: "Connexion au système",
-    module: "Système",
-    date: "2024-12-18",
-    heure: "07:15:30",
-    details: "Connexion réussie depuis l'adresse IP 192.168.1.105",
-    typeAction: "connexion",
-  },
-];
+// Activités récentes via contexte serveur
 
 const Rapport = ({ darkMode }: Props) => {
   // Contextes
@@ -180,6 +113,7 @@ const Rapport = ({ darkMode }: Props) => {
     getFraisForClasse,
   } = useFraisScolarite();
   const { currentYear } = useAnneeScolaire();
+  const { activities, loading: activitiesLoading } = useRecentActivities();
 
   // États locaux
   const [activeSection, setActiveSection] = useState("eleves");
@@ -189,6 +123,7 @@ const Rapport = ({ darkMode }: Props) => {
   const [filterStatus, setFilterStatus] = useState("tous");
   const [filterClasse, setFilterClasse] = useState("toutes");
   const [showFilters, setShowFilters] = useState(false);
+  const [activityPage, setActivityPage] = useState(1);
   // Impression (workflow par étapes)
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printCategory, setPrintCategory] = useState<
@@ -205,7 +140,13 @@ const Rapport = ({ darkMode }: Props) => {
       })) || [],
     [currentYear?.classes]
   ) as { value: string; label: string }[];
-
+  console.log(
+    "Tester",
+    getFraisForClasse(
+      "2e Année Fondamentale",
+      "cc29dfe0-ea88-41c1-8d17-6cd9e4076fe5"
+    )
+  );
   // Salles organisées par classe depuis le contexte
   const sallesByClass: Record<string, { value: string; label: string }[]> =
     useMemo(() => {
@@ -1112,12 +1053,47 @@ const Rapport = ({ darkMode }: Props) => {
   }, [laureatsParClasse]);
 
   // Filtrage des activités
-  const filteredActivities = sampleUserActivities.filter((activity) => {
-    if (filterDate && activity.date !== filterDate) return false;
-    if (filterStatus !== "tous" && activity.typeAction !== filterStatus)
-      return false;
-    return true;
-  });
+  const filteredActivities = useMemo(() => {
+    const mapType = (a: any): UserActivity["typeAction"] => {
+      switch (a.action) {
+        case "ajout":
+          return "ajout";
+        case "modification":
+          return "modification";
+        case "suppression":
+          return "suppression";
+        default:
+          return "consultation";
+      }
+    };
+    const convert = (a: any): UserActivity => {
+      const date = new Date(a.date);
+      const d = date.toISOString().slice(0, 10);
+      const h = date.toTimeString().split(" ")[0];
+      return {
+        id: a.id,
+        userId: "",
+        userName: "",
+        action: a.title,
+        module: a.module,
+        date: d,
+        heure: h,
+        details: a.details || "",
+        typeAction: mapType(a),
+      };
+    };
+    const list = activities.map(convert);
+    return list.filter((activity) => {
+      if (filterDate && activity.date !== filterDate) return false;
+      if (filterStatus !== "tous" && activity.typeAction !== filterStatus)
+        return false;
+      return true;
+    });
+  }, [activities, filterDate, filterStatus]);
+
+  useEffect(() => {
+    setActivityPage(1);
+  }, [filterDate, filterStatus]);
 
   const StatCard = ({
     title,
@@ -1188,6 +1164,56 @@ const Rapport = ({ darkMode }: Props) => {
             <X className="h-5 w-5" />
           </button>
         </div>
+        <div className="flex justify-between items-center mb-4">
+          <div className="text-sm">
+            Page {activityPage} / {Math.max(1, Math.ceil(filteredActivities.length / 10))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+              className={`px-3 py-2 rounded ${
+                darkMode ? "bg-gray-600 hover:bg-gray-500" : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              disabled={activityPage <= 1}
+            >
+              Précédent
+            </button>
+            <button
+              onClick={() => setActivityPage((p) => Math.min(Math.ceil(filteredActivities.length / 10) || 1, p + 1))}
+              className={`px-3 py-2 rounded ${
+                darkMode ? "bg-gray-600 hover:bg-gray-500" : "bg-gray-200 hover:bg-gray-300"
+              }`}
+              disabled={activityPage >= (Math.ceil(filteredActivities.length / 10) || 1)}
+            >
+              Suivant
+            </button>
+            <button
+              onClick={() => {
+                const win = window.open("", "_blank", "width=900,height=700");
+                if (!win) return;
+                const start = (activityPage - 1) * 10;
+                const pageItems = filteredActivities.slice(start, start + 10);
+                const rows = pageItems
+                  .map(
+                    (a) =>
+                      `<tr><td>${a.date} ${a.heure}</td><td>${a.module}</td><td>${
+                        a.typeAction
+                      }</td><td>${a.action}</td><td>${a.details || ""}</td></tr>`
+                  )
+                  .join("");
+                win.document.write(
+                  `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Traçabilité</title><style>body{font-family:Arial, sans-serif;color:#111} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:8px;font-size:12px} th{background:#f2f2f2;text-align:left}</style></head><body><h2 style=\"margin:8px 0\">Journal des Activités (page ${activityPage})</h2><table><thead><tr><th>Date/Heure</th><th>Module</th><th>Type</th><th>Action</th><th>Détails</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
+                );
+                win.document.close();
+                win.focus();
+                win.print();
+              }}
+              className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Imprimer
+            </button>
+          </div>
+        </div>
 
         {/* Filtres */}
         <div
@@ -1228,7 +1254,7 @@ const Rapport = ({ darkMode }: Props) => {
                 <option value="connexion">Connexions</option>
                 <option value="modification">Modifications</option>
                 <option value="ajout">Ajouts</option>
-                <option value="consultation">Consultations</option>
+
                 <option value="suppression">Suppressions</option>
               </select>
             </div>
@@ -1247,7 +1273,7 @@ const Rapport = ({ darkMode }: Props) => {
         </div>
 
         {/* Statistiques rapides */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div
             className={`p-3 rounded-lg text-center ${
               darkMode ? "bg-blue-900" : "bg-blue-100"
@@ -1318,35 +1344,13 @@ const Rapport = ({ darkMode }: Props) => {
               Modifications
             </p>
           </div>
-          <div
-            className={`p-3 rounded-lg text-center ${
-              darkMode ? "bg-purple-900" : "bg-purple-100"
-            }`}
-          >
-            <p
-              className={`text-2xl font-bold ${
-                darkMode ? "text-purple-300" : "text-purple-600"
-              }`}
-            >
-              {
-                filteredActivities.filter(
-                  (a) => a.typeAction === "consultation"
-                ).length
-              }
-            </p>
-            <p
-              className={`text-sm ${
-                darkMode ? "text-purple-400" : "text-purple-700"
-              }`}
-            >
-              Consultations
-            </p>
-          </div>
         </div>
 
-        {/* Liste des activités */}
+        {/* Liste des activités (pagination 10/pg) */}
         <div className="space-y-3">
-          {filteredActivities.map((activity) => (
+          {filteredActivities
+            .slice((activityPage - 1) * 10, (activityPage - 1) * 10 + 10)
+            .map((activity) => (
             <div
               key={activity.id}
               className={`p-4 rounded-lg border-l-4 ${

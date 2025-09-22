@@ -64,6 +64,8 @@ const ExportModal: React.FC<ExportModalProps> = ({
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSalle, setSelectedSalle] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [sortBy, setSortBy] = useState("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [etablissementInfo, setEtablissementInfo] = useState({
     nom: "École Secondaire SIGEP",
     adresse: "123 Avenue Jean-Jacques Dessalines, Port-au-Prince, Haïti",
@@ -214,12 +216,13 @@ const ExportModal: React.FC<ExportModalProps> = ({
   const classSelector = (idClass: any) => {
     return classes.find((item) => item.value === idClass)?.label;
   };
-  const salleSelector = (idSalle: any) => {
-    return sallesByClass[selectedClass]?.find((item) => item.value === idSalle)
+  const salleSelector = (idSalle: any, idClass?: any) => {
+    const classId = idClass || selectedClass;
+    return sallesByClass[classId]?.find((item) => item.value === idSalle)
       ?.label;
   };
 
-  // Filtrer les étudiants selon les critères sélectionnés
+  // Filtrer et trier les étudiants selon les critères sélectionnés
   const getFilteredStudents = () => {
     let filtered = students;
 
@@ -237,6 +240,41 @@ const ExportModal: React.FC<ExportModalProps> = ({
       filtered = filtered.filter(
         (student) => student.status === selectedStatus
       );
+    }
+
+    // Appliquer le tri
+    if (sortBy) {
+      filtered.sort((a, b) => {
+        let aValue: string;
+        let bValue: string;
+
+        switch (sortBy) {
+          case "nom":
+            aValue = a.nom.toLowerCase();
+            bValue = b.nom.toLowerCase();
+            break;
+          case "prenom":
+            aValue = a.prenom.toLowerCase();
+            bValue = b.prenom.toLowerCase();
+            break;
+          case "code":
+            aValue = a.code.toLowerCase();
+            bValue = b.code.toLowerCase();
+            break;
+          case "dateNaissance":
+            aValue = a.dateNaissance;
+            bValue = b.dateNaissance;
+            break;
+          default:
+            return 0;
+        }
+
+        if (sortOrder === "asc") {
+          return aValue.localeCompare(bValue);
+        } else {
+          return bValue.localeCompare(aValue);
+        }
+      });
     }
 
     return filtered;
@@ -433,7 +471,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
                         } else if (col.key === "moyenneGenerale") {
                           value = String(value);
                         } else if (col.key === "salle") {
-                          value = `${salleSelector(value)}`;
+                          value = `${salleSelector(value, student.classesDemandee)}`;
                         } else if (col.key === "classesDemandee") {
                           value = `${classSelector(value)}`;
                         }
@@ -759,6 +797,66 @@ const ExportModal: React.FC<ExportModalProps> = ({
                   <option value="inactif">Inactif</option>
                   <option value="suspendu">Suspendu</option>
                 </select>
+              </div>
+
+              {/* Section de tri */}
+              <div className="border-t pt-4">
+                <h4 className="text-md font-medium mb-3">Options de tri</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Trier par
+                    </label>
+                    <select
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value)}
+                    >
+                      <option value="">Aucun tri</option>
+                      <option value="nom">Nom (A-Z)</option>
+                      <option value="prenom">Prénom (A-Z)</option>
+                      <option value="code">Code (A-Z)</option>
+                      <option value="dateNaissance">Date de naissance</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Ordre
+                    </label>
+                    <select
+                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                      value={sortOrder}
+                      onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+                      disabled={!sortBy}
+                    >
+                      <option value="asc">Croissant (A-Z)</option>
+                      <option value="desc">Décroissant (Z-A)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {sortBy && (
+                  <div className="mt-3">
+                    <button
+                      onClick={() => {
+                        setSortBy("");
+                        setSortOrder("asc");
+                      }}
+                      className={`px-3 py-1 text-sm border rounded-lg focus:outline-none focus:ring-2 ${inputClasses} hover:bg-opacity-80`}
+                    >
+                      Réinitialiser le tri
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div

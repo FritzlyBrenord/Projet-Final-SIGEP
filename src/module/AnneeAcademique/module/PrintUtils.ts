@@ -930,17 +930,7 @@ export const generateClassSchedulePrintContent = (cls: Class, levelName: string)
       ${EntetIMFP(`Emploi du Temps - ${cls.name}`)}
       
     <div class="class-info-section">
-      <table class="class-info-table">
-        <tr>
-          <td>Classe :</td>
-          <td style="color: #2563eb; font-weight: bold;">${levelName}</td>
-        </tr>
-        <tr>
-          <td>Salle :</td>
-          <td style="color: #7c3aed; font-weight: bold;">${cls.name.split("-")[1]}</td>
-        </tr>
-        
-      </table>
+      
             </div>
     
     <div class="schedule-section">

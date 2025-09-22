@@ -105,6 +105,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showExcessModal, setShowExcessModal] = useState(false);
   const [excessData, setExcessData] = useState<any>(null);
+  // Brouillon des montants par type (configuration par classe)
+  const [classeFraisDrafts, setClasseFraisDrafts] = useState<Record<string, string>>({});
 
   const isLoading = isLoadingFrais || isLoadingEleves;
 
@@ -142,6 +144,20 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     const salle = salles.find((s) => s.value === salleId);
     return salle ? salle.label : "";
   };
+
+  // Initialiser/mettre à jour les brouillons lorsqu'on change de classe ou de données
+  useEffect(() => {
+    if (!selectedClasseForConfig) {
+      setClasseFraisDrafts({});
+      return;
+    }
+    const drafts: Record<string, string> = {};
+    typesFrais.forEach((type) => {
+      const montant = getFraisForClasse(selectedClasseForConfig, type.id);
+      drafts[type.id] = Number.isFinite(montant) ? String(montant) : "";
+    });
+    setClasseFraisDrafts(drafts);
+  }, [selectedClasseForConfig, typesFrais, fraisParClasse, getFraisForClasse]);
 
   // NOUVELLES FONCTIONS pour les fonctionnalités demandées
 
@@ -1765,15 +1781,31 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                               min="0"
                               placeholder="Montant"
                               className={`w-32 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                              value={getFraisForClasse(
-                                selectedClasseForConfig,
-                                typeFrais.id
-                              )}
+                              value={classeFraisDrafts[typeFrais.id] ?? ""}
                               onChange={(e) => {
-                                const montant = parseFloat(e.target.value) || 0;
-                                handleUpdateFraisClasse(typeFrais.id, montant);
+                                const val = e.target.value;
+                                setClasseFraisDrafts((prev) => ({
+                                  ...prev,
+                                  [typeFrais.id]: val,
+                                }));
                               }}
                             />
+                            <button
+                              className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-white ${
+                                isDarkMode ? "bg-blue-600 hover:bg-blue-500" : "bg-blue-600 hover:bg-blue-700"
+                              }`}
+                              onClick={() => {
+                                const parsed = parseFloat(
+                                  classeFraisDrafts[typeFrais.id] || "0"
+                                );
+                                const montant = Number.isFinite(parsed) ? parsed : 0;
+                                handleUpdateFraisClasse(typeFrais.id, montant);
+                              }}
+                              title="Valider"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                              Valider
+                            </button>
                             <span className="text-sm text-gray-500">HTG</span>
                           </div>
                         </div>

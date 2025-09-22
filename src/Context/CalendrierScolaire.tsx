@@ -585,16 +585,17 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
         );
       }
 
-      // Vérifier l'unicité nom/classe/période
+      // Vérifier l'unicité nom/classe/salle/période
       const existe = await DataObjectExiste("horaires", {
         nom: data.nom.trim(),
         classe: data.classe.trim(),
+        salle: data.salle.trim(),
         annee_scolaire_id: data.annee_scolaire_id,
         deleted: false,
       });
 
       if (existe) {
-        throw new Error("Un horaire avec ce nom existe déjà pour cette classe");
+        throw new Error("Un horaire avec ce nom existe déjà pour cette classe et cette salle");
       }
 
       const payload: Omit<HoraireDB, "id" | "created_at" | "updated_at"> = {
@@ -644,11 +645,12 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
       const existe = await DataObjectExiste("horaires", {
         nom: data.nom.trim(),
         classe: data.classe.trim(),
+        salle: data.salle.trim(),
         annee_scolaire_id: data.annee_scolaire_id,
         deleted: false,
       });
       if (existe) {
-        throw new Error("Un horaire avec ce nom existe déjà pour cette classe");
+        throw new Error("Un horaire avec ce nom existe déjà pour cette classe et cette salle");
       }
 
       const payload: Omit<HoraireDB, "id" | "created_at" | "updated_at"> = {

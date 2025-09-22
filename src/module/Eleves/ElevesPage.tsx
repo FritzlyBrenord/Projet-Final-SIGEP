@@ -19,7 +19,7 @@ import {
 import ReenrollmentModal from "./Reinscription/Reinscription";
 import ExportModal from "./ExportModal";
 import CitySelect from "../../components/CitySelect";
-import Spinner from "../../components/Spinner";
+
 import DoublonConfirmationModal from "../../components/DoublonConfirmationModal";
 import { useEleves } from "../../Context/ContextEleves";
 import { useAnneeScolaire } from "../../Context/ContextAnneeScolaire";
@@ -29,6 +29,7 @@ import {
   DoublonEleve,
   EleveFormData,
 } from "../../types/EleveTypeV2";
+import Spinner from "@/utils/Spinner/Spinner";
 
 interface Props {
   isDarkMode: boolean;
@@ -55,6 +56,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
   const [filterBirthPlace, setFilterBirthPlace] = useState("");
   const [filterAddress, setFilterAddress] = useState("");
   const [filterPreviousSchool, setFilterPreviousSchool] = useState("");
+  const [sortBy, setSortBy] = useState("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<EleveAffiche | null>(
     null
@@ -216,6 +219,41 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       );
     }
 
+    // Appliquer le tri
+    if (sortBy) {
+      filtered.sort((a: EleveAffiche, b: EleveAffiche) => {
+        let aValue: string;
+        let bValue: string;
+
+        switch (sortBy) {
+          case "nom":
+            aValue = a.nom.toLowerCase();
+            bValue = b.nom.toLowerCase();
+            break;
+          case "prenom":
+            aValue = a.prenom.toLowerCase();
+            bValue = b.prenom.toLowerCase();
+            break;
+          case "code":
+            aValue = a.code.toLowerCase();
+            bValue = b.code.toLowerCase();
+            break;
+          case "date_naissance":
+            aValue = a.date_naissance;
+            bValue = b.date_naissance;
+            break;
+          default:
+            return 0;
+        }
+
+        if (sortOrder === "asc") {
+          return aValue.localeCompare(bValue);
+        } else {
+          return bValue.localeCompare(aValue);
+        }
+      });
+    }
+
     setFilteredStudents(filtered);
   }, [
     eleves,
@@ -228,6 +266,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     filterBirthPlace,
     filterAddress,
     filterPreviousSchool,
+    sortBy,
+    sortOrder,
     rechercherEleves,
   ]);
 
@@ -632,15 +672,14 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         {/* Barre d'actions et filtres */}
         <div className={`${cardClasses} p-6 rounded-lg shadow-sm border mb-6`}>
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between mb-6">
-            <button
-              onClick={() => setShowForm(true)}
-              className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors`}
-            >
-              <Plus className="h-4 w-4" />
-              Ajouter un élève
-            </button>
-
-            <div className="flex gap-2">
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowForm(true)}
+                className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors`}
+              >
+                <Plus className="h-4 w-4" />
+                Inscription
+              </button>
               <button
                 onClick={() => setShowReinscriptionModal(true)}
                 className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -648,6 +687,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                 <GraduationCap className="h-4 w-4" />
                 Réinscription
               </button>
+            </div>
+            <div className="flex gap-2">
               <button
                 onClick={() => setShowExportModal(true)}
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
@@ -741,82 +782,140 @@ const ElevesPage = ({ isDarkMode }: Props) => {
 
           {/* Filtres avancés */}
           {showAdvancedFilters && (
-            <div
-              className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 border-t ${
-                isDarkMode ? "border-gray-600" : "border-gray-200"
-              }`}
-            >
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  Tranche d'âge
-                </label>
-                <select
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                  value={filterAge}
-                  onChange={(e) => setFilterAge(e.target.value)}
-                >
-                  <option value="">Tous les âges</option>
-                  <option value="12-14">12-14 ans</option>
-                  <option value="15-17">15-17 ans</option>
-                  <option value="18-20">18-20 ans</option>
-                </select>
+            <>
+              <div
+                className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 border-t ${
+                  isDarkMode ? "border-gray-600" : "border-gray-200"
+                }`}
+              >
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Tranche d'âge
+                  </label>
+                  <select
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                    value={filterAge}
+                    onChange={(e) => setFilterAge(e.target.value)}
+                  >
+                    <option value="">Tous les âges</option>
+                    <option value="12-14">12-14 ans</option>
+                    <option value="15-17">15-17 ans</option>
+                    <option value="18-20">18-20 ans</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Lieu de naissance
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Port-au-Prince, Cap-Haïtien..."
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                    value={filterBirthPlace}
+                    onChange={(e) => setFilterBirthPlace(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Adresse actuelle
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Delmas, Pétion-Ville..."
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                    value={filterAddress}
+                    onChange={(e) => setFilterAddress(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    École précédente
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="École Saint-Joseph..."
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                    value={filterPreviousSchool}
+                    onChange={(e) => setFilterPreviousSchool(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  Lieu de naissance
-                </label>
-                <input
-                  type="text"
-                  placeholder="Port-au-Prince, Cap-Haïtien..."
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                  value={filterBirthPlace}
-                  onChange={(e) => setFilterBirthPlace(e.target.value)}
-                />
-              </div>
+              {/* Section de tri */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 border-t border-gray-200 dark:border-gray-600">
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Trier par
+                  </label>
+                  <select
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                  >
+                    <option value="">Aucun tri</option>
+                    <option value="nom">Nom (A-Z)</option>
+                    <option value="prenom">Prénom (A-Z)</option>
+                    <option value="code">Code (A-Z)</option>
+                    <option value="date_naissance">Date de naissance</option>
+                  </select>
+                </div>
 
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  Adresse actuelle
-                </label>
-                <input
-                  type="text"
-                  placeholder="Delmas, Pétion-Ville..."
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                  value={filterAddress}
-                  onChange={(e) => setFilterAddress(e.target.value)}
-                />
-              </div>
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Ordre
+                  </label>
+                  <select
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+                    disabled={!sortBy}
+                  >
+                    <option value="asc">Croissant (A-Z)</option>
+                    <option value="desc">Décroissant (Z-A)</option>
+                  </select>
+                </div>
 
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  École précédente
-                </label>
-                <input
-                  type="text"
-                  placeholder="École Saint-Joseph..."
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                  value={filterPreviousSchool}
-                  onChange={(e) => setFilterPreviousSchool(e.target.value)}
-                />
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setSortBy("");
+                      setSortOrder("asc");
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses} hover:bg-opacity-80`}
+                    disabled={!sortBy}
+                  >
+                    Réinitialiser le tri
+                  </button>
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
@@ -1326,7 +1425,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                 <h2 className="text-xl font-bold">
                   {editingStudent
                     ? "Modifier l'élève"
-                    : "Ajouter un nouvel élève"}
+                    : "Inscrit un nouvel élève"}
                 </h2>
                 <button
                   type="button"
@@ -1521,9 +1620,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                       }
                     }}
                   />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Optionnel - 10 chiffres exactement
-                  </p>
                 </div>
                 <div className="md:col-span-2">
                   <label

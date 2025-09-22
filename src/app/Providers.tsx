@@ -8,6 +8,7 @@ import { NotesProvider } from "@/Context/ContextNotes";
 import { FraisScolariteProvider } from "@/Context/ContextPaiement";
 import { DecisionFinAnneeProvider } from "@/Context/ContextDecisionFinAnnee";
 import { CalendrierScolaireProvider } from "@/Context/CalendrierScolaire";
+import { RecentActivitiesProvider } from "@/Context/RecentActivitiesContext";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -18,7 +19,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             <DecisionFinAnneeProvider>
               <FraisScolariteProvider>
                 <EmployerProvider>
-                  <ProfesseurProvider>{children}</ProfesseurProvider>
+                  <ProfesseurProvider>
+                    <RecentActivitiesProvider>
+                      {children}
+                    </RecentActivitiesProvider>
+                  </ProfesseurProvider>
                 </EmployerProvider>
               </FraisScolariteProvider>
             </DecisionFinAnneeProvider>

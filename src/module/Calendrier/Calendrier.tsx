@@ -88,6 +88,17 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     rechargerDonnees,
   } = useCalendrierScolaire();
   const { currentYear } = useAnneeScolaire();
+
+  // Fonctions helper pour récupérer les noms des classes et salles
+  const getClasseName = (classeId: string) => {
+    return currentYear?.classes.find((c) => c.id === classeId)?.name || classeId;
+  };
+
+  const getSalleName = (classeId: string, salleId: string) => {
+    const classe = currentYear?.classes.find((c) => c.id === classeId);
+    return classe?.salles.find((s) => s.id === salleId)?.name || salleId;
+  };
+
   const [showEventModal, setShowEventModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -488,40 +499,52 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
   };
 
   const saveSchedule = async () => {
-    if (conflictWarning) {
-      alert("Impossible de sauvegarder: " + conflictWarning);
-      return;
-    }
-    if (!currentYear?.id) return;
+    try {
+      if (conflictWarning) {
+        alert("Impossible de sauvegarder: " + conflictWarning);
+        return;
+      }
+      if (!currentYear?.id) return;
 
-    // Créer l'horaire et récupérer son id immédiatement
-    const created = await ajouterHoraireReturn({
-      nom: newSchedule.name,
-      classe: newSchedule.className,
-      salle: newSchedule.room,
-      date_debut: newSchedule.startDate,
-      date_fin: newSchedule.endDate,
-      annee_scolaire_id: currentYear.id,
-    });
+      // Créer l'horaire et récupérer son id immédiatement
+      const created = await ajouterHoraireReturn({
+        nom: newSchedule.name,
+        classe: newSchedule.className,
+        salle: newSchedule.room,
+        date_debut: newSchedule.startDate,
+        date_fin: newSchedule.endDate,
+        annee_scolaire_id: currentYear.id,
+      });
 
-    for (const day of scheduleDetails) {
-      const dateStr = day.date.toISOString().split("T")[0];
-      for (const slot of day.schedule) {
-        if (slot.startTime && slot.endTime && (slot.subjects || []).length) {
-          await ajouterCreneauHoraire({
-            horaire_id: created.id,
-            date_specifique: dateStr,
-            heure_debut: slot.startTime,
-            heure_fin: slot.endTime,
-            matieres: slot.subjects,
-            annee_scolaire_id: currentYear.id,
-          });
+      for (const day of scheduleDetails) {
+        const dateStr = day.date.toISOString().split("T")[0];
+        for (const slot of day.schedule) {
+          if (slot.startTime && slot.endTime && (slot.subjects || []).length) {
+            await ajouterCreneauHoraire({
+              horaire_id: created.id,
+              date_specifique: dateStr,
+              heure_debut: slot.startTime,
+              heure_fin: slot.endTime,
+              matieres: slot.subjects,
+              annee_scolaire_id: currentYear.id,
+            });
+          }
         }
       }
-    }
 
-    await rechargerDonnees();
-    resetScheduleForm();
+      await rechargerDonnees();
+      
+      // Fermer le modal après sauvegarde réussie
+      setShowScheduleModal(false);
+      resetScheduleForm();
+      
+      // Message de confirmation
+      alert("Horaire enregistré avec succès !");
+      
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde de l'horaire:", error);
+      alert("Erreur lors de la sauvegarde de l'horaire. Veuillez réessayer.");
+    }
   };
 
   const editEvent = (event: Event) => {
@@ -981,8 +1004,8 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
             <div class="schedule-info">
               <h3>${schedule.name}</h3>
               <div class="schedule-meta">
-                <span><strong>Classe:</strong> ${schedule.className}</span>
-                <span><strong>Salle:</strong> ${schedule.room}</span>
+                <span><strong>Classe:</strong> ${getClasseName(schedule.className)}</span>
+                <span><strong>Salle:</strong> ${getSalleName(schedule.className, schedule.room)}</span>
                 <span><strong>Du:</strong> ${new Date(
                   schedule.startDate
                 ).toLocaleDateString("fr-FR")}</span>
@@ -1535,7 +1558,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                       <p
                         className={darkMode ? "text-gray-400" : "text-gray-600"}
                       >
-                        {schedule.className} - Salle: {schedule.room}
+                        {getClasseName(schedule.className)} - Salle: {getSalleName(schedule.className, schedule.room)}
                       </p>
                       <p
                         className={`text-sm ${
