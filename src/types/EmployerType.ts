@@ -4,11 +4,11 @@ export const FONCTIONS = [
   "Censeur",
   "Surveillant",
   "Directeur",
-  "Directeur pédagogique",
+  "Adjoint",
   "Secrétaire",
   "Économe",
   "Gardien",
-  "Préciser",
+  
 ] as const;
 
 export const DEPARTEMENTS = [
@@ -16,7 +16,7 @@ export const DEPARTEMENTS = [
   "Censora",
   "Economat",
   "Administration",
-  "Préciser",
+  "Pédagogique",
 ] as const;
 
 export interface Employer {

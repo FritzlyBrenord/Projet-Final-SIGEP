@@ -118,21 +118,81 @@ export const InsertDataReturn = async (
   data: object
 ): Promise<{ success: boolean; rows?: any[]; error?: any }> => {
   try {
+    console.log("📥 InsertDataReturn - Table:", table);
+    console.log("📥 InsertDataReturn - Data:", data);
+
     const { data: rows, error } = await supabase
       .from(table)
       .insert(data)
       .select();
 
-    if (!error) {
-      return { success: true, rows };
+    console.log("📥 InsertDataReturn - Rows:", rows);
+    console.log("📥 InsertDataReturn - Error:", error);
+
+    if (error) {
+      console.error("❌ Erreur Supabase:", error);
+      return { success: false, error };
     }
-    return { success: false, error };
+
+    if (!rows || rows.length === 0) {
+      console.error("❌ Aucune ligne retournée");
+      return { success: false, error: "Aucune ligne insérée" };
+    }
+
+    console.log("✅ Insertion réussie:", rows);
+    return { success: true, rows };
   } catch (err) {
-    console.error("Erreur lors de l'insertion avec retour: ", err);
+    console.error("❌ Exception dans InsertDataReturn:", err);
     return { success: false, error: err };
   }
 };
+export const BanUserAdmin = async (userId: string) => {
+  try {
+    const response = await fetch("/api/auth/ban-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
 
+    const result = await response.json();
+    return result.success ? { succes: true } : { succes: false };
+  } catch (error) {
+    console.error("Erreur ban user:", error);
+    return { succes: false };
+  }
+};
+
+export const UnbanUserAdmin = async (userId: string) => {
+  try {
+    const response = await fetch("/api/auth/unban-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+
+    const result = await response.json();
+    return result.success ? { succes: true } : { succes: false };
+  } catch (error) {
+    console.error("Erreur unban user:", error);
+    return { succes: false };
+  }
+};
+
+export const VerifierUtilisateurAuth = async (userId: string) => {
+  try {
+    const response = await fetch("/api/auth/verify-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+
+    const result = await response.json();
+    return result.success && result.exists ? result.user : null;
+  } catch (error) {
+    console.error("Erreur vérification user:", error);
+    return null;
+  }
+};
 export const SelectData = async (table: string) => {
   try {
     const { error, data } = await supabase
@@ -275,22 +335,29 @@ export const SignUp = async (email: string, password: string) => {
 };
 
 export const SignIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
   try {
-    if (!error) {
-      if (data.session) {
-        document.cookie = `sb-access-token=${data.session.access_token}; path=/`;
-        document.cookie = `sb-refresh-token=${data.session.refresh_token}; path=/`;
-      }
-      return true;
-    } else {
-      return false;
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      // Retourner l'erreur avec ses détails
+      return { success: false, error };
     }
+
+    if (data.session) {
+      document.cookie = `sb-access-token=${data.session.access_token}; path=/`;
+      document.cookie = `sb-refresh-token=${data.session.refresh_token}; path=/`;
+    }
+
+    return { success: true };
   } catch (err) {
-    console.error("Erreur lors de modification ", err);
+    console.error("Erreur lors de la connexion:", err);
+    return {
+      success: false,
+      error: { message: "Erreur inattendue lors de la connexion" },
+    };
   }
 };
 
@@ -340,55 +407,98 @@ export const UpdateEmail = async (newValeur: string) => {
     return { succes: true };
   } catch (error) {}
 };
+
 export const UpdateEmailAdmin = async (newValeur: string, userId: string) => {
   try {
-    const { data, error } = await supabase.auth.admin.updateUserById(userId, {
-      email: newValeur,
+    const response = await fetch("/api/auth/update-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, email: newValeur }),
     });
-    if (error) {
-      throw error;
-    }
-    return { succes: true };
-  } catch (error) {}
+
+    const result = await response.json();
+    return result.success ? { succes: true } : { succes: false };
+  } catch (error) {
+    console.error("Erreur update email:", error);
+    return { succes: false };
+  }
 };
+
 export const UpdatePasswordAdmin = async (
   newValeur: string,
   userId: string
 ) => {
-  try {
-    const { data, error } = await supabase.auth.admin.updateUserById(userId, {
-      password: newValeur,
-    });
-    if (error) {
-      throw error;
-    }
-    return { succes: true };
-  } catch (error) {}
-};
-export const DeleteUserAdmin = async (userId: string) => {
-  try {
-    const { data, error } = await supabase.auth.admin.deleteUser(userId);
-    if (error) {
-      throw error;
-    }
-    return { succes: true };
-  } catch (error) {}
-};
-export const CreerUtilisateur = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
+  console.log("🔐 UpdatePasswordAdmin appelé:", {
+    userId,
+    passwordLength: newValeur?.length,
   });
 
   try {
-    if (!error) {
-      return data.user.id;
-    } else {
-      return false;
+    const response = await fetch("/api/auth/update-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, password: newValeur }),
+    });
+
+    console.log("📡 Response status:", response.status);
+
+    const result = await response.json();
+    console.log("📦 Response data:", result);
+
+    if (!response.ok) {
+      console.error("❌ Erreur HTTP:", result);
+      return { succes: false, error: result.error };
     }
+
+    if (result.success) {
+      console.log("✅ Password mis à jour avec succès");
+      return { succes: true };
+    } else {
+      console.error("❌ Success = false:", result);
+      return { succes: false, error: result.error };
+    }
+  } catch (error) {
+    console.error("💥 Exception update password:", error);
+    return { succes: false, error };
+  }
+};
+
+export const DeleteUserAdmin = async (userId: string) => {
+  try {
+    const response = await fetch("/api/auth/delete-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId }),
+    });
+
+    const result = await response.json();
+    return result.success ? { succes: true } : { succes: false };
+  } catch (error) {
+    console.error("Erreur delete user:", error);
+    return { succes: false };
+  }
+};
+export const CreerUtilisateur = async (email: string, password: string) => {
+  try {
+    const response = await fetch("/api/auth/create-user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      console.error("Erreur création auth:", result.error);
+      return null;
+    }
+
+    return result.userId;
   } catch (err) {
-    console.error("Erreur lors de modification ", err);
+    console.error("Exception:", err);
+    return null;
   }
 };
 

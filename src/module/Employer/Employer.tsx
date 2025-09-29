@@ -575,53 +575,6 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
               Filtres
             </button>
 
-            {showFilters && (
-              <div className="flex gap-3 w-full lg:w-auto">
-                <div className="w-48">
-                  <SelectWithSearch
-                    options={[
-                      { value: "", label: "Toutes les fonctions" },
-                      ...fonctionOptions,
-                    ]}
-                    selectedValues={filterFonction ? [filterFonction] : [""]}
-                    onChange={(values) => setFilterFonction(values[0] || "")}
-                    placeholder="Filtrer par fonction"
-                    multiple={false}
-                    isDarkMode={isDarkMode}
-                  />
-                </div>
-                <div className="w-56">
-                  <SelectWithSearch
-                    options={[
-                      { value: "", label: "Tous les départements" },
-                      ...departementOptions,
-                    ]}
-                    selectedValues={
-                      filterDepartement ? [filterDepartement] : [""]
-                    }
-                    onChange={(values) => setFilterDepartement(values[0] || "")}
-                    placeholder="Filtrer par département"
-                    multiple={false}
-                    isDarkMode={isDarkMode}
-                  />
-                </div>
-                <div className="w-40">
-                  <SelectWithSearch
-                    options={[
-                      { value: "", label: "Tous les statuts" },
-                      { value: "actif", label: "Actif" },
-                      { value: "inactif", label: "Inactif" },
-                    ]}
-                    selectedValues={filterStatut ? [filterStatut] : [""]}
-                    onChange={(values) => setFilterStatut(values[0] || "")}
-                    placeholder="Filtrer par statut"
-                    multiple={false}
-                    isDarkMode={isDarkMode}
-                  />
-                </div>
-              </div>
-            )}
-
             <button
               onClick={() => openModal("add")}
               disabled={!currentYear}
@@ -645,8 +598,8 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
           </div>
         </div>
 
-        {showFilters && (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {!showFilters && (
+          <div className="mb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div>
               <SelectWithSearch
                 options={[
@@ -1249,11 +1202,7 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
                           className={`text-xs mt-1 ${
                             isDarkMode ? "text-gray-400" : "text-gray-500"
                           }`}
-                        >
-                          Saisissez exactement 10 chiffres. Si le numéro
-                          commence par 0, il sera automatiquement formaté avec
-                          des tirets.
-                        </p>
+                        ></p>
                       </div>
 
                       <div>

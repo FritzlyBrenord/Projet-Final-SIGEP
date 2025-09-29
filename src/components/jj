@@ -1,0 +1,331 @@
+import React, { useEffect, useState, useCallback } from "react";
+import { useRouter, usePathname, useParams } from "next/navigation";
+import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
+import { AlertTriangle, Shield, Loader2 } from "lucide-react";
+
+// Importer les workflows du système UUID unifié
+import {
+  protectedRouteWorkflow,
+  loginWorkflow,
+} from "@/utils/UUid/uuidManager";
+import Uuid from "@/utils/UUid/Uuid";
+
+// Interface pour les props du composant
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  showLoader?: boolean;
+}
+
+// Composant principal ProtectedRoute
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+  children,
+  showLoader = true,
+}) => {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useParams();
+    const { uuid, rafrechieUUID } = Uuid();
+  const { currentSession, loading: contextLoading } = useContextUtilisateur();
+
+  const [isChecking, setIsChecking] = useState(true);
+  const [securityError, setSecurityError] = useState<string | null>(null);
+
+  // Fonction pour rediriger vers la racine avec un message de sécurité
+  const redirectToHomeWithReason = useCallback(
+    (reason: string) => {
+      const { redirectUrl } =
+        protectedRouteWorkflow.redirectToHomeWithReason(reason);
+      router.replace(redirectUrl);
+    },
+    [router]
+  );
+
+  // Fonction pour rediriger vers le tableau de bord avec UUID
+  const redirectToSecureDashboard = useCallback(() => {
+    const { redirectUrl } = protectedRouteWorkflow.redirectToSecureRoute();
+    router.replace(redirectUrl);
+  }, [router]);
+
+  // Nettoyer les UUIDs expirés au chargement
+  useEffect(() => {
+    protectedRouteWorkflow.checkAndCleanExpired(24 * 60 * 60 * 1000); // 24 heures
+  }, []);
+
+  // Vérification de l'URL et du paramètre UUID pour les routes du tableau de bord
+  useEffect(() => {
+    // Si on est sur la route du tableau de bord avec un paramètre UUID
+    if (protectedRouteWorkflow.shouldValidateRoute(pathname) && params?.uuid) {
+      const uuidParam = params.uuid as string;
+
+      // Validation complète de l'UUID avec workflow
+      const validationResult =
+        protectedRouteWorkflow.validateRouteAccess(uuidParam);
+
+      if (!validationResult.isValid && validationResult.shouldRedirect) {
+        console.warn(
+          `UUID validation échouée: ${uuidParam} - ${validationResult.message}`
+        );
+
+        setSecurityError(`Accès refusé: ${validationResult.message}`);
+        setTimeout(
+          () => redirectToHomeWithReason(validationResult.redirectReason!),
+          2000
+        );
+        return;
+      }
+
+      if (validationResult.isValid) {
+        console.log(`UUID validé avec succès: ${uuidParam}`);
+        setSecurityError(null);
+      }
+    }
+  }, [pathname, params, redirectToHomeWithReason]);
+
+  // Vérification de sécurité principale
+  useEffect(() => {
+    const checkAccess = () => {
+      setIsChecking(true);
+
+      // Si le contexte est encore en cours de chargement
+      if (contextLoading) {
+        return;
+      }
+
+      // Routes publiques (racine, login)
+      if (pathname === "/" || pathname === "/login") {
+        if (currentSession.isAuthenticated) {
+          // Utilisateur déjà connecté, vérifier s'il a un UUID valide
+          const sessionCheck = loginWorkflow.checkExistingSession();
+
+          if (sessionCheck.hasValidSession && sessionCheck.redirectUrl) {
+            // Rediriger vers le dashboard existant
+            router.replace(sessionCheck.redirectUrl);
+          } else {
+            // Générer un nouveau UUID et rediriger
+            redirectToSecureDashboard();
+          }
+          return;
+        }
+        setIsChecking(false);
+        return;
+      }
+
+      // Vérifier si l'utilisateur est authentifié pour les autres routes
+      if (!currentSession.isAuthenticated) {
+        // Rediriger vers la racine avec message si pas de session
+        redirectToHomeWithReason("not_authenticated");
+        return;
+      }
+
+      // Vérifier les permissions utilisateur
+      if (!currentSession.canAccess) {
+        redirectToHomeWithReason("insufficient_permissions");
+        return;
+      }
+
+      // Vérifier si les données utilisateur sont présentes
+      if (!currentSession.user) {
+        redirectToHomeWithReason("user_data_missing");
+        return;
+      }
+
+      // Vérifier si le rôle utilisateur est défini
+      if (!currentSession.user.role) {
+        redirectToHomeWithReason("role_undefined");
+        return;
+      }
+
+      // Si on est déjà sur une page du tableau de bord avec UUID valide, permettre l'accès
+      if (
+        protectedRouteWorkflow.shouldValidateRoute(pathname) &&
+        params?.uuid
+      ) {
+        const uuidParam = params.uuid as string;
+
+        // Double vérification de l'UUID avec workflow
+        const validationResult =
+          protectedRouteWorkflow.validateRouteAccess(uuidParam);
+        if (validationResult.isValid) {
+          setIsChecking(false);
+          return;
+        } else {
+          redirectToHomeWithReason(
+            validationResult.redirectReason || "url_tampered"
+          );
+          return;
+        }
+      }
+
+      // Pour toute autre route protégée, rediriger vers le tableau de bord
+      redirectToSecureDashboard();
+    };
+
+    checkAccess();
+  }, [
+    currentSession.isAuthenticated,
+    currentSession.canAccess,
+    currentSession.user,
+    contextLoading,
+    pathname,
+    params,
+    router,
+    redirectToSecureDashboard,
+    redirectToHomeWithReason,
+  ]);
+
+  // Nettoyer l'état lors de la déconnexion
+  useEffect(() => {
+    if (!contextLoading && !currentSession.isAuthenticated) {
+      // Nettoyer localStorage lors de la déconnexion
+      protectedRouteWorkflow.handleLogout();
+
+      // Rediriger vers la racine si on n'est pas déjà sur une route publique
+      if (pathname !== "/" && pathname !== "/login") {
+        redirectToHomeWithReason("session_expired");
+      }
+    }
+  }, [
+    currentSession.isAuthenticated,
+    contextLoading,
+    pathname,
+    redirectToHomeWithReason,
+  ]);
+
+  // Surveillance des changements de route pour la sécurité
+  useEffect(() => {
+    const handleRouteChange = () => {
+      // Vérifier si l'utilisateur tente d'accéder à une route protégée sans authentification
+      if (
+        pathname.startsWith("/SIGEP-Tableau-De-Bord/") &&
+        !currentSession.isAuthenticated
+      ) {
+        redirectToHomeWithReason("not_authenticated");
+      }
+    };
+
+    handleRouteChange();
+  }, [pathname, currentSession.isAuthenticated, redirectToHomeWithReason]);
+
+  // Affichage en cas d'erreur de sécurité
+  if (securityError) {
+    return <ErrorScreen message={securityError} />;
+  }
+
+  // Affichage pendant la vérification
+  if (contextLoading || isChecking) {
+    return showLoader ? <LoadingScreen /> : null;
+  }
+
+  // Afficher le contenu (pour les routes publiques ou les pages du tableau de bord autorisées)
+  return <>{children}</>;
+};
+
+// Composant d'écran d'erreur pour les violations de sécurité
+const ErrorScreen: React.FC<{ message: string }> = ({ message }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-900 via-red-800 to-red-900">
+    <div className="text-center max-w-md mx-auto p-8">
+      <div className="relative mb-6">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <AlertTriangle className="w-10 h-10 text-red-600" />
+        </div>
+      </div>
+
+      <h2 className="text-2xl font-bold text-white mb-4">Accès Refusé</h2>
+      <p className="text-red-200 mb-6">{message}</p>
+
+      <div className="bg-red-800/30 rounded-lg p-4 mb-6">
+        <p className="text-sm text-red-200">
+          <span className="font-medium">Sécurité:</span> Violation de sécurité
+          détectée
+        </p>
+        <p className="text-xs text-red-300 mt-1">
+          UUID/Session validation failed
+        </p>
+      </div>
+
+      <div className="flex items-center justify-center mt-4 space-x-2">
+        <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+        <span className="text-sm text-red-300">Redirection automatique...</span>
+      </div>
+
+      <div className="mt-8 text-xs text-red-300">
+        <p>© 2024 SIGEP - Institution Mixte Faustin Premier</p>
+        <p>Système de sécurité UUID + localStorage actif</p>
+      </div>
+    </div>
+  </div>
+);
+
+// Composant d'écran de chargement
+const LoadingScreen: React.FC = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+    <div className="text-center">
+      <div className="relative">
+        <div className="w-16 h-16 border-4 border-blue-200 border-top-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+        <Shield className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 text-blue-600" />
+      </div>
+      <h2 className="text-xl font-semibold text-white mb-2">
+        Vérification de l'accès sécurisé
+      </h2>
+      <p className="text-gray-400">Validation UUID et session en cours...</p>
+      <div className="flex items-center justify-center mt-4 space-x-2">
+        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+        <span className="text-sm text-gray-500">SIGEP Security v2.0</span>
+      </div>
+    </div>
+  </div>
+);
+
+// Hook personnalisé pour utiliser la protection des routes
+export const useRouteProtection = () => {
+  const { currentSession, loading } = useContextUtilisateur();
+  const router = useRouter();
+
+  const hasValidSession = (): boolean => {
+    return !loading && currentSession.isAuthenticated && !!currentSession.user;
+  };
+
+  const redirectToHome = (reason?: string) => {
+    if (reason) {
+      const { redirectUrl } =
+        protectedRouteWorkflow.redirectToHomeWithReason(reason);
+      router.push(redirectUrl);
+    } else {
+      protectedRouteWorkflow.handleLogout();
+      router.push("/");
+    }
+  };
+
+  const redirectToSecureDashboard = useCallback(() => {
+    const { redirectUrl } = protectedRouteWorkflow.redirectToSecureRoute();
+    router.push(redirectUrl);
+  }, [router]);
+
+  const validateCurrentRoute = (
+    pathname: string,
+    uuidParam?: string
+  ): boolean => {
+    if (!protectedRouteWorkflow.shouldValidateRoute(pathname) || !uuidParam) {
+      return true; // Route publique ou pas de UUID requis
+    }
+
+    const validation = protectedRouteWorkflow.validateRouteAccess(uuidParam);
+    return validation.isValid;
+  };
+
+  return {
+    isAuthenticated: currentSession.isAuthenticated,
+    isLoading: loading,
+    user: currentSession.user,
+    canAccess: currentSession.canAccess,
+    hasValidSession,
+    redirectToHome,
+    redirectToSecureDashboard,
+    validateCurrentRoute,
+    // Workflows pour usage externe
+    loginWorkflow,
+    protectedRouteWorkflow,
+  };
+};
+
+export default ProtectedRoute;

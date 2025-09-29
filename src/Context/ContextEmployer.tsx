@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
 } from "react";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
 import {
@@ -31,7 +32,6 @@ interface EmployerDB {
   responsabilites?: string;
   fonction?: string;
   departement?: string;
-  departement_preciser?: string;
   statut: "actif" | "inactif";
   annee_scolaire_id: string;
   deleted: boolean;
@@ -92,7 +92,6 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({
     responsabilites: row.responsabilites,
     fonction: row.fonction,
     departement: row.departement,
-    departement_preciser: row.departement_preciser,
     statut: row.statut,
     annee_scolaire_id: row.annee_scolaire_id,
     deleted: row.deleted,
@@ -100,7 +99,8 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({
     updated_at: row.updated_at,
   });
 
-  const rechargerEmployes = async () => {
+  // ✅ Remplacer cette fonction
+  const rechargerEmployes = useCallback(async () => {
     try {
       setIsLoading(true);
       const data = await SelectData("employes");
@@ -111,7 +111,7 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []); // ✅ Tableau vide = charge TOUS les employés sans filtre d'année
 
   const chargerEmployesParAnnee = async (anneeId: string) => {
     try {
@@ -180,7 +180,6 @@ export const EmployerProvider: React.FC<{ children: ReactNode }> = ({
         responsabilites: employer.responsabilites || "",
         fonction: employer.fonction || "",
         departement: employer.departement || "",
-        departement_preciser: employer.departement_preciser || "",
         statut: employer.statut,
         annee_scolaire_id: employer.annee_scolaire_id,
         deleted: false,

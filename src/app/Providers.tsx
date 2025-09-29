@@ -9,27 +9,30 @@ import { FraisScolariteProvider } from "@/Context/ContextPaiement";
 import { DecisionFinAnneeProvider } from "@/Context/ContextDecisionFinAnnee";
 import { CalendrierScolaireProvider } from "@/Context/CalendrierScolaire";
 import { RecentActivitiesProvider } from "@/Context/RecentActivitiesContext";
+import { ContextUtilisateur } from "@/Context/ContextUtilisateur";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <AnneeScolaireProvider>
-      <ElevesProvider>
-        <CalendrierScolaireProvider>
-          <NotesProvider>
-            <DecisionFinAnneeProvider>
-              <FraisScolariteProvider>
+    <ContextUtilisateur>
+      <AnneeScolaireProvider>
+        <ElevesProvider>
+          <FraisScolariteProvider>
+            <NotesProvider>
+              <DecisionFinAnneeProvider>
                 <EmployerProvider>
                   <ProfesseurProvider>
-                    <RecentActivitiesProvider>
-                      {children}
-                    </RecentActivitiesProvider>
+                    <CalendrierScolaireProvider>
+                      <RecentActivitiesProvider>
+                        {children}
+                      </RecentActivitiesProvider>
+                    </CalendrierScolaireProvider>
                   </ProfesseurProvider>
                 </EmployerProvider>
-              </FraisScolariteProvider>
-            </DecisionFinAnneeProvider>
-          </NotesProvider>
-        </CalendrierScolaireProvider>
-      </ElevesProvider>
-    </AnneeScolaireProvider>
+              </DecisionFinAnneeProvider>
+            </NotesProvider>
+          </FraisScolariteProvider>
+        </ElevesProvider>
+      </AnneeScolaireProvider>
+    </ContextUtilisateur>
   );
 }
