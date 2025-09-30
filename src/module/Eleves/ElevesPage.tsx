@@ -30,6 +30,8 @@ import {
   EleveFormData,
 } from "../../types/EleveTypeV2";
 import Spinner from "@/utils/Spinner/Spinner";
+import { useRecentActivities } from "@/Context/RecentActivitiesContext";
+import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 
 interface Props {
   isDarkMode: boolean;
@@ -45,7 +47,9 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     rechercherEleves,
     genererNouveauCode,
   } = useEleves();
+  const { addActivity } = useRecentActivities();
   const { currentYear } = useAnneeScolaire();
+  const { currentSession } = useContextUtilisateur();
   const [filteredStudents, setFilteredStudents] = useState<EleveAffiche[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterClass, setFilterClass] = useState("");
@@ -102,6 +106,18 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     statut: "actif",
     observations: "",
   });
+
+  const getEleveNomPrenom = (
+    eleveId: string
+  ): { nom: string; prenom: string } | undefined => {
+    const eleve = eleves.find((e) => e.id === eleveId);
+    if (!eleve) return undefined;
+
+    return {
+      nom: eleve.nom,
+      prenom: eleve.prenom,
+    };
+  };
 
   // Classes et salles depuis l'année scolaire courante
   const classes = useMemo(
@@ -393,7 +409,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       ...formData,
       annee_scolaire_id: currentYear.id,
       nif_parents: formData.nif_parents ? formatNIF(formData.nif_parents) : "",
-      statut: "actif", // Statut automatiquement actif
+      statut: "actif",
     };
 
     try {
@@ -402,6 +418,12 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       if (editingStudent) {
         // Modification d'un élève existant
         await modifierEleve(editingStudent.id, payload);
+        await addActivity({
+          action: "modification",
+          module: "Gestion Élèves",
+          title: "Modification élève",
+          details: `L'élève ${payload.nom} ${payload.prenom} a été modifié.`,
+        });
         resetForm();
         setShowForm(false);
       } else {
@@ -416,6 +438,13 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         } else {
           // Aucun doublon, ajout direct
           await ajouterEleve(payload);
+
+          await addActivity({
+            action: "ajout",
+            module: "Gestion Élèves",
+            title: "Inscription élève",
+            details: `L'élève ${payload.nom} ${payload.prenom} a été inscrit.`,
+          });
           resetForm();
           setShowForm(false);
         }
@@ -504,6 +533,14 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         setIsDeleting(true);
         setLoadingStudentId(studentId);
         await supprimerEleve(studentId);
+        await addActivity({
+          action: "suppression",
+          module: "Gestion Élèves",
+          title: "Suppression élève",
+          details: `L'élève ${getEleveNomPrenom(studentId)?.nom} ${
+            getEleveNomPrenom(studentId)?.prenom
+          } a été supprimé.`,
+        });
       } catch (error) {
         console.error("Erreur lors de la suppression:", error);
         alert("Erreur lors de la suppression de l'élève");
@@ -894,7 +931,9 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   <select
                     className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                     value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+                    onChange={(e) =>
+                      setSortOrder(e.target.value as "asc" | "desc")
+                    }
                     disabled={!sortBy}
                   >
                     <option value="asc">Croissant (A-Z)</option>

@@ -6,6 +6,7 @@ import { useNotes } from "@/Context/ContextNotes";
 import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 import { SelectData, UpdateData } from "@/Config/SupabaseData";
 import { useEmployer } from "@/Context/ContextEmployer";
+import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 
 interface Props {
   isDarkMode: boolean;
@@ -42,6 +43,7 @@ const Corbeille = ({ isDarkMode }: Props) => {
     useNotes();
   const { currentYear } = useAnneeScolaire();
   const { restaurerEmployer, supprimerEmployerDefinitif, rechargerEmployes } = useEmployer();
+  const { addActivity } = useRecentActivities();
 
   const [page, setPage] = useState(1);
   const [deletedItems, setDeletedItems] = useState<TrashItem[]>([]);
@@ -94,12 +96,28 @@ const Corbeille = ({ isDarkMode }: Props) => {
                 await UpdateData("eleves_inscriptions", ins.id, { deleted: false });
                 await rechargerEleves();
                 await refreshDeleted();
+                await addActivity({
+                  action: "modification",
+                  module: "Gestion Élèves",
+                  title: "Restauration d'inscription élève",
+                  details: `Inscription restaurée (élève ${ins.eleve_id}).`,
+                  source_table: "eleves_inscriptions",
+                  entity_id: ins.id,
+                });
               },
               hardDelete: async () => {
                 // Suppression définitive de l'élève (toutes années)
                 await supprimerEleveDefinitif(ins.eleve_id);
                 await rechargerEleves();
                 await refreshDeleted();
+                await addActivity({
+                  action: "suppression",
+                  module: "Gestion Élèves",
+                  title: "Suppression définitive élève",
+                  details: `Élève supprimé définitivement (${ins.eleve_id}).`,
+                  source_table: "eleves",
+                  entity_id: ins.eleve_id,
+                });
               },
             } as TrashItem;
           });
@@ -117,11 +135,27 @@ const Corbeille = ({ isDarkMode }: Props) => {
                 await restaurerProfesseur(a.id);
                 await rechargerProfesseurs();
                 await refreshDeleted();
+                await addActivity({
+                  action: "modification",
+                  module: "Professeurs",
+                  title: "Restauration d'affectation professeur",
+                  details: `Affectation restaurée (${a.id}).`,
+                  source_table: "professeurs_affectations",
+                  entity_id: a.id,
+                });
               },
               hardDelete: async () => {
                 await supprimerProfesseurDefinitif(a.id);
                 await rechargerProfesseurs();
                 await refreshDeleted();
+                await addActivity({
+                  action: "suppression",
+                  module: "Professeurs",
+                  title: "Suppression définitive affectation",
+                  details: `Affectation supprimée définitivement (${a.id}).`,
+                  source_table: "professeurs_affectations",
+                  entity_id: a.id,
+                });
               },
             } as TrashItem;
           });
@@ -137,11 +171,27 @@ const Corbeille = ({ isDarkMode }: Props) => {
               await restaurerPaiement(pa.id);
               await rechargerDonnees();
               await refreshDeleted();
+              await addActivity({
+                action: "modification",
+                module: "Paiements",
+                title: "Restauration de paiement",
+                details: `Paiement ${pa.numero_recu} restauré.`,
+                source_table: "paiements",
+                entity_id: pa.id,
+              });
             },
             hardDelete: async () => {
               await supprimerPaiementDefinitif(pa.id);
               await rechargerDonnees();
               await refreshDeleted();
+              await addActivity({
+                action: "suppression",
+                module: "Paiements",
+                title: "Suppression définitive paiement",
+                details: `Paiement ${pa.numero_recu} supprimé définitivement.`,
+                source_table: "paiements",
+                entity_id: pa.id,
+              });
             },
           }));
 
@@ -156,11 +206,27 @@ const Corbeille = ({ isDarkMode }: Props) => {
               await restaurerNote(n.id);
               await rechargerNotes();
               await refreshDeleted();
+              await addActivity({
+                action: "modification",
+                module: "Notes",
+                title: "Restauration de note",
+                details: `Note ${n.id} restaurée (Trimestre ${n.trimestre}).`,
+                source_table: "notes",
+                entity_id: n.id,
+              });
             },
             hardDelete: async () => {
               await supprimerNoteDefinitif(n.id);
               await rechargerNotes();
               await refreshDeleted();
+              await addActivity({
+                action: "suppression",
+                module: "Notes",
+                title: "Suppression définitive note",
+                details: `Note ${n.id} supprimée définitivement.`,
+                source_table: "notes",
+                entity_id: n.id,
+              });
             },
           }));
 
@@ -175,11 +241,27 @@ const Corbeille = ({ isDarkMode }: Props) => {
               await restaurerEmployer(emp.id);
               await rechargerEmployes();
               await refreshDeleted();
+              await addActivity({
+                action: "modification",
+                module: "Employés",
+                title: "Restauration d'employé",
+                details: `Employé ${emp.code} restauré.`,
+                source_table: "employes",
+                entity_id: emp.id,
+              });
             },
             hardDelete: async () => {
               await supprimerEmployerDefinitif(emp.id);
               await rechargerEmployes();
               await refreshDeleted();
+              await addActivity({
+                action: "suppression",
+                module: "Employés",
+                title: "Suppression définitive employé",
+                details: `Employé ${emp.code} supprimé définitivement.`,
+                source_table: "employes",
+                entity_id: emp.id,
+              });
             },
           }));
 

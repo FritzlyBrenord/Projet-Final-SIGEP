@@ -25,7 +25,7 @@ interface UserProfile {
   id?: string;
   email_connexion: string;
   password_connexion: string;
-  role: "Administrateur" | "Utilisateur";
+  role: "Super Administrateur" | "Administrateur" | "Utilisateur";
   employer_id: string;
   isbloquer?: boolean;
   derniere_connexion?: string;
@@ -39,7 +39,7 @@ interface UserProfile {
 // Interface pour la session
 interface SessionData {
   user: any | null;
-  role: "Administrateur" | "Utilisateur";
+  role: "Super Administrateur" | "Administrateur" | "Utilisateur";
   employer: Employer | null;
   isAuthenticated: boolean;
   canAccess: boolean;

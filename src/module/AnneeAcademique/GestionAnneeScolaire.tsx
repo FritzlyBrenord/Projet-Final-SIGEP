@@ -34,6 +34,7 @@ import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 
 interface GestionAnneeScolaireProps {
   isDarkMode: boolean;
+  isSuperAdmin?: boolean;
 }
 
 // Modal de confirmation pour la suppression
@@ -329,6 +330,7 @@ const handlePrintSubjectsList = (salle: Salle) => {
 
 const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
   isDarkMode,
+  isSuperAdmin,
 }) => {
   const {
     schoolYears,
@@ -666,19 +668,20 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
               >
                 <Eye className="w-4 h-4" />
               </button>
-              {currentSession.role === "Administrateur" && (
-                <button
-                  onClick={() => handleEditYear(currentYear)}
-                  className={`px-4 py-2 rounded-lg border transition-colors ${
-                    isDarkMode
-                      ? "border-gray-600 text-gray-300 hover:bg-gray-700"
-                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                  }`}
-                  title="Modifier"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-              )}
+              {currentSession.role === "Administrateur" ||
+                (isSuperAdmin && (
+                  <button
+                    onClick={() => handleEditYear(currentYear)}
+                    className={`px-4 py-2 rounded-lg border transition-colors ${
+                      isDarkMode
+                        ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                    }`}
+                    title="Modifier"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                ))}
             </div>
           </div>
         </div>
@@ -849,22 +852,24 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {currentSession.role === "Administrateur" && (
-                          <button
-                            onClick={() => handleEditYear(schoolYear)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              isDarkMode
-                                ? "text-gray-400 hover:text-white hover:bg-gray-700"
-                                : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                            }`}
-                            title="Modifier"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                        )}
+                        {currentSession.role === "Administrateur" ||
+                          (isSuperAdmin && (
+                            <button
+                              onClick={() => handleEditYear(schoolYear)}
+                              className={`p-2 rounded-lg transition-colors ${
+                                isDarkMode
+                                  ? "text-gray-400 hover:text-white hover:bg-gray-700"
+                                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                              }`}
+                              title="Modifier"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          ))}
 
-                        {!isCurrentYear &&
-                          currentSession.role === "Administrateur" && (
+                        {(!isCurrentYear &&
+                          currentSession.role === "Administrateur") ||
+                          (isSuperAdmin && (
                             <button
                               onClick={() => handleDeleteYear(schoolYear.id)}
                               className={`p-2 rounded-lg transition-colors ${
@@ -876,7 +881,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
-                          )}
+                          ))}
                       </div>
                     </div>
                   </div>

@@ -34,6 +34,10 @@ import {
   Trophy,
   Medal,
   Crown,
+  Settings,
+  Trash2,
+  User,
+  RefreshCw,
 } from "lucide-react";
 
 // Import des contextes
@@ -42,7 +46,12 @@ import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 import { useEleves } from "@/Context/ContextEleves";
 import { useNotes } from "@/Context/ContextNotes";
 import { useDecisionFinAnnee } from "@/Context/ContextDecisionFinAnnee";
-import { useRecentActivities } from "@/Context/RecentActivitiesContext";
+import {
+  ActivityAction,
+  ActivityModule,
+  AUTO_DELETE_DAYS_OPTIONS,
+  useRecentActivities,
+} from "@/Context/RecentActivitiesContext";
 
 // Import des types
 import { Note } from "@/types/NoteType";
@@ -51,21 +60,43 @@ import { DecisionFinAnnee } from "@/types/DecisionFinAnneeType";
 import { EntetIMFP } from "../AnneeAcademique/module";
 
 // Types pour les activités utilisateur (gardé local car pas de contexte dédié)
-interface UserActivity {
+// interface UserActivity {
+//   id: string;
+//   userId: string;
+//   userName: string;
+//   action: string;
+//   module: string;
+//   date: string;
+//   heure: string;
+//   details: string;
+//   typeAction:
+//     | "connexion"
+//     | "modification"
+//     | "ajout"
+//     | "suppression"
+//     | "consultation";
+// }
+
+export interface UserActivity {
   id: string;
-  userId: string;
-  userName: string;
-  action: string;
-  module: string;
-  date: string;
-  heure: string;
-  details: string;
-  typeAction:
-    | "connexion"
-    | "modification"
-    | "ajout"
-    | "suppression"
-    | "consultation";
+  action: ActivityAction;
+  module: ActivityModule;
+  title: string;
+  details?: string;
+  source_table?: string;
+  entity_id?: string;
+  user_id: string;
+  user_email: string;
+  user_name?: string;
+  user_role?: string;
+  annee_scolaire_id?: string;
+  ip_address?: string;
+  user_agent?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  deleted?: boolean;
+  deleted_at?: string;
+  deleted_by?: string;
 }
 
 // Types étendus pour les rapports
@@ -1053,39 +1084,16 @@ const Rapport = ({ darkMode }: Props) => {
   }, [laureatsParClasse]);
 
   // Filtrage des activités
+  // Remplacer la première version de filteredActivities par :
   const filteredActivities = useMemo(() => {
-    const mapType = (a: any): UserActivity["typeAction"] => {
-      switch (a.action) {
-        case "ajout":
-          return "ajout";
-        case "modification":
-          return "modification";
-        case "suppression":
-          return "suppression";
-        default:
-          return "consultation";
+    return activities.filter((activity) => {
+      if (filterDate) {
+        const activityDate = new Date(activity.created_at)
+          .toISOString()
+          .slice(0, 10);
+        if (activityDate !== filterDate) return false;
       }
-    };
-    const convert = (a: any): UserActivity => {
-      const date = new Date(a.date);
-      const d = date.toISOString().slice(0, 10);
-      const h = date.toTimeString().split(" ")[0];
-      return {
-        id: a.id,
-        userId: "",
-        userName: "",
-        action: a.title,
-        module: a.module,
-        date: d,
-        heure: h,
-        details: a.details || "",
-        typeAction: mapType(a),
-      };
-    };
-    const list = activities.map(convert);
-    return list.filter((activity) => {
-      if (filterDate && activity.date !== filterDate) return false;
-      if (filterStatus !== "tous" && activity.typeAction !== filterStatus)
+      if (filterStatus !== "tous" && activity.action !== filterStatus)
         return false;
       return true;
     });
@@ -1144,313 +1152,865 @@ const Rapport = ({ darkMode }: Props) => {
     </div>
   );
 
-  const TracabilityModal = () => (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div
-        className={`w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-lg p-6 ${
-          darkMode ? "bg-gray-800" : "bg-white"
-        }`}
-      >
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-xl font-bold">
-            Traçabilité des Connexions et Actions
-          </h3>
-          <button
-            onClick={() => setShowTracability(false)}
-            className={`p-2 rounded-lg transition-colors ${
-              darkMode ? "hover:bg-gray-700" : "hover:bg-gray-200"
-            }`}
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="flex justify-between items-center mb-4">
-          <div className="text-sm">
-            Page {activityPage} / {Math.max(1, Math.ceil(filteredActivities.length / 10))}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
-              className={`px-3 py-2 rounded ${
-                darkMode ? "bg-gray-600 hover:bg-gray-500" : "bg-gray-200 hover:bg-gray-300"
-              }`}
-              disabled={activityPage <= 1}
-            >
-              Précédent
-            </button>
-            <button
-              onClick={() => setActivityPage((p) => Math.min(Math.ceil(filteredActivities.length / 10) || 1, p + 1))}
-              className={`px-3 py-2 rounded ${
-                darkMode ? "bg-gray-600 hover:bg-gray-500" : "bg-gray-200 hover:bg-gray-300"
-              }`}
-              disabled={activityPage >= (Math.ceil(filteredActivities.length / 10) || 1)}
-            >
-              Suivant
-            </button>
-            <button
-              onClick={() => {
-                const win = window.open("", "_blank", "width=900,height=700");
-                if (!win) return;
-                const start = (activityPage - 1) * 10;
-                const pageItems = filteredActivities.slice(start, start + 10);
-                const rows = pageItems
-                  .map(
-                    (a) =>
-                      `<tr><td>${a.date} ${a.heure}</td><td>${a.module}</td><td>${
-                        a.typeAction
-                      }</td><td>${a.action}</td><td>${a.details || ""}</td></tr>`
-                  )
-                  .join("");
-                win.document.write(
-                  `<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Traçabilité</title><style>body{font-family:Arial, sans-serif;color:#111} table{width:100%;border-collapse:collapse} th,td{border:1px solid #ddd;padding:8px;font-size:12px} th{background:#f2f2f2;text-align:left}</style></head><body><h2 style=\"margin:8px 0\">Journal des Activités (page ${activityPage})</h2><table><thead><tr><th>Date/Heure</th><th>Module</th><th>Type</th><th>Action</th><th>Détails</th></tr></thead><tbody>${rows}</tbody></table></body></html>`
-                );
-                win.document.close();
-                win.focus();
-                win.print();
-              }}
-              className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Imprimer
-            </button>
-          </div>
-        </div>
+  // Remplacer le TracabilityModal dans le composant Rapport par celui-ci
 
-        {/* Filtres */}
+  const TracabilityModal = () => {
+    const {
+      activities,
+      loading: activitiesLoading,
+      settings,
+      settingsLoading,
+      deleteActivity,
+      deleteActivities,
+      deleteAllActivities,
+      updateSettings,
+      triggerCleanup,
+    } = useRecentActivities();
+
+    const [showSettings, setShowSettings] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [localSettings, setLocalSettings] = useState({
+      auto_delete_enabled: false,
+      auto_delete_days: 30,
+      max_activities: 1000,
+    });
+    const [savingSettings, setSavingSettings] = useState(false);
+    const [cleanupResult, setCleanupResult] = useState<number | null>(null);
+    const [deletingActivities, setDeletingActivities] = useState(false);
+
+    // Charger les paramètres au montage
+    useEffect(() => {
+      if (settings) {
+        setLocalSettings({
+          auto_delete_enabled: settings.auto_delete_enabled,
+          auto_delete_days: settings.auto_delete_days,
+          max_activities: settings.max_activities,
+        });
+      }
+    }, [settings]);
+
+    // Filtrer les activités
+    // Dans le fichier Rapport.tsx, ligne ~1077
+    // Changez cette partie :
+
+    // Dans TracabilityModal, utiliser directement activities sans conversion
+    const filteredActivitiesInModal = useMemo(() => {
+      return activities.filter((activity) => {
+        if (filterDate) {
+          const activityDate = new Date(activity.created_at)
+            .toISOString()
+            .slice(0, 10);
+          if (activityDate !== filterDate) return false;
+        }
+        if (filterStatus !== "tous" && activity.action !== filterStatus)
+          return false;
+        return true;
+      });
+    }, [activities, filterDate, filterStatus]);
+    // Pagination
+    const startIndex = (activityPage - 1) * 10;
+    const endIndex = startIndex + 10;
+    const paginatedActivities = filteredActivitiesInModal.slice(
+      startIndex,
+      endIndex
+    );
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredActivitiesInModal.length / 10)
+    );
+    // Sélection
+    const handleSelectActivity = (id: string) => {
+      setSelectedIds((prev) =>
+        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      );
+    };
+
+    const handleSelectAll = () => {
+      if (selectedIds.length === paginatedActivities.length) {
+        setSelectedIds([]);
+      } else {
+        setSelectedIds(paginatedActivities.map((a) => a.id));
+      }
+    };
+
+    // Sauvegarder les paramètres
+    const handleSaveSettings = async () => {
+      setSavingSettings(true);
+      const success = await updateSettings(localSettings);
+      if (success) {
+        setShowSettings(false);
+      }
+      setSavingSettings(false);
+    };
+
+    // Nettoyage manuel
+    const handleManualCleanup = async () => {
+      if (!confirm("Déclencher le nettoyage automatique maintenant ?")) return;
+      const count = await triggerCleanup();
+      setCleanupResult(count);
+      setTimeout(() => setCleanupResult(null), 5000);
+    };
+
+    // Suppression
+    const handleDeleteSelected = async () => {
+      if (selectedIds.length === 0) return;
+      if (!confirm(`Supprimer ${selectedIds.length} activité(s) ?`)) return;
+
+      setDeletingActivities(true);
+      const success = await deleteActivities(selectedIds);
+      if (success) {
+        setSelectedIds([]);
+      }
+      setDeletingActivities(false);
+    };
+
+    const handleDeleteAll = async () => {
+      if (
+        !confirm(
+          "Supprimer TOUTES les activités visibles ? Cette action est irréversible."
+        )
+      )
+        return;
+
+      setDeletingActivities(true);
+      await deleteAllActivities();
+      setSelectedIds([]);
+      setDeletingActivities(false);
+    };
+
+    const handleDeleteOne = async (id: string) => {
+      if (!confirm("Supprimer cette activité ?")) return;
+      setDeletingActivities(true);
+      await deleteActivity(id);
+      setDeletingActivities(false);
+    };
+
+    // Statistiques
+    const stats = useMemo(() => {
+      return {
+        connexion: filteredActivitiesInModal.filter(
+          (a) => a.action === "connexion"
+        ).length,
+        ajout: filteredActivitiesInModal.filter((a) => a.action === "ajout")
+          .length,
+        modification: filteredActivitiesInModal.filter(
+          (a) => a.action === "modification"
+        ).length,
+        suppression: filteredActivitiesInModal.filter(
+          (a) => a.action === "suppression"
+        ).length,
+        reinscription: filteredActivitiesInModal.filter(
+          (a) => a.action === "reinscription"
+        ).length,
+      };
+    }, [filteredActivitiesInModal]);
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div
-          className={`mb-6 p-4 rounded-lg ${
-            darkMode ? "bg-gray-700" : "bg-gray-100"
+          className={`w-full max-w-7xl max-h-[95vh] overflow-hidden rounded-lg ${
+            darkMode ? "bg-gray-800" : "bg-white"
           }`}
         >
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Filtrer par date
-              </label>
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className={`w-full p-2 border rounded-lg ${
-                  darkMode
-                    ? "bg-gray-800 border-gray-600 text-white"
-                    : "bg-white border-gray-300"
-                }`}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Type d'action
-              </label>
-              <select
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className={`w-full p-2 border rounded-lg ${
-                  darkMode
-                    ? "bg-gray-800 border-gray-600 text-white"
-                    : "bg-white border-gray-300"
-                }`}
-              >
-                <option value="tous">Toutes les actions</option>
-                <option value="connexion">Connexions</option>
-                <option value="modification">Modifications</option>
-                <option value="ajout">Ajouts</option>
-
-                <option value="suppression">Suppressions</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={() => {
-                  setFilterDate("");
-                  setFilterStatus("tous");
-                }}
-                className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Réinitialiser
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Statistiques rapides */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Header */}
           <div
-            className={`p-3 rounded-lg text-center ${
-              darkMode ? "bg-blue-900" : "bg-blue-100"
+            className={`p-6 border-b ${
+              darkMode ? "border-gray-700" : "border-gray-200"
             }`}
           >
-            <p
-              className={`text-2xl font-bold ${
-                darkMode ? "text-blue-300" : "text-blue-600"
-              }`}
-            >
-              {
-                filteredActivities.filter((a) => a.typeAction === "connexion")
-                  .length
-              }
-            </p>
-            <p
-              className={`text-sm ${
-                darkMode ? "text-blue-400" : "text-blue-700"
-              }`}
-            >
-              Connexions
-            </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-bold flex items-center space-x-2">
+                  <Activity className="w-6 h-6" />
+                  <span>Traçabilité du Système</span>
+                </h3>
+                <p
+                  className={`text-sm mt-1 ${
+                    darkMode ? "text-gray-400" : "text-gray-600"
+                  }`}
+                >
+                  Journal complet des actions et connexions
+                </p>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    showSettings
+                      ? "bg-blue-600 text-white"
+                      : darkMode
+                      ? "hover:bg-gray-700 text-gray-300"
+                      : "hover:bg-gray-200 text-gray-600"
+                  }`}
+                  title="Paramètres"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => setShowTracability(false)}
+                  className={`p-2 rounded-lg transition-colors ${
+                    darkMode ? "hover:bg-gray-700" : "hover:bg-gray-200"
+                  }`}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
           </div>
-          <div
-            className={`p-3 rounded-lg text-center ${
-              darkMode ? "bg-green-900" : "bg-green-100"
-            }`}
-          >
-            <p
-              className={`text-2xl font-bold ${
-                darkMode ? "text-green-300" : "text-green-600"
-              }`}
-            >
-              {
-                filteredActivities.filter((a) => a.typeAction === "ajout")
-                  .length
-              }
-            </p>
-            <p
-              className={`text-sm ${
-                darkMode ? "text-green-400" : "text-green-700"
-              }`}
-            >
-              Ajouts
-            </p>
-          </div>
-          <div
-            className={`p-3 rounded-lg text-center ${
-              darkMode ? "bg-yellow-900" : "bg-yellow-100"
-            }`}
-          >
-            <p
-              className={`text-2xl font-bold ${
-                darkMode ? "text-yellow-300" : "text-yellow-600"
-              }`}
-            >
-              {
-                filteredActivities.filter(
-                  (a) => a.typeAction === "modification"
-                ).length
-              }
-            </p>
-            <p
-              className={`text-sm ${
-                darkMode ? "text-yellow-400" : "text-yellow-700"
-              }`}
-            >
-              Modifications
-            </p>
-          </div>
-        </div>
 
-        {/* Liste des activités (pagination 10/pg) */}
-        <div className="space-y-3">
-          {filteredActivities
-            .slice((activityPage - 1) * 10, (activityPage - 1) * 10 + 10)
-            .map((activity) => (
+          <div className="flex h-[calc(95vh-100px)]">
+            {/* Panneau principal */}
             <div
-              key={activity.id}
-              className={`p-4 rounded-lg border-l-4 ${
-                activity.typeAction === "connexion"
-                  ? "border-l-blue-500"
-                  : activity.typeAction === "modification"
-                  ? "border-l-yellow-500"
-                  : activity.typeAction === "ajout"
-                  ? "border-l-green-500"
-                  : activity.typeAction === "suppression"
-                  ? "border-l-red-500"
-                  : "border-l-purple-500"
-              } ${
-                darkMode
-                  ? "bg-gray-700 border-gray-600"
-                  : "bg-gray-50 border-gray-200"
+              className={`flex-1 overflow-y-auto p-6 ${
+                showSettings ? "w-2/3" : "w-full"
               }`}
             >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <h4
-                      className={`font-medium ${
-                        darkMode ? "text-white" : "text-gray-900"
-                      }`}
-                    >
-                      {activity.userName}
-                    </h4>
+              {/* Barre d'actions */}
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium">
+                    {filteredActivities.length} activité(s)
+                  </span>
+                  {selectedIds.length > 0 && (
                     <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        activity.typeAction === "connexion"
-                          ? "bg-blue-100 text-blue-800"
-                          : activity.typeAction === "modification"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : activity.typeAction === "ajout"
-                          ? "bg-green-100 text-green-800"
-                          : activity.typeAction === "suppression"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-purple-100 text-purple-800"
+                      className={`text-sm ${
+                        darkMode ? "text-blue-400" : "text-blue-600"
                       }`}
                     >
-                      {activity.typeAction}
+                      ({selectedIds.length} sélectionnée(s))
                     </span>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  {/* Suppression multiple (visible seulement si suppression auto désactivée) */}
+                  {!localSettings.auto_delete_enabled && (
+                    <>
+                      <button
+                        onClick={handleSelectAll}
+                        disabled={paginatedActivities.length === 0}
+                        className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                          darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                        } disabled:opacity-50`}
+                      >
+                        {selectedIds.length === paginatedActivities.length
+                          ? "Tout désélectionner"
+                          : "Tout sélectionner"}
+                      </button>
+
+                      {selectedIds.length > 0 && (
+                        <button
+                          onClick={handleDeleteSelected}
+                          disabled={deletingActivities}
+                          className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm flex items-center space-x-1 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span>Supprimer ({selectedIds.length})</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={handleDeleteAll}
+                        disabled={
+                          deletingActivities || filteredActivities.length === 0
+                        }
+                        className="px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm flex items-center space-x-1 disabled:opacity-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Tout supprimer</span>
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      const win = window.open(
+                        "",
+                        "_blank",
+                        "width=900,height=700"
+                      );
+                      if (!win) return;
+                      const rows = paginatedActivities
+                        .map(
+                          (a) =>
+                            `<tr>
+                            <td>${new Date(a.created_at).toLocaleString()}</td>
+                            <td>${a.module}</td>
+                            <td>${a.action}</td>
+                            <td>${a.title}</td>
+                            <td>${a.details || ""}</td>
+                            <td>${a.user_name || a.user_email}</td>
+                          </tr>`
+                        )
+                        .join("");
+                      win.document.write(
+                        `<!DOCTYPE html>
+                      <html>
+                      <head>
+                        <meta charset="utf-8">
+                        <title>Journal d'Activités</title>
+                        <style>
+                          body { font-family: Arial, sans-serif; padding: 20px; }
+                          h2 { text-align: center; color: #333; }
+                          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 11px; }
+                          th { background: #f2f2f2; font-weight: bold; }
+                          tr:nth-child(even) { background: #f9f9f9; }
+                        </style>
+                      </head>
+                      <body>
+                        <h2>Journal d'Activités - Page ${activityPage}</h2>
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Date/Heure</th>
+                              <th>Module</th>
+                              <th>Type</th>
+                              <th>Action</th>
+                              <th>Détails</th>
+                              <th>Utilisateur</th>
+                            </tr>
+                          </thead>
+                          <tbody>${rows}</tbody>
+                        </table>
+                      </body>
+                      </html>`
+                      );
+                      win.document.close();
+                      win.focus();
+                      win.print();
+                    }}
+                    className={`px-3 py-2 rounded-lg text-sm flex items-center space-x-1 ${
+                      darkMode
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "bg-blue-500 hover:bg-blue-600"
+                    } text-white`}
+                  >
+                    <Printer className="w-4 h-4" />
+                    <span>Imprimer</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Filtres */}
+              <div
+                className={`mb-6 p-4 rounded-lg ${
+                  darkMode ? "bg-gray-700" : "bg-gray-100"
+                }`}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Date
+                    </label>
+                    <input
+                      type="date"
+                      value={filterDate}
+                      onChange={(e) => setFilterDate(e.target.value)}
+                      className={`w-full p-2 border rounded-lg ${
+                        darkMode
+                          ? "bg-gray-800 border-gray-600 text-white"
+                          : "bg-white border-gray-300"
+                      }`}
+                    />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Type d'action
+                    </label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className={`w-full p-2 border rounded-lg ${
+                        darkMode
+                          ? "bg-gray-800 border-gray-600 text-white"
+                          : "bg-white border-gray-300"
+                      }`}
+                    >
+                      <option value="tous">Toutes</option>
+                      <option value="connexion">Connexions</option>
+                      <option value="ajout">Ajouts</option>
+                      <option value="modification">Modifications</option>
+                      <option value="suppression">Suppressions</option>
+                    </select>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        setFilterDate("");
+                        setFilterStatus("tous");
+                        setActivityPage(1);
+                      }}
+                      className="w-full bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700"
+                    >
+                      Réinitialiser
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Statistiques */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                <div
+                  className={`p-3 rounded-lg text-center ${
+                    darkMode ? "bg-blue-900" : "bg-blue-100"
+                  }`}
+                >
                   <p
-                    className={`text-sm ${
-                      darkMode ? "text-gray-400" : "text-gray-600"
+                    className={`text-2xl font-bold ${
+                      darkMode ? "text-blue-300" : "text-blue-600"
                     }`}
                   >
-                    <strong>Action:</strong> {activity.action}
-                  </p>
-                  <p
-                    className={`text-sm ${
-                      darkMode ? "text-gray-400" : "text-gray-600"
-                    }`}
-                  >
-                    <strong>Module:</strong> {activity.module}
+                    {stats.connexion}
                   </p>
                   <p
                     className={`text-xs ${
-                      darkMode ? "text-gray-500" : "text-gray-500"
+                      darkMode ? "text-blue-400" : "text-blue-700"
                     }`}
                   >
-                    {activity.details}
+                    Connexions
                   </p>
                 </div>
-                <div className="text-right ml-4">
+                <div
+                  className={`p-3 rounded-lg text-center ${
+                    darkMode ? "bg-green-900" : "bg-green-100"
+                  }`}
+                >
                   <p
-                    className={`text-sm font-medium ${
-                      darkMode ? "text-white" : "text-gray-900"
+                    className={`text-2xl font-bold ${
+                      darkMode ? "text-green-300" : "text-green-600"
                     }`}
                   >
-                    {activity.date}
+                    {stats.ajout}
                   </p>
                   <p
-                    className={`text-sm ${
-                      darkMode ? "text-gray-400" : "text-gray-600"
+                    className={`text-xs ${
+                      darkMode ? "text-green-400" : "text-green-700"
                     }`}
                   >
-                    {activity.heure}
+                    Ajouts
+                  </p>
+                </div>
+                <div
+                  className={`p-3 rounded-lg text-center ${
+                    darkMode ? "bg-yellow-900" : "bg-yellow-100"
+                  }`}
+                >
+                  <p
+                    className={`text-2xl font-bold ${
+                      darkMode ? "text-yellow-300" : "text-yellow-600"
+                    }`}
+                  >
+                    {stats.modification}
+                  </p>
+                  <p
+                    className={`text-xs ${
+                      darkMode ? "text-yellow-400" : "text-yellow-700"
+                    }`}
+                  >
+                    Modifications
+                  </p>
+                </div>
+                <div
+                  className={`p-3 rounded-lg text-center ${
+                    darkMode ? "bg-red-900" : "bg-red-100"
+                  }`}
+                >
+                  <p
+                    className={`text-2xl font-bold ${
+                      darkMode ? "text-red-300" : "text-red-600"
+                    }`}
+                  >
+                    {stats.suppression}
+                  </p>
+                  <p
+                    className={`text-xs ${
+                      darkMode ? "text-red-400" : "text-red-700"
+                    }`}
+                  >
+                    Suppressions
+                  </p>
+                </div>
+                <div
+                  className={`p-3 rounded-lg text-center ${
+                    darkMode ? "bg-purple-900" : "bg-purple-100"
+                  }`}
+                >
+                  <p
+                    className={`text-2xl font-bold ${
+                      darkMode ? "text-purple-300" : "text-purple-600"
+                    }`}
+                  >
+                    {stats.reinscription}
+                  </p>
+                  <p
+                    className={`text-xs ${
+                      darkMode ? "text-purple-400" : "text-purple-700"
+                    }`}
+                  >
+                    Réinscriptions
                   </p>
                 </div>
               </div>
-            </div>
-          ))}
 
-          {filteredActivities.length === 0 && (
-            <div
-              className={`p-8 text-center ${
-                darkMode ? "text-gray-400" : "text-gray-500"
-              }`}
-            >
-              <p>Aucune activité trouvée pour les filtres sélectionnés.</p>
+              {/* Alerte résultat nettoyage */}
+              {cleanupResult !== null && (
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center">
+                  <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
+                  <span className="text-green-800 text-sm">
+                    Nettoyage terminé : {cleanupResult} activité(s) supprimée(s)
+                  </span>
+                </div>
+              )}
+
+              {/* Liste des activités */}
+              {activitiesLoading ? (
+                <div className="flex justify-center items-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+              ) : paginatedActivities.length === 0 ? (
+                <div
+                  className={`p-8 text-center ${
+                    darkMode ? "text-gray-400" : "text-gray-500"
+                  }`}
+                >
+                  <Activity className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                  <p>Aucune activité trouvée</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {paginatedActivities.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className={`p-4 rounded-lg border-l-4 ${
+                        activity.action === "connexion"
+                          ? "border-l-blue-500"
+                          : activity.action === "modification"
+                          ? "border-l-yellow-500"
+                          : activity.action === "ajout"
+                          ? "border-l-green-500"
+                          : activity.action === "suppression"
+                          ? "border-l-red-500"
+                          : "border-l-purple-500"
+                      } ${
+                        darkMode
+                          ? "bg-gray-700 border-gray-600"
+                          : "bg-gray-50 border-gray-200"
+                      } ${
+                        selectedIds.includes(activity.id)
+                          ? "ring-2 ring-blue-500"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        {!localSettings.auto_delete_enabled && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(activity.id)}
+                            onChange={() => handleSelectActivity(activity.id)}
+                            className="mt-1 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                          />
+                        )}
+
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full font-medium ${
+                                activity.action === "connexion"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : activity.action === "modification"
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : activity.action === "ajout"
+                                  ? "bg-green-100 text-green-800"
+                                  : activity.action === "suppression"
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-purple-100 text-purple-800"
+                              }`}
+                            >
+                              {activity.action}
+                            </span>
+                            <span
+                              className={`text-xs ${
+                                darkMode ? "text-gray-400" : "text-gray-600"
+                              }`}
+                            >
+                              {activity.module}
+                            </span>
+                          </div>
+                          <h4
+                            className={`font-medium ${
+                              darkMode ? "text-white" : "text-gray-900"
+                            }`}
+                          >
+                            {activity.title}
+                          </h4>
+                          {activity.details && (
+                            <p
+                              className={`text-sm mt-1 ${
+                                darkMode ? "text-gray-400" : "text-gray-600"
+                              }`}
+                            >
+                              {activity.details}
+                            </p>
+                          )}
+                          <div className="flex items-center space-x-4 mt-2 text-xs">
+                            <span
+                              className={
+                                darkMode ? "text-gray-500" : "text-gray-500"
+                              }
+                            >
+                              <User className="w-3 h-3 inline mr-1" />
+                              {activity.user_name || activity.user_email}
+                            </span>
+                            <span
+                              className={
+                                darkMode ? "text-gray-500" : "text-gray-500"
+                              }
+                            >
+                              <Clock className="w-3 h-3 inline mr-1" />
+                              {new Date(activity.created_at).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+
+                        {!localSettings.auto_delete_enabled && (
+                          <button
+                            onClick={() => handleDeleteOne(activity.id)}
+                            disabled={deletingActivities}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Supprimer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Pagination */}
+              <div className="flex justify-between items-center mt-6">
+                <div className="text-sm">
+                  Page {activityPage} / {totalPages}
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                    disabled={activityPage <= 1}
+                    className={`px-4 py-2 rounded-lg ${
+                      darkMode
+                        ? "bg-gray-700 hover:bg-gray-600"
+                        : "bg-gray-200 hover:bg-gray-300"
+                    } disabled:opacity-50`}
+                  >
+                    Précédent
+                  </button>
+                  <button
+                    onClick={() =>
+                      setActivityPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={activityPage >= totalPages}
+                    className={`px-4 py-2 rounded-lg ${
+                      darkMode
+                        ? "bg-gray-700 hover:bg-gray-600"
+                        : "bg-gray-200 hover:bg-gray-300"
+                    } disabled:opacity-50`}
+                  >
+                    Suivant
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
+
+            {/* Panneau Paramètres (coulissant) */}
+            {showSettings && (
+              <div
+                className={`w-1/3 border-l overflow-y-auto p-6 ${
+                  darkMode
+                    ? "bg-gray-900 border-gray-700"
+                    : "bg-gray-50 border-gray-200"
+                }`}
+              >
+                <h4 className="text-lg font-bold mb-4 flex items-center">
+                  <Settings className="w-5 h-5 mr-2" />
+                  Paramètres
+                </h4>
+
+                {settingsLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Toggle Suppression Automatique */}
+                    <div>
+                      <label className="flex items-center justify-between cursor-pointer">
+                        <span className="font-medium">
+                          Suppression automatique
+                        </span>
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={localSettings.auto_delete_enabled}
+                            onChange={(e) =>
+                              setLocalSettings((prev) => ({
+                                ...prev,
+                                auto_delete_enabled: e.target.checked,
+                              }))
+                            }
+                            className="sr-only"
+                          />
+                          <div
+                            className={`block w-14 h-8 rounded-full transition-colors ${
+                              localSettings.auto_delete_enabled
+                                ? "bg-green-600"
+                                : "bg-gray-400"
+                            }`}
+                          >
+                            <div
+                              className={`absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform ${
+                                localSettings.auto_delete_enabled
+                                  ? "transform translate-x-6"
+                                  : ""
+                              }`}
+                            ></div>
+                          </div>
+                        </div>
+                      </label>
+                      <p
+                        className={`text-xs mt-2 ${
+                          darkMode ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        {localSettings.auto_delete_enabled
+                          ? "Les anciennes activités seront supprimées automatiquement"
+                          : "La suppression automatique est désactivée"}
+                      </p>
+                    </div>
+
+                    {/* Nombre de jours */}
+                    {localSettings.auto_delete_enabled && (
+                      <div>
+                        <label className="block font-medium mb-2">
+                          Supprimer après (jours)
+                        </label>
+                        <select
+                          value={localSettings.auto_delete_days}
+                          onChange={(e) =>
+                            setLocalSettings((prev) => ({
+                              ...prev,
+                              auto_delete_days: Number(e.target.value),
+                            }))
+                          }
+                          className={`w-full p-2 border rounded-lg ${
+                            darkMode
+                              ? "bg-gray-800 border-gray-600 text-white"
+                              : "bg-white border-gray-300"
+                          }`}
+                        >
+                          {AUTO_DELETE_DAYS_OPTIONS.map((days) => (
+                            <option key={days} value={days}>
+                              {days} jours
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Limite d'activités */}
+                    <div>
+                      <label className="block font-medium mb-2">
+                        Limite d'activités maximum
+                      </label>
+                      <input
+                        type="number"
+                        min="100"
+                        max="10000"
+                        step="100"
+                        value={localSettings.max_activities}
+                        onChange={(e) =>
+                          setLocalSettings((prev) => ({
+                            ...prev,
+                            max_activities: Number(e.target.value),
+                          }))
+                        }
+                        className={`w-full p-2 border rounded-lg ${
+                          darkMode
+                            ? "bg-gray-800 border-gray-600 text-white"
+                            : "bg-white border-gray-300"
+                        }`}
+                      />
+                      <p
+                        className={`text-xs mt-1 ${
+                          darkMode ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        Nombre maximum d'activités à conserver
+                      </p>
+                    </div>
+
+                    {/* Informations */}
+                    {settings?.last_cleanup_at && (
+                      <div
+                        className={`p-3 rounded-lg ${
+                          darkMode ? "bg-gray-800" : "bg-gray-100"
+                        }`}
+                      >
+                        <p className="text-xs font-medium mb-1">
+                          Dernier nettoyage
+                        </p>
+                        <p
+                          className={`text-xs ${
+                            darkMode ? "text-gray-400" : "text-gray-600"
+                          }`}
+                        >
+                          {new Date(settings.last_cleanup_at).toLocaleString()}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Nettoyage manuel */}
+                    {localSettings.auto_delete_enabled && (
+                      <button
+                        onClick={handleManualCleanup}
+                        className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        <span>Nettoyer maintenant</span>
+                      </button>
+                    )}
+
+                    {/* Boutons d'action */}
+                    <div className="space-y-2 pt-4 border-t">
+                      <button
+                        onClick={handleSaveSettings}
+                        disabled={savingSettings}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium disabled:opacity-50"
+                      >
+                        {savingSettings ? "Sauvegarde..." : "Sauvegarder"}
+                      </button>
+                      <button
+                        onClick={() => setShowSettings(false)}
+                        className={`w-full py-3 rounded-lg font-medium ${
+                          darkMode
+                            ? "bg-gray-700 hover:bg-gray-600"
+                            : "bg-gray-200 hover:bg-gray-300"
+                        }`}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-
+    );
+  };
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${

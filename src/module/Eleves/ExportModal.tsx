@@ -17,6 +17,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 import { EntetIMFP } from "../AnneeAcademique/module";
+import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 
 interface Student {
   id: string;
@@ -61,6 +62,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
   isDarkMode,
 }) => {
   const { currentYear } = useAnneeScolaire();
+  const { addActivity } = useRecentActivities();
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSalle, setSelectedSalle] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
@@ -471,7 +473,10 @@ const ExportModal: React.FC<ExportModalProps> = ({
                         } else if (col.key === "moyenneGenerale") {
                           value = String(value);
                         } else if (col.key === "salle") {
-                          value = `${salleSelector(value, student.classesDemandee)}`;
+                          value = `${salleSelector(
+                            value,
+                            student.classesDemandee
+                          )}`;
                         } else if (col.key === "classesDemandee") {
                           value = `${classSelector(value)}`;
                         }
@@ -647,6 +652,12 @@ const ExportModal: React.FC<ExportModalProps> = ({
         } else if (col.key === "dateInscription") {
           value = new Date(String(value)).toLocaleDateString("fr-FR");
         }
+        addActivity({
+          action: "export",
+          module: "Gestion Élèves",
+          title: "Pdf généré",
+          details: `Un pdf de la liste des élèves a été généré.`,
+        });
 
         return value || "";
       })
@@ -672,7 +683,13 @@ const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   // Imprimer directement
-  const printDocument = () => {
+  const printDocument = async () => {
+    await addActivity({
+      action: "export",
+      module: "Gestion Élèves",
+      title: "Document imprimé",
+      details: `Document de la liste des élèves imprimé.`,
+    });
     const html = generateHTMLTable();
     const printWindow = window.open("", "_blank");
 
@@ -835,7 +852,9 @@ const ExportModal: React.FC<ExportModalProps> = ({
                     <select
                       className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                       value={sortOrder}
-                      onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+                      onChange={(e) =>
+                        setSortOrder(e.target.value as "asc" | "desc")
+                      }
                       disabled={!sortBy}
                     >
                       <option value="asc">Croissant (A-Z)</option>

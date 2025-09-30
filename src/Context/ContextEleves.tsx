@@ -265,7 +265,10 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
       // Mettre à jour la table eleves si nécessaire
       if (Object.keys(payloadPermanent).length > 0) {
         const ok = await UpdateData("eleves", id, payloadPermanent);
-        if (!ok) throw new Error("Erreur lors de la modification des données permanentes");
+        if (!ok)
+          throw new Error(
+            "Erreur lors de la modification des données permanentes"
+          );
       }
 
       // Mettre à jour l'inscription de l'année courante si nécessaire
@@ -276,7 +279,8 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         const currentInscription = (inscriptions || []).find(
           (i: EleveInscription) =>
             i.eleve_id === id &&
-            i.annee_scolaire_id === (payloadInscription.annee_scolaire_id || currentYear.id) &&
+            i.annee_scolaire_id ===
+              (payloadInscription.annee_scolaire_id || currentYear.id) &&
             !i.deleted
         );
         if (!currentInscription) {
@@ -315,7 +319,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   const supprimerEleve = async (id: string) => {
     try {
       setIsLoading(true);
-      
+
       if (!currentYear) {
         throw new Error("Aucune année scolaire sélectionnée");
       }
@@ -324,22 +328,30 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
       const inscriptions = await SelectData("eleves_inscriptions");
       const currentInscription = (inscriptions || []).find(
         (i: EleveInscription) =>
-          i.eleve_id === id && 
-          i.annee_scolaire_id === currentYear.id && 
+          i.eleve_id === id &&
+          i.annee_scolaire_id === currentYear.id &&
           !i.deleted
       );
 
       if (!currentInscription) {
-        throw new Error("Aucune inscription trouvée pour cet élève dans l'année courante");
+        throw new Error(
+          "Aucune inscription trouvée pour cet élève dans l'année courante"
+        );
       }
 
       // Supprimer uniquement l'inscription de l'année courante
-      const ok = await UpdateData("eleves_inscriptions", currentInscription.id, {
-        deleted: true,
-      });
-      
+      const ok = await UpdateData(
+        "eleves_inscriptions",
+        currentInscription.id,
+        {
+          deleted: true,
+        }
+      );
+
       if (!ok) {
-        throw new Error("Erreur lors de la suppression de l'inscription de l'élève");
+        throw new Error(
+          "Erreur lors de la suppression de l'inscription de l'élève"
+        );
       }
 
       // Recharger les données pour mettre à jour l'affichage
@@ -359,24 +371,26 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   const supprimerEleveDefinitif = async (id: string) => {
     try {
       setIsLoading(true);
-      
+
       // Supprimer toutes les inscriptions de cet élève
       const inscriptions = await SelectData("eleves_inscriptions");
       const eleveInscriptions = (inscriptions || []).filter(
         (i: EleveInscription) => i.eleve_id === id
       );
-      
+
       // Marquer toutes les inscriptions comme supprimées
       for (const inscription of eleveInscriptions) {
-        await UpdateData("eleves_inscriptions", inscription.id, { deleted: true });
+        await UpdateData("eleves_inscriptions", inscription.id, {
+          deleted: true,
+        });
       }
-      
+
       // Supprimer définitivement l'élève de la table principale
       const ok = await DeleteData("eleves", id);
       if (!ok) {
         throw new Error("Erreur lors de la suppression définitive de l'élève");
       }
-      
+
       await rechargerEleves();
     } catch (e) {
       setError(
@@ -393,18 +407,20 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   const supprimerEleveDeToutesAnnees = async (id: string) => {
     try {
       setIsLoading(true);
-      
+
       // Supprimer toutes les inscriptions de cet élève (toutes années)
       const inscriptions = await SelectData("eleves_inscriptions");
       const eleveInscriptions = (inscriptions || []).filter(
         (i: EleveInscription) => i.eleve_id === id && !i.deleted
       );
-      
+
       // Marquer toutes les inscriptions comme supprimées
       for (const inscription of eleveInscriptions) {
-        await UpdateData("eleves_inscriptions", inscription.id, { deleted: true });
+        await UpdateData("eleves_inscriptions", inscription.id, {
+          deleted: true,
+        });
       }
-      
+
       // L'élève reste dans la table principale mais n'apparaît plus dans aucune année
       await rechargerEleves();
     } catch (e) {
@@ -453,7 +469,13 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   ): Promise<DoublonEleve[]> => {
     try {
       // Récupérer tous les élèves existants et les données de référence
-      const [elevesRows, inscriptionsRows, anneesRows, classesRows, sallesRows] = await Promise.all([
+      const [
+        elevesRows,
+        inscriptionsRows,
+        anneesRows,
+        classesRows,
+        sallesRows,
+      ] = await Promise.all([
         SelectData("eleves"),
         SelectData("eleves_inscriptions"),
         SelectData("annees_scolaires"),
@@ -461,28 +483,30 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         SelectData("salles"),
       ]);
 
-      const elevesActifs = (elevesRows || []).filter(
-        (e: any) => !e.deleted
-      );
+      const elevesActifs = (elevesRows || []).filter((e: any) => !e.deleted);
 
       const inscriptionsActuelles = (inscriptionsRows || []).filter(
         (i: any) => !i.deleted
       );
 
       // Créer des maps pour les noms
-      const anneesMap = new Map((anneesRows || []).map((a: any) => [a.id, a.libelle]));
-      const classesMap = new Map((classesRows || []).map((c: any) => [c.id, c.nom]));
-      const sallesMap = new Map((sallesRows || []).map((s: any) => [s.id, s.nom]));
+      const anneesMap = new Map(
+        (anneesRows || []).map((a: any) => [a.id, a.libelle])
+      );
+      const classesMap = new Map(
+        (classesRows || []).map((c: any) => [c.id, c.nom])
+      );
+      const sallesMap = new Map(
+        (sallesRows || []).map((s: any) => [s.id, s.nom])
+      );
 
       // Normaliser les données pour la comparaison
-      const normalizeString = (str: string) => 
-        str?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+      const normalizeString = (str: string) =>
+        str?.trim().toLowerCase().replace(/\s+/g, " ") || "";
 
-      const normalizeNIF = (nif: string) => 
-        nif?.replace(/\D/g, '') || '';
+      const normalizeNIF = (nif: string) => nif?.replace(/\D/g, "") || "";
 
-      const normalizePhone = (phone: string) => 
-        phone?.replace(/\D/g, '') || '';
+      const normalizePhone = (phone: string) => phone?.replace(/\D/g, "") || "";
 
       const newData = {
         nom: normalizeString(data.nom),
@@ -508,15 +532,15 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
 
         // Critères de doublon : nom + prénom + date de naissance + lieu de naissance
         // ET (même téléphone OU même NIF)
-        const isDuplicate = 
+        const isDuplicate =
           existingData.nom === newData.nom &&
           existingData.prenom === newData.prenom &&
           existingData.date_naissance === newData.date_naissance &&
           existingData.lieu_naissance === newData.lieu_naissance &&
-          (
-            (newData.telephone_parents && existingData.telephone_parents === newData.telephone_parents) ||
-            (newData.nif_parents && existingData.nif_parents === newData.nif_parents)
-          );
+          ((newData.telephone_parents &&
+            existingData.telephone_parents === newData.telephone_parents) ||
+            (newData.nif_parents &&
+              existingData.nif_parents === newData.nif_parents));
 
         if (isDuplicate) {
           // Trouver l'inscription actuelle de cet élève
@@ -526,9 +550,15 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
 
           if (currentInscription) {
             // Récupérer les noms des classes et salles
-            const classeName = classesMap.get(currentInscription.classe_id) || currentInscription.classe_id;
-            const salleName = sallesMap.get(currentInscription.salle_id) || currentInscription.salle_id;
-            const anneeName = anneesMap.get(currentInscription.annee_scolaire_id) || currentInscription.annee_scolaire_id;
+            const classeName =
+              classesMap.get(currentInscription.classe_id) ||
+              currentInscription.classe_id;
+            const salleName =
+              sallesMap.get(currentInscription.salle_id) ||
+              currentInscription.salle_id;
+            const anneeName =
+              anneesMap.get(currentInscription.annee_scolaire_id) ||
+              currentInscription.annee_scolaire_id;
 
             doublons.push({
               id: eleve.id,
@@ -666,24 +696,38 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
           anyInscriptionSameYear.salle_id === data.salle_id;
 
         // Mettre à jour l'inscription existante (statut, observations, classe, salle)
-        const ok = await UpdateData("eleves_inscriptions", anyInscriptionSameYear.id, {
-          statut: data.statut,
-          observations: data.observations,
-          classe_id: data.classe_id,
-          salle_id: data.salle_id,
-        });
-        if (!ok) throw new Error("Erreur lors de la mise à jour de l'inscription existante");
+        const ok = await UpdateData(
+          "eleves_inscriptions",
+          anyInscriptionSameYear.id,
+          {
+            statut: data.statut,
+            observations: data.observations,
+            classe_id: data.classe_id,
+            salle_id: data.salle_id,
+          }
+        );
+        if (!ok)
+          throw new Error(
+            "Erreur lors de la mise à jour de l'inscription existante"
+          );
       } else if (anyInscriptionSameYear && anyInscriptionSameYear.deleted) {
         // Réactiver l'inscription supprimée pour éviter la contrainte unique
-        const ok = await UpdateData("eleves_inscriptions", anyInscriptionSameYear.id, {
-          deleted: false,
-          statut: data.statut,
-          observations: data.observations,
-          classe_id: data.classe_id,
-          salle_id: data.salle_id,
-          date_inscription: new Date().toISOString().split("T")[0],
-        });
-        if (!ok) throw new Error("Erreur lors de la réactivation de l'inscription existante");
+        const ok = await UpdateData(
+          "eleves_inscriptions",
+          anyInscriptionSameYear.id,
+          {
+            deleted: false,
+            statut: data.statut,
+            observations: data.observations,
+            classe_id: data.classe_id,
+            salle_id: data.salle_id,
+            date_inscription: new Date().toISOString().split("T")[0],
+          }
+        );
+        if (!ok)
+          throw new Error(
+            "Erreur lors de la réactivation de l'inscription existante"
+          );
       } else {
         // Insérer la nouvelle inscription pour l'année cible
         const inscriptionData: Omit<

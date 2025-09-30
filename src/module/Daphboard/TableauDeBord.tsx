@@ -16,7 +16,10 @@ import {
   Award,
   Calendar,
 } from "lucide-react";
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
+import { SelectData } from "@/Config/SupabaseData";
+import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 import {
   BarChart,
   Bar,
@@ -45,6 +48,189 @@ interface Props {
 }
 
 const TableauDeBord = ({ isDarkMode }: Props) => {
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [serverTotals, setServerTotals] = useState<{
+    eleves: number;
+    enseignants: number;
+    employes: number;
+    paiementsMontant: number;
+  } | null>(null);
+  const [serverEnrollmentByYear, setServerEnrollmentByYear] = useState<
+    Array<{ year: string; filles?: number; garcons?: number; total: number }>
+  >([]);
+  const [serverGenderDistribution, setServerGenderDistribution] = useState<
+    Array<{ name: string; value: number; color?: string }>
+  >([]);
+  const { schoolYears, currentYear } = useAnneeScolaire();
+  const { activities } = useRecentActivities();
+
+  const totalElevesActiveYear = useMemo(() => {
+    const filles =
+      serverGenderDistribution.find((g) => g.name.includes("Filles"))?.value ||
+      0;
+    const garcons =
+      serverGenderDistribution.find((g) => g.name.includes("Garçons"))?.value ||
+      0;
+    return filles + garcons;
+  }, [serverGenderDistribution]);
+
+  useEffect(() => {
+    const loadLocalStats = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [
+          elevesRows,
+          inscriptionsRows,
+          profsAffectRows,
+          employesRows,
+          paiementsRows,
+          notesRows,
+        ] = await Promise.all([
+          SelectData("eleves"),
+          SelectData("eleves_inscriptions"),
+          SelectData("professeurs_affectations"),
+          SelectData("employes"),
+          SelectData("paiements"),
+          SelectData("notes"),
+        ]);
+
+        // Sélection stricte pour les cartes (année active)
+        const activeYearId = currentYear?.id ? String(currentYear.id) : "";
+        const activeYearLabel = currentYear?.year || activeYearId;
+
+        const byYearMap = new Map<
+          string,
+          { total: number; filles: number; garcons: number }
+        >();
+        const eleveById = new Map<string, any>();
+        for (const e of elevesRows || []) {
+          if (e?.id) eleveById.set(String(e.id), e);
+        }
+
+        // 1) Évolution par année: AGRÉGER TOUTES LES ANNÉES (pas seulement l'année active)
+        for (const ins of inscriptionsRows || []) {
+          if (ins?.deleted) continue;
+          const yid = String(ins.annee_scolaire_id || "");
+          if (!byYearMap.has(yid))
+            byYearMap.set(yid, { total: 0, filles: 0, garcons: 0 });
+          const agg = byYearMap.get(yid)!;
+          agg.total += 1;
+          const eleve = eleveById.get(String(ins.eleve_id || ""));
+          const sexe = (eleve?.sexe ?? eleve?.genre ?? "")
+            .toString()
+            .toLowerCase();
+          if (sexe.startsWith("f")) agg.filles += 1;
+          else if (sexe.startsWith("m")) agg.garcons += 1;
+        }
+
+        // Mapper id -> libellé (2024-2025) depuis le context des années
+        const yearLabelById = new Map<string, string>();
+        for (const y of schoolYears) yearLabelById.set(String(y.id), y.year);
+
+        const enrollment = Array.from(byYearMap.entries())
+          .map(([id, agg]) => ({
+            year: yearLabelById.get(id) || id,
+            total: agg.total,
+            filles: agg.filles,
+            garcons: agg.garcons,
+          }))
+          .sort((a, b) => a.year.localeCompare(b.year));
+
+        // 2) Distribution globale pour les cartes (limiter à l'année active) + comptage par salle
+        let totalFilles = 0;
+        let totalGarcons = 0;
+        const salleCount: Record<string, number> = {};
+        for (const ins of inscriptionsRows || []) {
+          if (ins?.deleted) continue;
+          const yid = String(ins.annee_scolaire_id || "");
+          if (!activeYearId || yid !== activeYearId) continue;
+          const eleve = eleveById.get(String(ins.eleve_id || ""));
+          const sexe = (eleve?.sexe ?? eleve?.genre ?? "")
+            .toString()
+            .toLowerCase();
+          if (sexe.startsWith("f")) totalFilles += 1;
+          else if (sexe.startsWith("m")) totalGarcons += 1;
+          const sid = String(ins.salle_id || "");
+          if (sid) salleCount[sid] = (salleCount[sid] || 0) + 1;
+        }
+
+        setServerEnrollmentByYear(enrollment);
+        setServerGenderDistribution([
+          { name: "Élèves Filles", value: totalFilles, color: "#e11d48" },
+          { name: "Élèves Garçons", value: totalGarcons, color: "#1e40af" },
+        ]);
+
+        setSalleCounts(salleCount);
+
+        // 3) Totaux pour cartes Corps Enseignant et Personnel Administratif (année active)
+        const enseignantsCount = (profsAffectRows || []).filter(
+          (a: any) => !a.deleted && String(a.annee_scolaire_id) === activeYearId
+        ).length;
+        const employesCount = (employesRows || []).filter(
+          (e: any) => !e.deleted && String(e.annee_scolaire_id) === activeYearId
+        ).length;
+
+        setServerTotals({
+          eleves: totalFilles + totalGarcons,
+          enseignants: enseignantsCount,
+          employes: employesCount,
+          paiementsMontant: 0,
+        });
+
+        // 4) Indicateurs: Paiements (taux de couverture) et Réussite élèves
+        const paiementsActive = (paiementsRows || []).filter(
+          (p: any) => !p.deleted && String(p.annee_scolaire_id) === activeYearId
+        );
+        const totalDu = paiementsActive.reduce(
+          (s: number, p: any) => s + (Number(p.montant_du) || 0),
+          0
+        );
+        const totalPaye = paiementsActive.reduce(
+          (s: number, p: any) => s + (Number(p.montant_paye) || 0),
+          0
+        );
+        const tauxCouverture =
+          totalDu > 0 ? Math.round((totalPaye / totalDu) * 100) : 0;
+
+        const notesActive = (notesRows || []).filter(
+          (n: any) => !n.deleted && String(n.annee_scolaire_id) === activeYearId
+        );
+        const reussites = notesActive.filter(
+          (n: any) => Number(n.note) >= 5.5
+        ).length;
+        const tauxReussite =
+          notesActive.length > 0
+            ? Math.round((reussites / notesActive.length) * 100)
+            : 0;
+
+        setPerformance({
+          tauxCouverture,
+          totalDu,
+          totalPaye,
+          tauxReussite,
+          echantillonNotes: notesActive.length,
+        });
+      } catch (e: any) {
+        setError("Impossible de charger les statistiques");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadLocalStats();
+  }, [currentYear?.id, schoolYears]);
+
+  const [performance, setPerformance] = useState<{
+    tauxCouverture: number;
+    totalDu: number;
+    totalPaye: number;
+    tauxReussite: number;
+    echantillonNotes: number;
+  } | null>(null);
+
+  const [salleCounts, setSalleCounts] = useState<Record<string, number>>({});
   // Illustrations académiques élégantes
   const StudentGirlIllustration = () => (
     <div className="relative">
@@ -101,7 +287,10 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
   const statsCards: StatsCard[] = [
     {
       title: "Élèves Filles",
-      value: "634",
+      value:
+        serverGenderDistribution
+          ?.find((g) => g.name.includes("Filles"))
+          ?.value?.toString() || "634",
       change: "+3.2%",
       changeType: "increase",
       illustration: <StudentGirlIllustration />,
@@ -109,7 +298,10 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
     },
     {
       title: "Élèves Garçons",
-      value: "600",
+      value:
+        serverGenderDistribution
+          ?.find((g) => g.name.includes("Garçons"))
+          ?.value?.toString() || "600",
       change: "+2.1%",
       changeType: "increase",
       illustration: <StudentBoyIllustration />,
@@ -117,7 +309,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
     },
     {
       title: "Corps Enseignant",
-      value: "89",
+      value: serverTotals?.enseignants?.toString() || "89",
       change: "+2.1%",
       changeType: "increase",
       illustration: <TeacherIllustration />,
@@ -125,7 +317,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
     },
     {
       title: "Personnel Administratif",
-      value: "42",
+      value: serverTotals?.employes?.toString() || "42",
       change: "-1.5%",
       changeType: "decrease",
       illustration: <EmployeeIllustration />,
@@ -147,18 +339,29 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
 
   // Données pour les graphiques
 
-  const enrollmentByYearData = [
-    { year: "2020-21", Filles: 580, Garçons: 570 },
-    { year: "2021-22", Filles: 595, Garçons: 580 },
-    { year: "2022-23", Filles: 610, Garçons: 590 },
-    { year: "2023-24", Filles: 625, Garçons: 595 },
-    { year: "2024-25", Filles: 634, Garçons: 600 },
-  ];
+  const enrollmentByYearData =
+    serverEnrollmentByYear.length > 0
+      ? serverEnrollmentByYear.map((r) => ({
+          year: r.year,
+          Filles: r.filles,
+          Garçons: r.garcons,
+          Total: r.total,
+        }))
+      : [
+          { year: "0000-0000", Filles: 0, Garçons: 0 },
+          { year: "0000-0000", Filles: 0, Garçons: 0 },
+          { year: "0000-0000", Filles: 0, Garçons: 0 },
+          { year: "0000-0000", Filles: 0, Garçons: 0 },
+          { year: "0000-0000", Filles: 0, Garçons: 0 },
+        ];
 
-  const genderDistributionData = [
-    { name: "Élèves Filles", value: 634, color: "#e11d48" },
-    { name: "Élèves Garçons", value: 600, color: "#1e40af" },
-  ];
+  const genderDistributionData =
+    serverGenderDistribution.length > 0
+      ? serverGenderDistribution
+      : [
+          { name: "Élèves Filles", value: 0, color: "#e11d48" },
+          { name: "Élèves Garçons", value: 0, color: "#1e40af" },
+        ];
 
   const COLORS = ["#e11d48", "#1e40af"];
 
@@ -328,7 +531,9 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                     isDarkMode ? "text-white" : "text-gray-900"
                   }`}
                 >
-                  Filles: 634
+                  Filles:{" "}
+                  {genderDistributionData.find((g) => g.name.includes("Filles"))
+                    ?.value ?? 634}
                 </span>
               </div>
               <div className="flex items-center space-x-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -338,7 +543,10 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                     isDarkMode ? "text-white" : "text-gray-900"
                   }`}
                 >
-                  Garçons: 600
+                  Garçons:{" "}
+                  {genderDistributionData.find((g) =>
+                    g.name.includes("Garçons")
+                  )?.value ?? 600}
                 </span>
               </div>
             </div>
@@ -408,7 +616,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                   isDarkMode ? "text-white" : "text-gray-100"
                 }`}
               >
-                Total: 1,234 élèves
+                Total: {totalElevesActiveYear} élèves
               </p>
               <p
                 className={`text-sm ${
@@ -422,7 +630,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
         </div>
 
         {/* Sections détaillées */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
           {/* Répartition par Classe */}
           <div
             className={`rounded-2xl p-6 shadow-lg border ${
@@ -453,219 +661,96 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
               </div>
             </div>
             <div className="space-y-4">
-              {[
-                {
-                  level: "6ème",
-                  students: 245,
-                  color: "bg-blue-500",
-                  category: "Collège",
-                },
-                {
-                  level: "5ème",
-                  students: 238,
-                  color: "bg-green-500",
-                  category: "Collège",
-                },
-                {
-                  level: "4ème",
-                  students: 232,
-                  color: "bg-yellow-500",
-                  category: "Collège",
-                },
-                {
-                  level: "3ème",
-                  students: 219,
-                  color: "bg-purple-500",
-                  category: "Collège",
-                },
-                {
-                  level: "2nde",
-                  students: 203,
-                  color: "bg-pink-500",
-                  category: "Lycée",
-                },
-                {
-                  level: "1ère",
-                  students: 195,
-                  color: "bg-indigo-500",
-                  category: "Lycée",
-                },
-                {
-                  level: "Terminale",
-                  students: 189,
-                  color: "bg-red-500",
-                  category: "Lycée",
-                },
-              ].map((item, index) => (
-                <div
-                  key={item.level}
-                  className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
-                >
-                  <div className="flex items-center space-x-4">
-                    <div
-                      className={`w-5 h-5 rounded-full ${item.color} shadow-sm`}
-                    ></div>
-                    <div>
-                      <span
-                        className={`font-semibold ${
-                          isDarkMode ? "text-white" : "text-gray-900"
-                        }`}
-                      >
-                        {item.level}
-                      </span>
-                      <span
-                        className={`ml-2 text-xs px-2 py-1 rounded-full ${
-                          isDarkMode
-                            ? "bg-slate-600 text-slate-300"
-                            : "bg-gray-200 text-gray-600"
-                        }`}
-                      >
-                        {item.category}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className={`font-bold text-lg ${
-                        isDarkMode ? "text-white" : "text-gray-900"
-                      }`}
-                    >
-                      {item.students}
-                    </span>
-                    <p
-                      className={`text-xs ${
-                        isDarkMode ? "text-gray-400" : "text-gray-500"
-                      }`}
-                    >
-                      élèves
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+              {(() => {
+                // Construire effectifs par classe/salle depuis currentYear + inscriptions année active
+                const activeYearId = currentYear?.id
+                  ? String(currentYear.id)
+                  : "";
+                const bySalle: Array<{
+                  label: string;
+                  count: number;
+                  color: string;
+                  category: string;
+                }> = [];
+                const colorPalette = [
+                  "bg-blue-500",
+                  "bg-green-500",
+                  "bg-yellow-500",
+                  "bg-purple-500",
+                  "bg-pink-500",
+                  "bg-indigo-500",
+                  "bg-red-500",
+                  "bg-emerald-500",
+                ];
+                const colorOf = (idx: number) =>
+                  colorPalette[idx % colorPalette.length];
 
-          {/* Indicateurs de performance */}
-          <div
-            className={`rounded-2xl p-6 shadow-lg border ${
-              isDarkMode
-                ? "bg-slate-800 border-slate-700"
-                : "bg-white border-gray-200"
-            }`}
-          >
-            <div className="flex items-center space-x-3 mb-6">
-              <div className="p-3 bg-green-100 rounded-xl">
-                <Award className="w-6 h-6 text-green-600" />
-              </div>
-              <div>
-                <h3
-                  className={`text-xl font-bold ${
-                    isDarkMode ? "text-white" : "text-gray-900"
-                  }`}
-                >
-                  Indicateurs de Performance
-                </h3>
-                <p
-                  className={`text-sm ${
-                    isDarkMode ? "text-gray-400" : "text-gray-600"
-                  }`}
-                >
-                  Suivi de la qualité éducative
-                </p>
-              </div>
-            </div>
-            <div className="space-y-6">
-              {[
-                {
-                  category: "Taux de Présence des Enseignants",
-                  value: 87,
-                  total: 89,
-                  percentage: 98,
-                  color: "bg-green-500",
-                  icon: <GraduationCap className="w-4 h-4" />,
-                },
-                {
-                  category: "Personnel Administratif Présent",
-                  value: 40,
-                  total: 42,
-                  percentage: 95,
-                  color: "bg-blue-500",
-                  icon: <Users className="w-4 h-4" />,
-                },
-                {
-                  category: "Cours Dispensés",
-                  value: 142,
-                  total: 145,
-                  percentage: 98,
-                  color: "bg-purple-500",
-                  icon: <BookOpen className="w-4 h-4" />,
-                },
-                {
-                  category: "Satisfaction des Élèves",
-                  value: 91,
-                  total: 100,
-                  percentage: 91,
-                  color: "bg-amber-500",
-                  icon: <Award className="w-4 h-4" />,
-                },
-              ].map((item, index) => (
-                <div key={index} className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
+                let idx = 0;
+                for (const classe of currentYear?.classes || []) {
+                  for (const salle of classe.salles || []) {
+                    const c = salleCounts[salle.id] || 0;
+                    bySalle.push({
+                      label: `${classe.name} - ${salle.name}`,
+                      count: c,
+                      color: colorOf(idx++),
+                      category: classe.name || "Classe",
+                    });
+                  }
+                }
+
+                // NOTE: Pour un comptage exact par salle, on peut enrichir loadLocalStats pour exposer un map salle_id -> count
+                // Affichage
+                return bySalle.map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-between p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <div className="flex items-center space-x-4">
                       <div
-                        className={`p-2 ${item.color
-                          .replace("bg-", "bg-")
-                          .replace("-500", "-100")} rounded-lg`}
-                      >
-                        <div
-                          className={`${item.color.replace("bg-", "text-")}`}
+                        className={`w-5 h-5 rounded-full ${item.color} shadow-sm`}
+                      ></div>
+                      <div>
+                        <span
+                          className={`font-semibold ${
+                            isDarkMode ? "text-white" : "text-gray-900"
+                          }`}
                         >
-                          {item.icon}
-                        </div>
+                          {item.label}
+                        </span>
+                        <span
+                          className={`ml-2 text-xs px-2 py-1 rounded-full ${
+                            isDarkMode
+                              ? "bg-slate-600 text-slate-300"
+                              : "bg-gray-200 text-gray-600"
+                          }`}
+                        >
+                          {item.category}
+                        </span>
                       </div>
-                      <span
-                        className={`font-medium ${
-                          isDarkMode ? "text-white" : "text-gray-900"
-                        }`}
-                      >
-                        {item.category}
-                      </span>
                     </div>
                     <div className="text-right">
                       <span
-                        className={`text-lg font-bold ${item.color.replace(
-                          "bg-",
-                          "text-"
-                        )}`}
+                        className={`font-bold text-lg ${
+                          isDarkMode ? "text-white" : "text-gray-900"
+                        }`}
                       >
-                        {item.percentage}%
+                        {item.count}
                       </span>
                       <p
                         className={`text-xs ${
                           isDarkMode ? "text-gray-400" : "text-gray-500"
                         }`}
                       >
-                        {item.value}/{item.total}
+                        élèves
                       </p>
                     </div>
                   </div>
-                  <div
-                    className={`w-full rounded-full h-3 ${
-                      isDarkMode ? "bg-slate-700" : "bg-gray-200"
-                    } shadow-inner`}
-                  >
-                    <div
-                      className={`h-3 rounded-full transition-all duration-700 ${item.color} shadow-sm`}
-                      style={{ width: `${item.percentage}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           </div>
         </div>
-
-        {/* Activités récentes avec style académique */}
+        {/* Activités récentes via RecentActivitiesContext */}
         <div
           className={`rounded-2xl p-6 shadow-lg border ${
             isDarkMode
@@ -700,104 +785,81 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
             </div>
           </div>
           <div className="space-y-4">
-            {[
-              {
-                action: "Nouvelle Inscription",
-                details:
-                  "Sophie Martin - Classe de 5ème B (Section Scientifique)",
-                time: "Il y a 2 heures",
-                type: "success",
-                icon: <User className="w-4 h-4" />,
-                badge: "Nouvelle Élève",
-              },
-              {
-                action: "Règlement Reçu",
-                details: "Famille Dubois - Frais de scolarité Q2 2024-2025",
-                time: "Il y a 3 heures",
-                type: "info",
-                icon: <CreditCard className="w-4 h-4" />,
-                badge: "Paiement",
-              },
-              {
-                action: "Absence Signalée",
-                details:
-                  "Pierre Durand - Classe de 3ème A (Justificatif requis)",
-                time: "Il y a 4 heures",
-                type: "warning",
-                icon: <UserX className="w-4 h-4" />,
-                badge: "Absence",
-              },
-              {
-                action: "Recrutement",
-                details: "Mme Claire Rousseau - Professeure de Mathématiques",
-                time: "Il y a 1 jour",
-                type: "success",
-                icon: <UserCheck className="w-4 h-4" />,
-                badge: "Nouveau Personnel",
-              },
-              {
-                action: "Personnel Administratif",
-                details: "M. Paul Legrand - Agent de maintenance et sécurité",
-                time: "Il y a 2 jours",
-                type: "success",
-                icon: <Users className="w-4 h-4" />,
-                badge: "Administration",
-              },
-            ].map((activity, index) => (
-              <div
-                key={index}
-                className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 hover:transform hover:scale-[1.01] ${
-                  isDarkMode ? "hover:bg-slate-700" : "hover:bg-gray-50"
-                } border ${
-                  isDarkMode ? "border-slate-700" : "border-gray-200"
-                }`}
-              >
+            {activities.slice(0, 5).map((a, index) => {
+              const type =
+                a.action === "suppression"
+                  ? "warning"
+                  : a.action === "ajout" ||
+                    a.action === "connexion" ||
+                    a.action === "reinscription"
+                  ? "success"
+                  : "info";
+              const icon =
+                type === "success" ? (
+                  <UserCheck className="w-4 h-4" />
+                ) : type === "warning" ? (
+                  <UserX className="w-4 h-4" />
+                ) : (
+                  <Activity className="w-4 h-4" />
+                );
+              const badge = a.module || "Système";
+              const time = new Date(a.created_at).toLocaleString();
+              return (
                 <div
-                  className={`p-3 rounded-xl ${
-                    activity.type === "success"
-                      ? "bg-green-100 text-green-600 dark:bg-green-900/20"
-                      : activity.type === "warning"
-                      ? "bg-amber-100 text-amber-600 dark:bg-amber-900/20"
-                      : "bg-blue-100 text-blue-600 dark:bg-blue-900/20"
+                  key={`${a.id}-${index}`}
+                  className={`flex items-center space-x-4 p-4 rounded-xl transition-all duration-200 hover:transform hover:scale-[1.01] ${
+                    isDarkMode ? "hover:bg-slate-700" : "hover:bg-gray-50"
+                  } border ${
+                    isDarkMode ? "border-slate-700" : "border-gray-200"
                   }`}
                 >
-                  {activity.icon}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-3 mb-1">
-                    <span
-                      className={`font-semibold ${
-                        isDarkMode ? "text-white" : "text-gray-900"
-                      }`}
-                    >
-                      {activity.action}
-                    </span>
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        activity.type === "success"
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : activity.type === "warning"
-                          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                          : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                      }`}
-                    >
-                      {activity.badge}
-                    </span>
-                  </div>
-                  <p
-                    className={`text-sm ${
-                      isDarkMode ? "text-gray-400" : "text-gray-600"
+                  <div
+                    className={`p-3 rounded-xl ${
+                      type === "success"
+                        ? "bg-green-100 text-green-600 dark:bg-green-900/20"
+                        : type === "warning"
+                        ? "bg-amber-100 text-amber-600 dark:bg-amber-900/20"
+                        : "bg-blue-100 text-blue-600 dark:bg-blue-900/20"
                     }`}
                   >
-                    {activity.details}
-                  </p>
+                    {icon}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-1">
+                      <span
+                        className={`font-semibold ${
+                          isDarkMode ? "text-white" : "text-gray-900"
+                        }`}
+                      >
+                        {a.title}
+                      </span>
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          type === "success"
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : type === "warning"
+                            ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        }`}
+                      >
+                        {badge}
+                      </span>
+                    </div>
+                    <p
+                      className={`text-sm ${
+                        isDarkMode ? "text-gray-400" : "text-gray-600"
+                      }`}
+                    >
+                      {a.details || a.action}
+                    </p>
+                  </div>
+                  <div className="flex items-center text-xs text-gray-500 space-x-2">
+                    <Clock className="w-3 h-3" />
+                    <span>{time}</span>
+                  </div>
                 </div>
-                <div className="flex items-center text-xs text-gray-500 space-x-2">
-                  <Clock className="w-3 h-3" />
-                  <span>{activity.time}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="mt-6 text-center">
             <button className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium shadow-lg">

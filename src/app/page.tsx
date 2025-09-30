@@ -14,6 +14,12 @@ import {
 } from "lucide-react";
 import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import Uuid from "@/utils/UUid/Uuid";
+// Import du Super Admin
+import {
+  SUPER_ADMIN_CREDENTIALS,
+  SUPER_ADMIN_USER_PROFILE,
+} from "@/Config/SuperAdmin/SuperAdmin";
+import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 
 interface LoginFormData {
   email: string;
@@ -28,9 +34,11 @@ interface SecurityAlert {
 export default function SIGEPLoginPage() {
   const router = useRouter();
   const { uuid, rafrechieUUID } = Uuid();
+  const { addActivity } = useRecentActivities();
   const searchParams = useSearchParams();
   const {
     Login,
+    Logout,
     currentSession,
     loading: contextLoading,
     error: contextError,
@@ -50,7 +58,7 @@ export default function SIGEPLoginPage() {
   const [attemptCount, setAttemptCount] = useState<number>(0);
   const [isBlocked, setIsBlocked] = useState<boolean>(false);
   const [blockTimeRemaining, setBlockTimeRemaining] = useState<number>(0);
-  const [isAccountBlocked, setIsAccountBlocked] = useState<boolean>(false); // Nouveau état pour compte bloqué
+  const [isAccountBlocked, setIsAccountBlocked] = useState<boolean>(false);
 
   // Gérer les alertes de sécurité basées sur les paramètres URL
   useEffect(() => {
@@ -84,7 +92,6 @@ export default function SIGEPLoginPage() {
       const alert = alerts[reason];
       if (alert) {
         setSecurityAlert(alert);
-        // Si c'est un blocage de compte, activer l'état
         if (reason === "account_blocked") {
           setIsAccountBlocked(true);
         }
@@ -121,7 +128,6 @@ export default function SIGEPLoginPage() {
       [name]: value,
     }));
 
-    // Effacer les erreurs lors de la saisie
     if (loginError) setLoginError("");
     if (securityAlert) setSecurityAlert(null);
   };
@@ -157,6 +163,7 @@ export default function SIGEPLoginPage() {
   };
 
   const handleSubmit = async () => {
+    Logout();
     if (isBlocked) {
       setLoginError(
         `Trop de tentatives. Réessayez dans ${Math.ceil(
@@ -178,21 +185,60 @@ export default function SIGEPLoginPage() {
     setLoginError("");
 
     try {
+      // VÉRIFICATION DU SUPER ADMIN SYSTÈME
+      if (
+        formData.email.trim().toLowerCase() ===
+          SUPER_ADMIN_CREDENTIALS.email.toLowerCase() &&
+        formData.password === SUPER_ADMIN_CREDENTIALS.password
+      ) {
+        console.log("🔐 Connexion Super Admin Système détectée");
+
+        // Stocker les informations du Super Admin dans localStorage
+        localStorage.setItem(
+          "superadmin_session",
+          JSON.stringify({
+            id: SUPER_ADMIN_CREDENTIALS.id,
+            email: SUPER_ADMIN_CREDENTIALS.email,
+            role: "Super Administrateur",
+            timestamp: new Date().toISOString(),
+          })
+        );
+
+        // Connexion réussie pour Super Admin
+        setAttemptCount(0);
+
+        // Rediriger
+        setTimeout(() => {
+          const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
+          router.replace(redirectPath);
+          addActivity({
+            action: "connexion",
+            module: "Authentification",
+            title: "Connexion Super Admin",
+            details: "L'utilisateur Super Admin s'est connecté avec succès.",
+          });
+        }, 500);
+
+        setIsLoading(false);
+        return;
+      }
+
+      // CONNEXION NORMALE POUR LES AUTRES UTILISATEURS
       const result = await Login(formData.email.trim(), formData.password);
 
       if (result.success && result.user) {
-        // Connexion réussie
         setAttemptCount(0);
-
-        // Redirection basée sur le rôle
         const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
-
-        // Ajouter un petit délai pour l'expérience utilisateur
         setTimeout(() => {
           router.replace(redirectPath);
+          addActivity({
+            action: "connexion",
+            module: "Authentification",
+            title: "Connexion réussie",
+            details: `L'utilisateur  s'est connecté avec succès.`,
+          });
         }, 500);
       } else {
-        // Vérifier si le compte est bloqué
         const messageBlocked =
           result.message?.toLowerCase().includes("bloqué") ||
           result.message?.toLowerCase().includes("blocked") ||
@@ -206,7 +252,6 @@ export default function SIGEPLoginPage() {
             message: "Votre compte est bloqué. Contactez l'administrateur.",
           });
         } else {
-          // Échec de connexion normal
           setAttemptCount((prev) => prev + 1);
           setLoginError(result.message || "Email ou mot de passe incorrect");
         }
@@ -250,7 +295,6 @@ export default function SIGEPLoginPage() {
     }
   };
 
-  // Déterminer si les champs doivent être désactivés
   const shouldDisableFields = isBlocked || isAccountBlocked;
 
   return (
@@ -324,7 +368,7 @@ export default function SIGEPLoginPage() {
             <h3 className="text-xl font-semibold text-gray-800">Connexion</h3>
           </div>
 
-          {/* Indicateur de tentatives - Ne s'affiche PAS si le compte est bloqué */}
+          {/* Indicateur de tentatives */}
           {attemptCount > 0 && !isAccountBlocked && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
@@ -334,7 +378,7 @@ export default function SIGEPLoginPage() {
             </div>
           )}
 
-          {/* Blocage temporaire après 5 tentatives */}
+          {/* Blocage temporaire */}
           {isBlocked && !isAccountBlocked && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center">
@@ -351,7 +395,7 @@ export default function SIGEPLoginPage() {
             </div>
           )}
 
-          {/* Alerte de compte bloqué définitivement */}
+          {/* Alerte compte bloqué */}
           {isAccountBlocked && (
             <div className="mb-6 p-4 bg-red-100 border-2 border-red-500 rounded-lg">
               <div className="flex items-center">
@@ -453,7 +497,7 @@ export default function SIGEPLoginPage() {
               </div>
             )}
 
-            {/* Liens d'aide - Désactivés si compte bloqué */}
+            {/* Liens d'aide */}
             {!isAccountBlocked && (
               <div className="flex items-center justify-between text-sm">
                 <a

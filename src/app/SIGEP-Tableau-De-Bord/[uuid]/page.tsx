@@ -17,7 +17,6 @@ import {
   Sun,
   Moon,
   ChevronDown,
-  Plus,
   Clock,
   AlertTriangle,
   CheckCircle,
@@ -26,13 +25,13 @@ import {
   Pencil,
   ShieldAlert,
   Lock,
+  Shield,
 } from "lucide-react";
 import TableauDeBord from "../../../module/Daphboard/TableauDeBord";
 import ElevesPage from "../../../module/Eleves/ElevesPage";
 import NotesPage from "../../../module/Notes/Notes";
 import FraisScolaritePage from "../../../module/Paiements/Paiements";
 import GestionProfesseurs from "../../../module/Professeur/Professeur";
-import NewYearModal from "../../../module/AnneeAcademique/ConfigurationAnee";
 import GestionAnneeScolaire from "../../../module/AnneeAcademique/GestionAnneeScolaire";
 import GestionEmployer from "../../../module/Employer/Employer";
 import Image from "next/image";
@@ -43,6 +42,7 @@ import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 import ProtectedRoute, { useRouteProtection } from "@/components/ProtectedPage";
 import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import Spinner from "@/utils/Spinner/Spinner";
+import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
 
 interface User {
   name?: string;
@@ -64,34 +64,53 @@ interface SidebarItem {
   label: string;
 }
 
+// Fonction pour vérifier si c'est le Super Admin
+const isSuperAdmin = (session: any): boolean => {
+  if (typeof window !== "undefined") {
+    const superAdminSession = localStorage.getItem("superadmin_session");
+    if (superAdminSession) {
+      return true;
+    }
+  }
+
+  if (!session || !session.user) return false;
+
+  const userEmail = session.user.email?.toLowerCase();
+  if (userEmail === SUPER_ADMIN_CREDENTIALS.email.toLowerCase()) {
+    return true;
+  }
+
+  if (session.user.id === SUPER_ADMIN_CREDENTIALS.id) {
+    return true;
+  }
+
+  return false;
+};
+
 const Dashboard: React.FC = () => {
   const { currentYear } = useAnneeScolaire();
-  const {
-    Logout,
-    currentSession,
-    GetUserByEmail,
-    GetUtilisateurAutorisations,
-  } = useContextUtilisateur();
+  const { currentSession, GetUtilisateurAutorisations } =
+    useContextUtilisateur();
   const { handleLogout, isLoggingOut } = useRouteProtection();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [activeMenu, setActiveMenu] = useState("Tableau de Bord");
-  const [isNewYearModalOpen, setIsNewYearModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [loading, setLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
-
-  const [selectedYearForConfig, setSelectedYearForConfig] = useState<
-    string | null
-  >(null);
+  const [isUserSuperAdmin, setIsUserSuperAdmin] = useState(false);
 
   // Données de l'utilisateur
   const currentUser: User = {
-    name: currentSession
+    name: isUserSuperAdmin
+      ? "Compte Système"
+      : currentSession
       ? currentSession.employer?.nom + " " + currentSession.employer?.prenom
       : "SIGEP",
-    role: currentSession
+    role: isUserSuperAdmin
+      ? "Super Administrateur / Accès Total"
+      : currentSession
       ? currentSession.employer?.departement +
         "/" +
         currentSession.employer?.fonction
@@ -170,15 +189,39 @@ const Dashboard: React.FC = () => {
   // Charger les autorisations de l'utilisateur
   useEffect(() => {
     const loadUserPermissions = async () => {
+      setLoading(true);
+
+      // Vérifier d'abord si c'est le Super Admin
+      const checkSuperAdmin = isSuperAdmin(currentSession);
+      setIsUserSuperAdmin(checkSuperAdmin);
+
+      if (checkSuperAdmin) {
+        // Super Admin a TOUTES les permissions
+        console.log("🔐 Super Admin détecté - Accès complet accordé");
+        setUserPermissions([
+          "Tableau de Bord",
+          "Années Scolaires",
+          "Élèves",
+          "Notes",
+          "Professeurs",
+          "Employés",
+          "Paiements",
+          "Rapports",
+          "Calendrier",
+          "Paramètres",
+        ]);
+        setLoading(false);
+        return;
+      }
+
+      // Pour les utilisateurs normaux
       if (currentSession?.user?.id) {
-        setLoading(true);
         try {
           const permissions = await GetUtilisateurAutorisations(
             currentSession.user.id
           );
           setUserPermissions(permissions || []);
 
-          // Définir le menu actif par défaut sur la première autorisation disponible
           if (permissions && permissions.length > 0) {
             setActiveMenu(permissions[0]);
           }
@@ -198,17 +241,21 @@ const Dashboard: React.FC = () => {
 
   // Vérifier si l'utilisateur a une autorisation spécifique
   const hasPermission = (permission: string): boolean => {
+    // Super Admin a toutes les permissions
+    if (isUserSuperAdmin) {
+      return true;
+    }
     return userPermissions.includes(permission);
   };
 
   // Filtrer les items du sidebar en fonction des autorisations
-  const sidebarItems = allSidebarItems.filter((item) =>
-    hasPermission(item.label)
-  );
+  const sidebarItems = isUserSuperAdmin
+    ? allSidebarItems // Super Admin voit tout
+    : allSidebarItems.filter((item) => hasPermission(item.label));
 
   const handleMenuChange = (menuLabel: string) => {
-    // Vérifier si l'utilisateur a l'autorisation avant de changer de menu
-    if (hasPermission(menuLabel)) {
+    // Super Admin peut accéder à tout
+    if (isUserSuperAdmin || hasPermission(menuLabel)) {
       setActiveMenu(menuLabel);
     }
   };
@@ -242,13 +289,13 @@ const Dashboard: React.FC = () => {
   };
 
   const renderMainContent = () => {
-    // Si aucune autorisation, afficher le message d'erreur
-    if (userPermissions.length === 0) {
-      return null; // Le message sera affiché en dehors de cette fonction
+    // Si aucune autorisation et pas Super Admin
+    if (userPermissions.length === 0 && !isUserSuperAdmin) {
+      return null;
     }
 
-    // Vérifier si l'utilisateur a l'autorisation pour le menu actif
-    if (!hasPermission(activeMenu)) {
+    // Super Admin peut tout voir, sinon vérifier permission
+    if (!isUserSuperAdmin && !hasPermission(activeMenu)) {
       return (
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
@@ -276,56 +323,38 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // Afficher le composant correspondant si autorisé
+    // Afficher le composant correspondant
     switch (activeMenu) {
       case "Tableau de Bord":
-        return hasPermission("Tableau de Bord") ? (
-          <TableauDeBord isDarkMode={isDarkMode} />
-        ) : null;
+        return <TableauDeBord isDarkMode={isDarkMode} />;
       case "Années Scolaires":
-        return hasPermission("Années Scolaires") ? (
-          <GestionAnneeScolaire isDarkMode={isDarkMode} />
-        ) : null;
+        return (
+          <GestionAnneeScolaire
+            isSuperAdmin={isUserSuperAdmin}
+            isDarkMode={isDarkMode}
+          />
+        );
       case "Élèves":
-        return hasPermission("Élèves") ? (
-          <ElevesPage isDarkMode={isDarkMode} />
-        ) : null;
+        return <ElevesPage isDarkMode={isDarkMode} />;
       case "Notes":
-        return hasPermission("Notes") ? (
-          <NotesPage isDarkMode={isDarkMode} />
-        ) : null;
+        return <NotesPage isDarkMode={isDarkMode} />;
       case "Professeurs":
-        return hasPermission("Professeurs") ? (
-          <GestionProfesseurs isDarkMode={isDarkMode} />
-        ) : null;
+        return <GestionProfesseurs isDarkMode={isDarkMode} />;
       case "Employés":
-        return hasPermission("Employés") ? (
-          <GestionEmployer isDarkMode={isDarkMode} />
-        ) : null;
+        return <GestionEmployer isDarkMode={isDarkMode} />;
       case "Paiements":
-        return hasPermission("Paiements") ? (
-          <FraisScolaritePage isDarkMode={isDarkMode} />
-        ) : null;
+        return <FraisScolaritePage isDarkMode={isDarkMode} />;
       case "Rapports":
-        return hasPermission("Rapports") ? (
-          <Rapport darkMode={isDarkMode} />
-        ) : null;
+        return <Rapport darkMode={isDarkMode} />;
       case "Calendrier":
-        return hasPermission("Calendrier") ? (
-          <CalendrierScolaire darkMode={isDarkMode} />
-        ) : null;
+        return <CalendrierScolaire darkMode={isDarkMode} />;
       case "Paramètres":
-        return hasPermission("Paramètres") ? (
-          <AdminSettingsPage isDarkMode={isDarkMode} />
-        ) : null;
+        return <AdminSettingsPage isDarkMode={isDarkMode} />;
       default:
-        return hasPermission("Tableau de Bord") ? (
-          <TableauDeBord isDarkMode={isDarkMode} />
-        ) : null;
+        return <TableauDeBord isDarkMode={isDarkMode} />;
     }
   };
 
-  // Affichage du loader pendant le chargement
   if (loading) {
     return (
       <div
@@ -347,7 +376,17 @@ const Dashboard: React.FC = () => {
             : "bg-gradient-to-br from-gray-50 via-blue-50/30 to-amber-50/30 text-gray-900"
         }`}
       >
-        {/* Sidebar - Caché si aucune autorisation */}
+        {/* Badge Super Admin flottant */}
+        {isUserSuperAdmin && (
+          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+            <div className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-full shadow-lg animate-pulse">
+              <Shield className="w-4 h-4" />
+              <span className="text-sm font-bold">MODE SUPER ADMIN</span>
+            </div>
+          </div>
+        )}
+
+        {/* Sidebar */}
         {userPermissions.length > 0 && (
           <aside
             className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ${
@@ -380,7 +419,7 @@ const Dashboard: React.FC = () => {
                         isDarkMode ? "text-gray-400" : "text-gray-600"
                       }`}
                     >
-                      Gestion Scolaire
+                      {isUserSuperAdmin ? "Super Admin" : "Gestion Scolaire"}
                     </p>
                   </div>
                 )}
@@ -401,7 +440,7 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Navigation - Affiche uniquement les menus autorisés */}
+            {/* Navigation */}
             <nav className="mt-6 px-4">
               <ul className="space-y-3">
                 {sidebarItems.map((item) => {
@@ -470,7 +509,6 @@ const Dashboard: React.FC = () => {
                       {activeMenu}
                     </h2>
 
-                    {/* Affichage de l'année actuelle */}
                     {hasPermission("Années Scolaires") && (
                       <div className="flex items-center space-x-3">
                         <div
@@ -496,7 +534,6 @@ const Dashboard: React.FC = () => {
               </div>
 
               <div className="flex items-center space-x-4">
-                {/* Toggle thème */}
                 <button
                   onClick={toggleTheme}
                   className={`p-3 rounded-xl transition-all duration-300 hover:transform hover:scale-110 ${
@@ -607,7 +644,9 @@ const Dashboard: React.FC = () => {
                     <img
                       src={currentUser.avatar}
                       alt={currentUser.name}
-                      className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-gray-800 transition-transform duration-200 hover:scale-110"
+                      className={`w-10 h-10 rounded-full object-cover ring-2 ${
+                        isUserSuperAdmin ? "ring-purple-500" : "ring-blue-500"
+                      } ring-offset-2 dark:ring-offset-gray-800 transition-transform duration-200 hover:scale-110`}
                     />
                     <div className="text-left hidden md:block">
                       <p
@@ -713,8 +752,7 @@ const Dashboard: React.FC = () => {
 
           {/* Contenu */}
           <div className="min-h-screen">
-            {userPermissions.length === 0 ? (
-              // Message si aucune autorisation
+            {userPermissions.length === 0 && !isUserSuperAdmin ? (
               <div className="flex items-center justify-center min-h-[80vh]">
                 <div
                   className={`text-center p-12 rounded-2xl ${

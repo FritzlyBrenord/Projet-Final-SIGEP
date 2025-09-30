@@ -14,6 +14,7 @@ import { useEleves } from "@/Context/ContextEleves";
 import { useNotes } from "@/Context/ContextNotes";
 import { useDecisionFinAnnee } from "@/Context/ContextDecisionFinAnnee";
 import { SelectData, UpdateData } from "@/Config/SupabaseData";
+import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 import {
   EleveAffiche,
   ElevePermanent,
@@ -32,6 +33,10 @@ interface StudentWithDecision extends EleveAffiche {
   decision?: DecisionFinAnnee | null;
   classeActuelleNom: string;
   salleActuelleNom: string;
+  currentClasseId?: string;
+  currentSalleId?: string;
+  currentClasseNom?: string;
+  currentSalleNom?: string;
 }
 
 const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
@@ -46,6 +51,7 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
     calculateMoyenneGeneraleTrimestre,
   } = useNotes();
   const { getDecisionByEleve } = useDecisionFinAnnee();
+  const { addActivity } = useRecentActivities();
 
   const [studentsPrevYear, setStudentsPrevYear] = useState<
     StudentWithDecision[]
@@ -759,6 +765,16 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
         };
 
         await reinscrireEleve(reinscriptionData);
+
+        // Journaliser la réinscription
+        await addActivity({
+          action: "reinscription",
+          module: "Gestion Élèves",
+          title: "Réinscription d'élève",
+          details: `${student.prenom} ${student.nom} réinscrit (${decision.label}).`,
+          source_table: "eleves_inscriptions",
+          entity_id: student.id,
+        });
       }
 
       alert(`${selectedStudents.length} élève(s) réinscrit(s) avec succès!`);
@@ -796,6 +812,15 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
         deleted: true,
       });
       if (!ok) throw new Error("Échec de l'annulation");
+      // Journaliser l'annulation de réinscription (suppression soft)
+      await addActivity({
+        action: "suppression",
+        module: "Gestion Élèves",
+        title: "Annulation de réinscription",
+        details: `Réinscription annulée pour l'élève ${studentId}.`,
+        source_table: "eleves_inscriptions",
+        entity_id: studentId,
+      });
       // Recharger la liste
       setAlreadyReenrolledIds((prev) => {
         const copy = new Set(prev);
