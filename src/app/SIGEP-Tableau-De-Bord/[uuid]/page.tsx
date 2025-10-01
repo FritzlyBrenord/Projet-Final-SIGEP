@@ -364,7 +364,7 @@ const Dashboard: React.FC = () => {
   return (
     <ProtectedRoute>
       <div
-        className={`min-h-screen transition-all duration-300 ${
+        className={`overflow-hidden min-h-screen transition-all duration-300 ${
           isDarkMode
             ? "dark bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100"
             : "bg-gradient-to-br from-gray-50 via-blue-50/30 to-amber-50/30 text-gray-900"
@@ -499,15 +499,18 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center space-x-4">
                 {userPermissions.length > 0 ? (
                   <>
-                    <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
+                    <h2 className="hidden sm:flex text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
                       {activeMenu}
+                    </h2>
+                    <h2 className=" sm:hidden text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
+                      SIGEP
                     </h2>
 
                     {hasPermission("Années Scolaires") && (
                       <div className="flex items-center space-x-3">
                         <div
                           onClick={() => handleMenuChange("Années Scolaires")}
-                          className="flex items-center cursor-pointer space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl shadow-md"
+                          className="hidden sm:flex items-center cursor-pointer space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl shadow-md"
                         >
                           <Calendar className="w-4 h-4" />
                           <span className="font-medium">

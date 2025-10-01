@@ -91,7 +91,9 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
 
   // Fonctions helper pour récupérer les noms des classes et salles
   const getClasseName = (classeId: string) => {
-    return currentYear?.classes.find((c) => c.id === classeId)?.name || classeId;
+    return (
+      currentYear?.classes.find((c) => c.id === classeId)?.name || classeId
+    );
   };
 
   const getSalleName = (classeId: string, salleId: string) => {
@@ -533,14 +535,13 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
       }
 
       await rechargerDonnees();
-      
+
       // Fermer le modal après sauvegarde réussie
       setShowScheduleModal(false);
       resetScheduleForm();
-      
+
       // Message de confirmation
       alert("Horaire enregistré avec succès !");
-      
     } catch (error) {
       console.error("Erreur lors de la sauvegarde de l'horaire:", error);
       alert("Erreur lors de la sauvegarde de l'horaire. Veuillez réessayer.");
@@ -1004,8 +1005,13 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
             <div class="schedule-info">
               <h3>${schedule.name}</h3>
               <div class="schedule-meta">
-                <span><strong>Classe:</strong> ${getClasseName(schedule.className)}</span>
-                <span><strong>Salle:</strong> ${getSalleName(schedule.className, schedule.room)}</span>
+                <span><strong>Classe:</strong> ${getClasseName(
+                  schedule.className
+                )}</span>
+                <span><strong>Salle:</strong> ${getSalleName(
+                  schedule.className,
+                  schedule.room
+                )}</span>
                 <span><strong>Du:</strong> ${new Date(
                   schedule.startDate
                 ).toLocaleDateString("fr-FR")}</span>
@@ -1247,10 +1253,10 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                     : "bg-white hover:bg-gray-50 border"
                 }`}
               >
-                ← Précédent
+                ← <span className="hidden sm:flex">Précédent</span>
               </button>
 
-              <h2 className="text-xl font-semibold">
+              <h2 className="text-sm sm:text-xl font-semibold">
                 {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
               </h2>
 
@@ -1262,114 +1268,120 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                     : "bg-white hover:bg-gray-50 border"
                 }`}
               >
-                Suivant →
+                <span className="hidden sm:flex">Suivant</span> →
               </button>
             </div>
 
             {/* Calendar Grid */}
-            <div
-              className={`rounded-lg shadow-sm border transition-colors ${
-                darkMode
-                  ? "bg-gray-800 border-gray-700"
-                  : "bg-white border-gray-200"
-              }`}
-            >
-              {/* Day Headers */}
-              <div className="grid grid-cols-7 gap-px">
-                {dayNames.map((day) => (
-                  <div
-                    key={day}
-                    className={`p-3 text-center text-sm font-medium ${
-                      darkMode
-                        ? "bg-gray-700 text-gray-300"
-                        : "bg-gray-50 text-gray-600"
-                    }`}
-                  >
-                    {day}
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="min-w-[640px] px-4 sm:px-0">
+                <div
+                  className={`rounded-lg shadow-sm border transition-colors ${
+                    darkMode
+                      ? "bg-gray-800 border-gray-700"
+                      : "bg-white border-gray-200"
+                  }`}
+                >
+                  {/* Day Headers */}
+                  <div className="grid grid-cols-7 gap-px">
+                    {dayNames.map((day) => (
+                      <div
+                        key={day}
+                        className={`p-3 text-center text-sm font-medium ${
+                          darkMode
+                            ? "bg-gray-700 text-gray-300"
+                            : "bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        {day}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
 
-              {/* Calendar Days */}
-              <div className="grid grid-cols-7 gap-px">
-                {getDaysInMonth(currentDate).map((day, index) => {
-                  const dayEvents = getEventsForDate(day.date);
-                  const isToday =
-                    formatDate(day.date) === formatDate(new Date());
+                  {/* Calendar Days */}
+                  <div className="grid grid-cols-7 gap-px">
+                    {getDaysInMonth(currentDate).map((day, index) => {
+                      const dayEvents = getEventsForDate(day.date);
+                      const isToday =
+                        formatDate(day.date) === formatDate(new Date());
 
-                  return (
-                    <div
-                      key={index}
-                      onClick={() => setSelectedDate(day.date)}
-                      className={`min-h-[120px] p-2 cursor-pointer transition-colors relative ${
-                        day.isCurrentMonth
-                          ? darkMode
-                            ? "bg-gray-800 hover:bg-gray-700"
-                            : "bg-white hover:bg-gray-50"
-                          : darkMode
-                          ? "bg-gray-900 text-gray-600"
-                          : "bg-gray-100 text-gray-400"
-                      } ${isToday ? "ring-2 ring-blue-500" : ""}`}
-                    >
-                      <div className="flex justify-between items-start mb-1">
-                        <span
-                          className={`text-sm font-medium ${
-                            isToday ? "text-blue-600" : ""
-                          }`}
+                      return (
+                        <div
+                          key={index}
+                          onClick={() => setSelectedDate(day.date)}
+                          className={`min-h-[120px] p-2 cursor-pointer transition-colors relative ${
+                            day.isCurrentMonth
+                              ? darkMode
+                                ? "bg-gray-800 hover:bg-gray-700"
+                                : "bg-white hover:bg-gray-50"
+                              : darkMode
+                              ? "bg-gray-900 text-gray-600"
+                              : "bg-gray-100 text-gray-400"
+                          } ${isToday ? "ring-2 ring-blue-500" : ""}`}
                         >
-                          {day.date.getDate()}
-                        </span>
-                      </div>
-
-                      <div className="space-y-1">
-                        {dayEvents
-                          .slice(0, 4)
-                          .map(
-                            (
-                              event: Event | HolidayEvent,
-                              eventIndex: number
-                            ) => (
-                              <div
-                                key={eventIndex}
-                                className={`text-xs p-1 rounded border ${
-                                  darkMode
-                                    ? "border-gray-600 bg-gray-700"
-                                    : "border-gray-300 bg-gray-100"
-                                }`}
-                                title={
-                                  "localName" in event
-                                    ? event.localName
-                                    : event.title
-                                }
-                              >
-                                <div className="font-medium">
-                                  {"localName" in event
-                                    ? event.localName
-                                    : event.title}
-                                </div>
-                                {"localName" in event ? null : (
-                                  <div className="text-xs opacity-75">
-                                    {getEventTypeLabel((event as Event).type)}
-                                    {(event as Event).time &&
-                                      ` - ${(event as Event).time}`}
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          )}
-                        {dayEvents.length > 4 && (
-                          <div
-                            className={`text-xs ${
-                              darkMode ? "text-gray-400" : "text-gray-600"
-                            }`}
-                          >
-                            +{dayEvents.length - 4} autres
+                          <div className="flex justify-between items-start mb-1">
+                            <span
+                              className={`text-sm font-medium ${
+                                isToday ? "text-blue-600" : ""
+                              }`}
+                            >
+                              {day.date.getDate()}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+
+                          <div className="space-y-1">
+                            {dayEvents
+                              .slice(0, 4)
+                              .map(
+                                (
+                                  event: Event | HolidayEvent,
+                                  eventIndex: number
+                                ) => (
+                                  <div
+                                    key={eventIndex}
+                                    className={`text-xs p-1 rounded border ${
+                                      darkMode
+                                        ? "border-gray-600 bg-gray-700"
+                                        : "border-gray-300 bg-gray-100"
+                                    }`}
+                                    title={
+                                      "localName" in event
+                                        ? event.localName
+                                        : event.title
+                                    }
+                                  >
+                                    <div className="font-medium">
+                                      {"localName" in event
+                                        ? event.localName
+                                        : event.title}
+                                    </div>
+                                    {"localName" in event ? null : (
+                                      <div className="text-xs opacity-75">
+                                        {getEventTypeLabel(
+                                          (event as Event).type
+                                        )}
+                                        {(event as Event).time &&
+                                          ` - ${(event as Event).time}`}
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              )}
+                            {dayEvents.length > 4 && (
+                              <div
+                                className={`text-xs ${
+                                  darkMode ? "text-gray-400" : "text-gray-600"
+                                }`}
+                              >
+                                +{dayEvents.length - 4} autres
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
           </>
@@ -1383,7 +1395,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
             }`}
           >
             <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:justify-between gap-10 items-center mb-4">
                 <h3 className="text-lg font-semibold">
                   Planning des Événements
                 </h3>
@@ -1498,11 +1510,11 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
         ) : (
           // Schedules View
           <div>
-            <div className="flex justify-between items-center mb-6 no-print">
+            <div className="flex flex-col sm:justify-between gap-10 items-center mb-6 no-print">
               <h2 className="text-xl font-semibold">Gestion des Horaires</h2>
 
               {/* Filtres */}
-              <div className="flex space-x-4">
+              <div className="flex flex-col sm:flex-row space-x-4">
                 <select
                   value={filterClass}
                   onChange={(e) => setFilterClass(e.target.value)}
@@ -1558,7 +1570,8 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                       <p
                         className={darkMode ? "text-gray-400" : "text-gray-600"}
                       >
-                        {getClasseName(schedule.className)} - Salle: {getSalleName(schedule.className, schedule.room)}
+                        {getClasseName(schedule.className)} - Salle:{" "}
+                        {getSalleName(schedule.className, schedule.room)}
                       </p>
                       <p
                         className={`text-sm ${

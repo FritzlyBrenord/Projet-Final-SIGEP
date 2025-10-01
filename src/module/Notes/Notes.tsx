@@ -1934,7 +1934,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
         {/* Onglets */}
         <div
-          className={`flex mb-6 border-b ${
+          className={`flex flex-col sm:flex-row mb-6 border-b ${
             isDarkMode ? "border-gray-700" : "border-gray-200"
           }`}
         >

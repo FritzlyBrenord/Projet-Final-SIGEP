@@ -709,7 +709,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         {/* Barre d'actions et filtres */}
         <div className={`${cardClasses} p-6 rounded-lg shadow-sm border mb-6`}>
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between mb-6">
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setShowForm(true)}
                 className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors`}
