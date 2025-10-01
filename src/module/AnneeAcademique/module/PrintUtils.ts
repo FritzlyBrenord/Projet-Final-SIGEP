@@ -1,6 +1,6 @@
 import { Level, Class, Subject, ScheduleItem } from "../../../types/AnneeScolaireType";
 
-
+// Si Level n'est pas exporté, assurez-vous que AnneeScolaireType.ts contient : export type Level = ...
 
 export const EntetIMFP = (titre: string): string => {
   return `
@@ -192,8 +192,6 @@ export const EntetIMFPSimple = (titre: string): string => {
   `;
 };
 
-
-// Fonction pour générer le contenu d'impression des classes et matières
 export const generateClassesPrintContent = (levels: Level[]) => {
   return `
     <!DOCTYPE html>
@@ -388,16 +386,12 @@ export const generateClassesPrintContent = (levels: Level[]) => {
                     <div class="class-name">${cls.name}</div>
                   </td>
                   <td>
-                    <span class="max-students">${
-                      cls.maxStudents
-                    } élèves</span>
+                    <span class="max-students">${cls.maxStudents ?? 0} élèves</span>
                   </td>
                   <td>
                     <div class="subjects-container">
-                      <div class="subjects-count">${
-                        cls.subjects.length
-                      } matière(s)</div>
-                  ${cls.subjects
+                      <div class="subjects-count">${cls.subjects?.length ?? 0} matière(s)</div>
+                  ${(cls.subjects ?? [])
                     .map(
                       (subject: Subject) =>
                         `<span class="subject-tag">${subject.name} (Coef: ${subject.coefficient})</span>`
@@ -437,7 +431,7 @@ export const generateClassesPrintContent = (levels: Level[]) => {
             (acc: number, level: Level) =>
               acc +
               level.classes.reduce(
-                (acc2: number, cls: Class) => acc2 + cls.subjects.length,
+                (acc2: number, cls: Class) => acc2 + (cls.subjects?.length ?? 0),
                 0
               ),
             0
@@ -449,7 +443,7 @@ export const generateClassesPrintContent = (levels: Level[]) => {
             (acc: number, level: Level) =>
               acc +
               level.classes.reduce(
-                (acc2: number, cls: Class) => acc2 + cls.maxStudents,
+                (acc2: number, cls: Class) => acc2 + (cls.maxStudents ?? 0),
                 0
               ),
             0
@@ -462,7 +456,6 @@ export const generateClassesPrintContent = (levels: Level[]) => {
   `;
 };
 
-// Fonction pour générer le contenu d'impression de l'emploi du temps complet
 export const generateSchedulePrintContent = (levels: Level[]) => {
   const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
   
@@ -631,9 +624,9 @@ export const generateSchedulePrintContent = (levels: Level[]) => {
               <div class="class-header">
                 <div class="class-title">${cls.name}</div>
                 <div class="class-info">
-                  Capacité: ${cls.maxStudents} élèves | 
-                  Matières: ${cls.subjects.length} | 
-                  Créneaux: ${cls.schedule.length}
+                  Capacité: ${cls.maxStudents ?? 0} élèves | 
+                  Matières: ${cls.subjects?.length ?? 0} | 
+                  Créneaux: ${cls.schedule?.length ?? 0}
                 </div>
               </div>
               
@@ -651,7 +644,7 @@ export const generateSchedulePrintContent = (levels: Level[]) => {
                   <tr>
                 ${days
                   .map((day: string) => {
-                    const daySchedule = cls.schedule.filter(
+                    const daySchedule = (cls.schedule ?? []).filter(
                       (item: ScheduleItem) => item.day === day
                     );
                     if (daySchedule.length === 0) {
@@ -676,9 +669,7 @@ export const generateSchedulePrintContent = (levels: Level[]) => {
                                       ${item.subject}
                                     </div>
                                     <div style="font-size: 10px; color: #64748b; font-style: italic;">
-                                      ${
-                                        item.teacherName || "Aucun professeur"
-                                      }
+                                      ${item.teacherName || "Aucun professeur"}
                                     </div>
                       </div>
                     `
@@ -705,7 +696,6 @@ export const generateSchedulePrintContent = (levels: Level[]) => {
   `;
 };
 
-// Fonction pour générer le contenu d'impression d'un emploi du temps individuel
 export const generateClassSchedulePrintContent = (cls: Class, levelName: string) => {
   const days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
   
@@ -950,7 +940,7 @@ export const generateClassSchedulePrintContent = (cls: Class, levelName: string)
             <tr>
             ${days
               .map((day: string) => {
-                const daySchedule = cls.schedule.filter(
+                const daySchedule = (cls.schedule ?? []).filter(
                   (item: ScheduleItem) => item.day === day
                 );
                 if (daySchedule.length === 0) {
@@ -993,7 +983,6 @@ export const generateClassSchedulePrintContent = (cls: Class, levelName: string)
   `;
 };
 
-// Fonction pour générer le contenu d'impression de la configuration complète
 export const generateCompleteConfigPrintContent = (
   yearInput: string,
   description: string,
@@ -1178,10 +1167,10 @@ export const generateCompleteConfigPrintContent = (
                       cls.name
                     }</td>
                     <td style="text-align: center; color: #dc2626; font-weight: bold;">${
-                      cls.maxStudents
+                      cls.maxStudents ?? 0
                     }</td>
                     <td>
-                    ${cls.subjects
+                    ${(cls.subjects ?? [])
                       .map(
                         (subject: Subject) =>
                           `<span style="display: inline-block; background: #ecfdf5; color: #065f46; padding: 2px 6px; margin: 1px; border-radius: 8px; font-size: 10px; border: 1px solid #bbf7d0;">${subject.name} (${subject.coefficient})</span>`
@@ -1227,10 +1216,10 @@ export const generateCompleteConfigPrintContent = (
                     <td>
                       <div class="compact-schedule">
                   ${
-                    cls.schedule.length > 0
+                    (cls.schedule?.length ?? 0) > 0
                       ? days
                           .map((day: string) => {
-                            const daySchedule = cls.schedule.filter(
+                            const daySchedule = (cls.schedule ?? []).filter(
                               (item: ScheduleItem) => item.day === day
                             );
                             if (daySchedule.length === 0)
@@ -1283,7 +1272,7 @@ export const generateCompleteConfigPrintContent = (
             (acc: number, level: Level) =>
               acc +
               level.classes.reduce(
-                (acc2: number, cls: Class) => acc2 + cls.subjects.length,
+                (acc2: number, cls: Class) => acc2 + (cls.subjects?.length ?? 0),
                 0
               ),
             0
@@ -1295,7 +1284,7 @@ export const generateCompleteConfigPrintContent = (
             (acc: number, level: Level) =>
               acc +
               level.classes.reduce(
-                (acc2: number, cls: Class) => acc2 + cls.maxStudents,
+                (acc2: number, cls: Class) => acc2 + (cls.maxStudents ?? 0),
                 0
               ),
             0
@@ -1307,7 +1296,7 @@ export const generateCompleteConfigPrintContent = (
             (acc: number, level: Level) =>
               acc +
               level.classes.reduce(
-                (acc2: number, cls: Class) => acc2 + cls.schedule.length,
+                (acc2: number, cls: Class) => acc2 + (cls.schedule?.length ?? 0),
                 0
               ),
             0

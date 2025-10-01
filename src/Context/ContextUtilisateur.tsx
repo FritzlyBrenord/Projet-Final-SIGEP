@@ -267,10 +267,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           id
         );
         if (!emailUpdateResult?.succes) {
-          setError(
-            emailUpdateResult?.error ||
-              "Erreur lors de la modification de l'email"
-          );
+          setError("Erreur lors de la modification de l'email");
           return false;
         }
       }

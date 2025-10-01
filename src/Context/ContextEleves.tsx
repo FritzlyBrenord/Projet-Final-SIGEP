@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
 } from "react";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
 import {
@@ -86,7 +87,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
     salle_id: eleveData.salle_id,
   });
 
-  const rechargerEleves = async () => {
+  const rechargerEleves = useCallback(async () => {
     try {
       setIsLoading(true);
       if (!currentYear) {
@@ -134,7 +135,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentYear]);
 
   const genererNouveauCode = async (
     nom?: string,
@@ -783,7 +784,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     rechargerEleves();
-  }, [currentYear]);
+  }, [currentYear, rechargerEleves]);
 
   return (
     <ElevesContext.Provider

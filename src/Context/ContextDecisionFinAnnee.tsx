@@ -5,9 +5,14 @@ import React, {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
 } from "react";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
-import { DecisionFinAnnee, DecisionFinAnneeFormData, DecisionFinAnneeWithDetails } from "../types/DecisionFinAnneeType";
+import {
+  DecisionFinAnnee,
+  DecisionFinAnneeFormData,
+  DecisionFinAnneeWithDetails,
+} from "../types/DecisionFinAnneeType";
 import {
   SelectData,
   InsertDataReturn,
@@ -36,7 +41,10 @@ export interface DecisionFinAnneeContextType {
 
   // Gestion des décisions
   ajouterDecision: (data: DecisionFinAnneeFormData) => Promise<void>;
-  modifierDecision: (id: string, data: Partial<DecisionFinAnneeFormData>) => Promise<void>;
+  modifierDecision: (
+    id: string,
+    data: Partial<DecisionFinAnneeFormData>
+  ) => Promise<void>;
   supprimerDecision: (id: string) => Promise<void>; // logique
   supprimerDecisionDefinitif: (id: string) => Promise<void>; // hard
   restaurerDecision: (id: string) => Promise<void>;
@@ -48,7 +56,9 @@ export interface DecisionFinAnneeContextType {
   rechargerDecisions: () => Promise<void>;
 }
 
-const DecisionFinAnneeContext = createContext<DecisionFinAnneeContextType | undefined>(undefined);
+const DecisionFinAnneeContext = createContext<
+  DecisionFinAnneeContextType | undefined
+>(undefined);
 
 export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
   children,
@@ -63,14 +73,14 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
     eleve_id: r.eleve_id,
     annee_scolaire_id: r.annee_scolaire_id,
     observation: r.observation,
-    decision: r.decision as 'ADMIS' | 'REDOUBLER' | 'EXPULSER',
+    decision: r.decision as "ADMIS" | "REDOUBLER" | "EXPULSER",
     date_decision: r.date_decision,
     created_at: r.created_at,
     updated_at: r.updated_at,
     deleted: r.deleted,
   });
 
-  const rechargerDecisions = async () => {
+  const rechargerDecisions = useCallback(async () => {
     try {
       setIsLoading(true);
       const data = await SelectData("decision_de_fin_annee");
@@ -84,7 +94,7 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentYear]);
 
   // Gestion des décisions
   const ajouterDecision = async (data: DecisionFinAnneeFormData) => {
@@ -109,9 +119,13 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
         );
       }
 
-      const payload: Omit<DecisionFinAnneeDB, "id" | "created_at" | "updated_at"> = {
+      const payload: Omit<
+        DecisionFinAnneeDB,
+        "id" | "created_at" | "updated_at"
+      > = {
         ...data,
-        date_decision: data.date_decision || new Date().toISOString().split("T")[0],
+        date_decision:
+          data.date_decision || new Date().toISOString().split("T")[0],
         deleted: false,
       } as DecisionFinAnneeDB;
 
@@ -133,7 +147,10 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const modifierDecision = async (id: string, data: Partial<DecisionFinAnneeFormData>) => {
+  const modifierDecision = async (
+    id: string,
+    data: Partial<DecisionFinAnneeFormData>
+  ) => {
     try {
       setIsLoading(true);
 
@@ -155,7 +172,9 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
   const supprimerDecision = async (id: string) => {
     try {
       setIsLoading(true);
-      const ok = await UpdateData("decision_de_fin_annee", id, { deleted: true });
+      const ok = await UpdateData("decision_de_fin_annee", id, {
+        deleted: true,
+      });
       if (!ok) throw new Error("Erreur lors de la suppression de la décision");
       setDecisions((prev) => prev.filter((d) => d.id !== id));
     } catch (e) {
@@ -175,7 +194,9 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoading(true);
       const ok = await DeleteData("decision_de_fin_annee", id);
       if (!ok)
-        throw new Error("Erreur lors de la suppression définitive de la décision");
+        throw new Error(
+          "Erreur lors de la suppression définitive de la décision"
+        );
       await rechargerDecisions();
     } catch (e) {
       setError(
@@ -192,7 +213,9 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
   const restaurerDecision = async (id: string) => {
     try {
       setIsLoading(true);
-      const ok = await UpdateData("decision_de_fin_annee", id, { deleted: false });
+      const ok = await UpdateData("decision_de_fin_annee", id, {
+        deleted: false,
+      });
       if (!ok) throw new Error("Erreur lors de la restauration de la décision");
       await rechargerDecisions();
     } catch (e) {
@@ -212,7 +235,9 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
     return decisions.find((d) => d.eleve_id === eleveId) || null;
   };
 
-  const getDecisionsByAnneeScolaire = (anneeScolaireId: string): DecisionFinAnnee[] => {
+  const getDecisionsByAnneeScolaire = (
+    anneeScolaireId: string
+  ): DecisionFinAnnee[] => {
     return decisions.filter((d) => d.annee_scolaire_id === anneeScolaireId);
   };
 
@@ -248,7 +273,7 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     rechargerDecisions();
-  }, [currentYear]);
+  }, [currentYear, rechargerDecisions]);
 
   return (
     <DecisionFinAnneeContext.Provider
@@ -274,6 +299,9 @@ export const DecisionFinAnneeProvider: React.FC<{ children: ReactNode }> = ({
 
 export const useDecisionFinAnnee = () => {
   const ctx = useContext(DecisionFinAnneeContext);
-  if (!ctx) throw new Error("useDecisionFinAnnee must be used within a DecisionFinAnneeProvider");
+  if (!ctx)
+    throw new Error(
+      "useDecisionFinAnnee must be used within a DecisionFinAnneeProvider"
+    );
   return ctx;
 };

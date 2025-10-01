@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Search,
   Filter,
@@ -106,7 +106,9 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
   const [showExcessModal, setShowExcessModal] = useState(false);
   const [excessData, setExcessData] = useState<any>(null);
   // Brouillon des montants par type (configuration par classe)
-  const [classeFraisDrafts, setClasseFraisDrafts] = useState<Record<string, string>>({});
+  const [classeFraisDrafts, setClasseFraisDrafts] = useState<
+    Record<string, string>
+  >({});
 
   const isLoading = isLoadingFrais || isLoadingEleves;
 
@@ -134,10 +136,13 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     return <AlertTriangle className="h-4 w-4" />;
   };
 
-  const getClasseNameById = (classeId: string) => {
-    const classe = classes.find((c) => c.value === classeId);
-    return classe ? classe.label : "";
-  };
+  const getClasseNameById = useCallback(
+    (classeId: string) => {
+      const classe = classes.find((c) => c.value === classeId);
+      return classe ? classe.label : "";
+    },
+    [classes]
+  );
 
   const getSalleNameById = (classeId: string, salleId: string) => {
     const salles = sallesByClass[classeId] || [];
@@ -288,7 +293,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
       // proposer d'augmenter le paiement existant au lieu de créer un doublon
       if (paiementsExistants.length > 0 && montantPaye <= restantAPayer) {
         // Choisir le paiement le plus récent si possible
-        const paiementExistant = [...paiementsExistants].sort((a, b) => {
+        const paiementExistant: any = [...paiementsExistants].sort((a, b) => {
           const da = a.date_paiement ? new Date(a.date_paiement).getTime() : 0;
           const db = b.date_paiement ? new Date(b.date_paiement).getTime() : 0;
           return db - da;
@@ -569,7 +574,12 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
         montant_du: montant.toString(),
       }));
     }
-  }, [paiementForm.type_frais_id, selectedStudent, getFraisForClasse]);
+  }, [
+    paiementForm.type_frais_id,
+    selectedStudent,
+    getFraisForClasse,
+    getClasseNameById,
+  ]);
 
   // FONCTION AMÉLIORÉE pour la génération de reçu
   const generateReceipt = (paiement: any) => {
@@ -891,7 +901,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                     type="number"
                     value={editingPaiement.montant_paye}
                     onChange={(e) =>
-                      setEditingPaiement((prev) => ({
+                      setEditingPaiement((prev: any) => ({
                         ...prev,
                         montant_paye: e.target.value,
                       }))
@@ -907,7 +917,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   <textarea
                     value={editingPaiement.remarques || ""}
                     onChange={(e) =>
-                      setEditingPaiement((prev) => ({
+                      setEditingPaiement((prev: any) => ({
                         ...prev,
                         remarques: e.target.value,
                       }))
@@ -1792,13 +1802,17 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                             />
                             <button
                               className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-white ${
-                                isDarkMode ? "bg-blue-600 hover:bg-blue-500" : "bg-blue-600 hover:bg-blue-700"
+                                isDarkMode
+                                  ? "bg-blue-600 hover:bg-blue-500"
+                                  : "bg-blue-600 hover:bg-blue-700"
                               }`}
                               onClick={() => {
                                 const parsed = parseFloat(
                                   classeFraisDrafts[typeFrais.id] || "0"
                                 );
-                                const montant = Number.isFinite(parsed) ? parsed : 0;
+                                const montant = Number.isFinite(parsed)
+                                  ? parsed
+                                  : 0;
                                 handleUpdateFraisClasse(typeFrais.id, montant);
                               }}
                               title="Valider"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   X,
   Search,
@@ -124,54 +124,58 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
       .pop();
   }, [currentYear, schoolYears]);
 
-  // Calculs de moyennes pour une année donnée (en local, pour utiliser l'année précédente)
-  const calculateMoyenneTrimestrielleForYear = (
-    eleveId: string,
-    trimestre: 1 | 2 | 3,
-    year: any,
-    notesOfYear: any[]
-  ): number => {
-    if (!year) return 0;
+  const calculateMoyenneTrimestrielleForYear = useCallback(
+    (
+      eleveId: string,
+      trimestre: 1 | 2 | 3,
+      year: any,
+      notesOfYear: any[]
+    ): number => {
+      if (!year) return 0;
 
-    let totalPoints = 0;
-    let totalCoefficient = 0;
+      let totalPoints = 0;
+      let totalCoefficient = 0;
 
-    for (const classe of year.classes) {
-      for (const salle of classe.salles) {
-        for (const matiere of salle.subjects) {
-          const note = notesOfYear.find(
-            (n) =>
-              n.eleve_id === eleveId &&
-              n.matiere_id === matiere.id &&
-              n.trimestre === trimestre &&
-              !n.deleted &&
-              n.annee_scolaire_id === year.id
-          );
-          if (note) {
-            totalPoints += note.note;
-            totalCoefficient += matiere.coefficient;
+      for (const classe of year.classes) {
+        for (const salle of classe.salles) {
+          for (const matiere of salle.subjects) {
+            const note = notesOfYear.find(
+              (n) =>
+                n.eleve_id === eleveId &&
+                n.matiere_id === matiere.id &&
+                n.trimestre === trimestre &&
+                !n.deleted &&
+                n.annee_scolaire_id === year.id
+            );
+            if (note) {
+              totalPoints += note.note;
+              totalCoefficient += matiere.coefficient;
+            }
           }
         }
       }
-    }
 
-    if (totalCoefficient === 0) return 0;
-    return (totalPoints / totalCoefficient) * 10;
-  };
+      if (totalCoefficient === 0) return 0;
+      return (totalPoints / totalCoefficient) * 10;
+    },
+    [] // Ajoutez des dépendances si nécessaire
+  );
 
-  const calculateMoyenneAnnuelleForYear = (
-    eleveId: string,
-    year: any,
-    notesOfYear: any[]
-  ): number => {
-    const t1 =
-      calculateMoyenneTrimestrielleForYear(eleveId, 1, year, notesOfYear) || 0;
-    const t2 =
-      calculateMoyenneTrimestrielleForYear(eleveId, 2, year, notesOfYear) || 0;
-    const t3 =
-      calculateMoyenneTrimestrielleForYear(eleveId, 3, year, notesOfYear) || 0;
-    return (t1 + t2 + t3) / 3;
-  };
+  const calculateMoyenneAnnuelleForYear = useCallback(
+    (eleveId: string, year: any, notesOfYear: any[]): number => {
+      const t1 =
+        calculateMoyenneTrimestrielleForYear(eleveId, 1, year, notesOfYear) ||
+        0;
+      const t2 =
+        calculateMoyenneTrimestrielleForYear(eleveId, 2, year, notesOfYear) ||
+        0;
+      const t3 =
+        calculateMoyenneTrimestrielleForYear(eleveId, 3, year, notesOfYear) ||
+        0;
+      return (t1 + t2 + t3) / 3;
+    },
+    [calculateMoyenneTrimestrielleForYear]
+  );
 
   // Normaliser la valeur de décision depuis la base
   const normalizeDecisionValue = (
@@ -388,6 +392,7 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
     previousYear,
     getDecisionByEleve,
     calculateMoyenneGeneraleAnnuelle,
+    calculateMoyenneAnnuelleForYear,
   ]);
 
   // Filtrer les élèves déjà réinscrits selon les critères

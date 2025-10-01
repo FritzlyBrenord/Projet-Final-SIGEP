@@ -237,7 +237,7 @@ const Dashboard: React.FC = () => {
     };
 
     loadUserPermissions();
-  }, [currentSession]);
+  }, [GetUtilisateurAutorisations, currentSession]);
 
   // Vérifier si l'utilisateur a une autorisation spécifique
   const hasPermission = (permission: string): boolean => {

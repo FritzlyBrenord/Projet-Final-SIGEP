@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
 } from "react";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
 import {
@@ -347,7 +348,7 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
   });
 
   // Fonction de rechargement des données
-  const rechargerDonnees = async () => {
+  const rechargerDonnees = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -391,7 +392,7 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentYear]);
 
   // ===== GESTION DES ÉVÉNEMENTS =====
   const ajouterEvenement = async (data: EvenementFormData) => {
@@ -595,7 +596,9 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
       });
 
       if (existe) {
-        throw new Error("Un horaire avec ce nom existe déjà pour cette classe et cette salle");
+        throw new Error(
+          "Un horaire avec ce nom existe déjà pour cette classe et cette salle"
+        );
       }
 
       const payload: Omit<HoraireDB, "id" | "created_at" | "updated_at"> = {
@@ -625,7 +628,9 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   // Variante: crée un horaire et retourne l'objet créé (avec id)
-  const ajouterHoraireReturn = async (data: HoraireFormData): Promise<Horaire> => {
+  const ajouterHoraireReturn = async (
+    data: HoraireFormData
+  ): Promise<Horaire> => {
     try {
       setIsLoading(true);
 
@@ -650,7 +655,9 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
         deleted: false,
       });
       if (existe) {
-        throw new Error("Un horaire avec ce nom existe déjà pour cette classe et cette salle");
+        throw new Error(
+          "Un horaire avec ce nom existe déjà pour cette classe et cette salle"
+        );
       }
 
       const payload: Omit<HoraireDB, "id" | "created_at" | "updated_at"> = {
@@ -663,7 +670,9 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
 
       const res = await InsertDataReturn("horaires", payload);
       if (!res.success || !res.rows || res.rows.length === 0) {
-        throw new Error(res.error?.message || "Erreur lors de l'ajout de l'horaire");
+        throw new Error(
+          res.error?.message || "Erreur lors de l'ajout de l'horaire"
+        );
       }
 
       const created = toHoraire(res.rows[0] as HoraireDB);
@@ -809,7 +818,10 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
         }
       }
 
-      const payload: Omit<CreneauHoraireDB, "id" | "created_at" | "updated_at"> = {
+      const payload: Omit<
+        CreneauHoraireDB,
+        "id" | "created_at" | "updated_at"
+      > = {
         ...data,
         matieres: data.matieres, // JSONB en base; envoyer un tableau natif
         deleted: false,
@@ -1148,7 +1160,7 @@ export const CalendrierScolaireProvider: React.FC<{ children: ReactNode }> = ({
   // Charger les données au montage et quand l'année change
   useEffect(() => {
     rechargerDonnees();
-  }, [currentYear]);
+  }, [currentYear, rechargerDonnees]);
 
   return (
     <CalendrierScolaireContext.Provider

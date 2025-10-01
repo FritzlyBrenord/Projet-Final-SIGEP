@@ -1,6 +1,7 @@
 "use client";
 import React, {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -124,7 +125,7 @@ export const RecentActivitiesProvider: React.FC<{
   // ========================================
   // Charger les activités
   // ========================================
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -158,12 +159,12 @@ export const RecentActivitiesProvider: React.FC<{
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentYear?.id]);
 
   // ========================================
   // Charger les paramètres
   // ========================================
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       setSettingsLoading(true);
       const data = await SelectData("activity_settings");
@@ -191,110 +192,131 @@ export const RecentActivitiesProvider: React.FC<{
     } finally {
       setSettingsLoading(false);
     }
-  };
+  }, []);
 
   // ========================================
   // Ajouter une activité
   // ========================================
-  const addActivity = async (
-    activity: Omit<ActivityItem, "id" | "created_at" | "user_id" | "user_email">
-  ): Promise<boolean> => {
-    try {
-      if (!currentSession.user) {
-        console.error("Utilisateur non connecté");
+  const addActivity = useCallback(
+    async (
+      activity: Omit<
+        ActivityItem,
+        "id" | "created_at" | "user_id" | "user_email"
+      >
+    ): Promise<boolean> => {
+      try {
+        if (!currentSession.user) {
+          console.error("Utilisateur non connecté");
+          return false;
+        }
+
+        const activityData: any = {
+          action: activity.action,
+          module: activity.module,
+          title: activity.title,
+          details: activity.details,
+          source_table: activity.source_table,
+          entity_id: activity.entity_id,
+          user_id: currentSession.user.id,
+          user_email: currentSession.user.email,
+          user_name: currentSession.employer
+            ? `${currentSession.employer.prenom} ${currentSession.employer.nom}`
+            : undefined,
+          user_role: currentSession.role,
+          annee_scolaire_id: activity.annee_scolaire_id || currentYear?.id,
+          ip_address: activity.ip_address,
+          user_agent:
+            activity.user_agent ||
+            (typeof window !== "undefined" ? navigator.userAgent : undefined),
+          metadata: activity.metadata || {},
+          created_at: new Date().toISOString(),
+          deleted: false,
+        };
+
+        const result = await InsertDataReturn(
+          "system_activities",
+          activityData
+        );
+
+        if (result?.success) {
+          await fetchActivities(); // Rafraîchir la liste
+          return true;
+        }
+
+        return false;
+      } catch (e: any) {
+        console.error("Erreur ajout activité:", e);
         return false;
       }
-
-      const activityData: any = {
-        action: activity.action,
-        module: activity.module,
-        title: activity.title,
-        details: activity.details,
-        source_table: activity.source_table,
-        entity_id: activity.entity_id,
-        user_id: currentSession.user.id,
-        user_email: currentSession.user.email,
-        user_name: currentSession.employer
-          ? `${currentSession.employer.prenom} ${currentSession.employer.nom}`
-          : undefined,
-        user_role: currentSession.role,
-        annee_scolaire_id: activity.annee_scolaire_id || currentYear?.id,
-        ip_address: activity.ip_address,
-        user_agent:
-          activity.user_agent ||
-          (typeof window !== "undefined" ? navigator.userAgent : undefined),
-        metadata: activity.metadata || {},
-        created_at: new Date().toISOString(),
-        deleted: false,
-      };
-
-      const result = await InsertDataReturn("system_activities", activityData);
-
-      if (result?.success) {
-        await fetchActivities(); // Rafraîchir la liste
-        return true;
-      }
-
-      return false;
-    } catch (e: any) {
-      console.error("Erreur ajout activité:", e);
-      return false;
-    }
-  };
+    },
+    [
+      currentSession.employer,
+      currentSession.role,
+      currentSession.user,
+      currentYear?.id,
+      fetchActivities,
+    ]
+  );
 
   // ========================================
   // Supprimer une activité (soft delete)
   // ========================================
-  const deleteActivity = async (id: string): Promise<boolean> => {
-    try {
-      const success = await UpdateData("system_activities", id, {
-        deleted: true,
-        deleted_at: new Date().toISOString(),
-        deleted_by: currentSession?.user?.id,
-      });
+  const deleteActivity = useCallback(
+    async (id: string): Promise<boolean> => {
+      try {
+        const success = await UpdateData("system_activities", id, {
+          deleted: true,
+          deleted_at: new Date().toISOString(),
+          deleted_by: currentSession?.user?.id,
+        });
 
-      if (success) {
-        await fetchActivities();
-        return true;
+        if (success) {
+          await fetchActivities();
+          return true;
+        }
+        return false;
+      } catch (e: any) {
+        console.error("Erreur suppression activité:", e);
+        return false;
       }
-      return false;
-    } catch (e: any) {
-      console.error("Erreur suppression activité:", e);
-      return false;
-    }
-  };
+    },
+    [currentSession?.user?.id, fetchActivities]
+  );
 
   // ========================================
   // Supprimer plusieurs activités
   // ========================================
-  const deleteActivities = async (ids: string[]): Promise<boolean> => {
-    try {
-      const promises = ids.map((id) =>
-        UpdateData("system_activities", id, {
-          deleted: true,
-          deleted_at: new Date().toISOString(),
-          deleted_by: currentSession?.user?.id,
-        })
-      );
+  const deleteActivities = useCallback(
+    async (ids: string[]): Promise<boolean> => {
+      try {
+        const promises = ids.map((id) =>
+          UpdateData("system_activities", id, {
+            deleted: true,
+            deleted_at: new Date().toISOString(),
+            deleted_by: currentSession?.user?.id,
+          })
+        );
 
-      const results = await Promise.all(promises);
-      const allSuccess = results.every((r) => r === true);
+        const results = await Promise.all(promises);
+        const allSuccess = results.every((r) => r === true);
 
-      if (allSuccess) {
-        await fetchActivities();
-        return true;
+        if (allSuccess) {
+          await fetchActivities();
+          return true;
+        }
+        return false;
+      } catch (e: any) {
+        console.error("Erreur suppression multiple:", e);
+        return false;
       }
-      return false;
-    } catch (e: any) {
-      console.error("Erreur suppression multiple:", e);
-      return false;
-    }
-  };
+    },
+    [currentSession?.user?.id, fetchActivities]
+  );
 
   // ========================================
   // Supprimer toutes les activités
   // ========================================
-  const deleteAllActivities = async (): Promise<boolean> => {
+  const deleteAllActivities = useCallback(async (): Promise<boolean> => {
     try {
       const allIds = activities.map((a) => a.id);
       return await deleteActivities(allIds);
@@ -302,44 +324,45 @@ export const RecentActivitiesProvider: React.FC<{
       console.error("Erreur suppression totale:", e);
       return false;
     }
-  };
+  }, [activities, deleteActivities]);
 
   // ========================================
   // Mettre à jour les paramètres
   // ========================================
-  const updateSettings = async (
-    newSettings: Partial<ActivitySettings>
-  ): Promise<boolean> => {
-    try {
-      if (!settings?.id) return false;
+  const updateSettings = useCallback(
+    async (newSettings: Partial<ActivitySettings>): Promise<boolean> => {
+      try {
+        if (!settings?.id) return false;
 
-      const updateData = {
-        ...newSettings,
-        updated_at: new Date().toISOString(),
-        updated_by: currentSession?.user?.id,
-      };
+        const updateData = {
+          ...newSettings,
+          updated_at: new Date().toISOString(),
+          updated_by: currentSession?.user?.id,
+        };
 
-      const success = await UpdateData(
-        "activity_settings",
-        settings.id,
-        updateData
-      );
+        const success = await UpdateData(
+          "activity_settings",
+          settings.id,
+          updateData
+        );
 
-      if (success) {
-        await fetchSettings();
-        return true;
+        if (success) {
+          await fetchSettings();
+          return true;
+        }
+        return false;
+      } catch (e: any) {
+        console.error("Erreur mise à jour paramètres:", e);
+        return false;
       }
-      return false;
-    } catch (e: any) {
-      console.error("Erreur mise à jour paramètres:", e);
-      return false;
-    }
-  };
+    },
+    [currentSession?.user?.id, fetchSettings, settings?.id]
+  );
 
   // ========================================
   // Déclencher le nettoyage manuel
   // ========================================
-  const triggerCleanup = async (): Promise<number> => {
+  const triggerCleanup = useCallback(async (): Promise<number> => {
     try {
       if (!settings?.auto_delete_enabled) {
         console.warn("Suppression automatique désactivée");
@@ -370,7 +393,13 @@ export const RecentActivitiesProvider: React.FC<{
       console.error("Erreur nettoyage:", e);
       return 0;
     }
-  };
+  }, [
+    activities,
+    deleteActivities,
+    settings?.auto_delete_days,
+    settings?.auto_delete_enabled,
+    settings?.id,
+  ]);
 
   // ========================================
   // Effects
@@ -378,7 +407,7 @@ export const RecentActivitiesProvider: React.FC<{
   useEffect(() => {
     fetchActivities();
     fetchSettings();
-  }, [currentYear?.id]);
+  }, [fetchActivities, fetchSettings]);
 
   // Nettoyage automatique périodique (toutes les heures)
   useEffect(() => {
@@ -389,7 +418,7 @@ export const RecentActivitiesProvider: React.FC<{
     }, 3600000); // 1 heure
 
     return () => clearInterval(interval);
-  }, [settings]);
+  }, [settings?.auto_delete_enabled, triggerCleanup]);
 
   // ========================================
   // Context Value
@@ -410,7 +439,21 @@ export const RecentActivitiesProvider: React.FC<{
       refresh: fetchActivities,
       refreshSettings: fetchSettings,
     }),
-    [activities, loading, error, settings, settingsLoading]
+    [
+      activities,
+      addActivity,
+      deleteActivities,
+      deleteActivity,
+      deleteAllActivities,
+      error,
+      fetchActivities,
+      fetchSettings,
+      loading,
+      settings,
+      settingsLoading,
+      triggerCleanup,
+      updateSettings,
+    ]
   );
 
   return (

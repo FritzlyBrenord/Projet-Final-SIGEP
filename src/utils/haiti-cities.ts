@@ -59,7 +59,7 @@ export const searchCities = (query: string): string[] => {
 
 // Fonction pour ajouter une nouvelle ville (simulation)
 export const addNewCity = (cityName: string, department: string): void => {
-  if (haitiCities[department as keyof typeof haitiCities]) {
-    haitiCities[department as keyof typeof haitiCities].push(cityName);
+  if (!citiesList.includes(cityName)) {
+    citiesList.push(cityName);
   }
 };

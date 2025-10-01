@@ -20,6 +20,11 @@ export interface ScheduleItem {
   subject: string;
   teacherName?: string;
 }
+export interface Level {
+  id: string;
+  name: string;
+  classes: Class[];
+}
 
 export interface Salle {
   id: string;

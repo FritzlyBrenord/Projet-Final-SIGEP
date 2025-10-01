@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
 } from "react";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
 import { Note, NoteFormData, NoteWithDetails } from "../types/NoteType";
@@ -90,7 +91,7 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
     updated_at: r.updated_at,
   });
 
-  const rechargerNotes = async () => {
+  const rechargerNotes = useCallback(async () => {
     try {
       setIsLoading(true);
       const data = await SelectData("notes");
@@ -104,7 +105,7 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentYear]);
 
   // Gestion des notes
   const ajouterNote = async (data: NoteFormData) => {
@@ -369,7 +370,7 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
 
   useEffect(() => {
     rechargerNotes();
-  }, [currentYear]);
+  }, [currentYear, rechargerNotes]);
 
   return (
     <NotesContext.Provider

@@ -151,7 +151,7 @@ const Roles = ({ isDarkMode }: Props) => {
     };
 
     loadPermissions();
-  }, [selectedUser]);
+  }, [GetUtilisateurAutorisations, selectedUser]);
 
   // Vérifier s'il y a des modifications non sauvegardées
   const hasUnsavedChanges = () => {

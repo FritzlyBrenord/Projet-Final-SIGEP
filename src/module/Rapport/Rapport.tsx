@@ -1206,7 +1206,7 @@ const Rapport = ({ darkMode }: Props) => {
           return false;
         return true;
       });
-    }, [activities, filterDate, filterStatus]);
+    }, [activities]);
     // Pagination
     const startIndex = (activityPage - 1) * 10;
     const endIndex = startIndex + 10;

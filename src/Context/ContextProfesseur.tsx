@@ -5,6 +5,7 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useCallback,
 } from "react";
 import {
   SelectData,
@@ -307,7 +308,7 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
   // CHARGEMENT DES PROFESSEURS
   // ===========================
 
-  const rechargerProfesseurs = async (): Promise<void> => {
+  const rechargerProfesseurs = useCallback(async (): Promise<void> => {
     try {
       setIsLoading(true);
 
@@ -345,7 +346,7 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentYear]);
 
   const chargerProfesseursParAnnee = async (anneeId: string): Promise<void> => {
     try {
@@ -1316,7 +1317,7 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
   // Initialisation
   useEffect(() => {
     rechargerProfesseurs();
-  }, [currentYear]);
+  }, [currentYear, rechargerProfesseurs]);
 
   return (
     <ProfesseurContext.Provider

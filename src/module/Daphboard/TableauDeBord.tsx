@@ -220,7 +220,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
       }
     };
     loadLocalStats();
-  }, [currentYear?.id, schoolYears]);
+  }, [currentYear?.id, currentYear?.year, schoolYears]);
 
   const [performance, setPerformance] = useState<{
     tauxCouverture: number;

@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useState,
   ReactNode,
+  useCallback,
 } from "react";
 import { useAnneeScolaire } from "./ContextAnneeScolaire";
 import {
@@ -75,8 +76,8 @@ export interface FraisParClasseFormData {
 export interface PaiementFormData {
   eleve_id: string;
   type_frais_id: string;
-  montant_du: number;
-  montant_paye: number;
+  montant_du: any;
+  montant_paye: any;
   remarques?: string;
   annee_scolaire_id: string;
 }
@@ -247,7 +248,7 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
   });
 
   // Fonction de rechargement des données
-  const rechargerDonnees = async () => {
+  const rechargerDonnees = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -289,7 +290,7 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentYear]);
 
   // ===== GESTION DES TYPES DE FRAIS =====
   const ajouterTypeFrais = async (data: TypeFraisFormData) => {
@@ -804,7 +805,7 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
   // Charger les données au montage et quand l'année change
   useEffect(() => {
     rechargerDonnees();
-  }, [currentYear]);
+  }, [currentYear, rechargerDonnees]);
 
   return (
     <FraisScolariteContext.Provider

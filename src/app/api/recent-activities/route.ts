@@ -55,6 +55,7 @@ const mapActivities = (rows: AnyRow[], source: string): ActivityItem[] => {
     const action = inferAction(r);
     let title = "";
     let details = "";
+  
     let module = "Système";
 
     switch (source) {

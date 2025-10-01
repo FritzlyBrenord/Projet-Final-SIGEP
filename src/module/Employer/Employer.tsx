@@ -309,7 +309,7 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
     else if (["économe", "econome"].includes(f)) suggested = "Economat";
     if (suggested && !formData.departement)
       setFormData((p) => ({ ...p, departement: suggested }));
-  }, [formData.fonction]);
+  }, [formData.departement, formData.fonction]);
 
   const resetForm = () => {
     setFormData({
