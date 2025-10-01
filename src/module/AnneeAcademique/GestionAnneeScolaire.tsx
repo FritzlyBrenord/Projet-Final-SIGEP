@@ -584,17 +584,19 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
             Créez, modifiez et gérez les configurations des années scolaires
           </p>
         </div>
-        <button
-          onClick={handleCreateNewYear}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-            isDarkMode
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-blue-500 text-white hover:bg-blue-600"
-          }`}
-        >
-          <Plus className="w-5 h-5" />
-          <span>Nouvelle année</span>
-        </button>
+        {(currentSession.role === "Administrateur" || isSuperAdmin) && (
+          <button
+            onClick={handleCreateNewYear}
+            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+              isDarkMode
+                ? "bg-blue-600 text-white hover:bg-blue-700"
+                : "bg-blue-500 text-white hover:bg-blue-600"
+            }`}
+          >
+            <Plus className="w-5 h-5" />
+            <span>Nouvelle année</span>
+          </button>
+        )}
       </div>
 
       {/* Notification */}
@@ -852,24 +854,24 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        {currentSession.role === "Administrateur" ||
-                          (isSuperAdmin && (
-                            <button
-                              onClick={() => handleEditYear(schoolYear)}
-                              className={`p-2 rounded-lg transition-colors ${
-                                isDarkMode
-                                  ? "text-gray-400 hover:text-white hover:bg-gray-700"
-                                  : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-                              }`}
-                              title="Modifier"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                          ))}
+                        {(currentSession.role === "Administrateur" ||
+                          isSuperAdmin) && (
+                          <button
+                            onClick={() => handleEditYear(schoolYear)}
+                            className={`p-2 rounded-lg transition-colors ${
+                              isDarkMode
+                                ? "text-gray-400 hover:text-white hover:bg-gray-700"
+                                : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                            }`}
+                            title="Modifier"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
 
-                        {(!isCurrentYear &&
-                          currentSession.role === "Administrateur") ||
-                          (isSuperAdmin && (
+                        {!isCurrentYear &&
+                          (currentSession.role === "Administrateur" ||
+                            isSuperAdmin) && (
                             <button
                               onClick={() => handleDeleteYear(schoolYear.id)}
                               className={`p-2 rounded-lg transition-colors ${
@@ -881,7 +883,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
-                          ))}
+                          )}
                       </div>
                     </div>
                   </div>

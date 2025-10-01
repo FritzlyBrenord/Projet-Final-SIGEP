@@ -43,11 +43,12 @@ import ProtectedRoute, { useRouteProtection } from "@/components/ProtectedPage";
 import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import Spinner from "@/utils/Spinner/Spinner";
 import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
+import ProfilModal from "@/components/ProfilModal";
 
 interface User {
   name?: string;
   role?: string;
-  avatar?: string;
+  avatar?: any;
 }
 
 interface Notification {
@@ -89,7 +90,7 @@ const isSuperAdmin = (session: any): boolean => {
 
 const Dashboard: React.FC = () => {
   const { currentYear } = useAnneeScolaire();
-  const { currentSession, GetUtilisateurAutorisations } =
+  const { currentSession, GetUtilisateurAutorisations, GetProfilPhoto } =
     useContextUtilisateur();
   const { handleLogout, isLoggingOut } = useRouteProtection();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -100,7 +101,24 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [isUserSuperAdmin, setIsUserSuperAdmin] = useState(false);
+  const [showProfilModal, setShowProfilModal] = useState(false);
+  const [profilePhoto, setProfilePhoto] = useState<string>("/avatar.png");
 
+  // Charger la photo de profil au montage
+  const handlePhotoUpdate = (newPhotoUrl: string) => {
+    setProfilePhoto(newPhotoUrl);
+  };
+  useEffect(() => {
+    if (currentSession?.user?.id) {
+      const savedPhoto = GetProfilPhoto(currentSession.user.id);
+
+      if (savedPhoto) {
+        setProfilePhoto(savedPhoto);
+      } else {
+        setProfilePhoto("/avatar.png");
+      }
+    }
+  }, [currentSession, GetProfilPhoto]);
   // Données de l'utilisateur
   const currentUser: User = {
     name: isUserSuperAdmin
@@ -115,32 +133,8 @@ const Dashboard: React.FC = () => {
         "/" +
         currentSession.employer?.fonction
       : "utilisateur",
-    avatar: "/profil.jpg",
+    avatar: profilePhoto,
   };
-
-  const notifications: Notification[] = [
-    {
-      id: "1",
-      title: "Nouveau paiement",
-      message: "Élève Jean Martin a effectué son paiement mensuel",
-      time: "Il y a 5 minutes",
-      type: "success",
-    },
-    {
-      id: "2",
-      title: "Absence signalée",
-      message: "3 élèves absents en classe de 6ème A",
-      time: "Il y a 15 minutes",
-      type: "warning",
-    },
-    {
-      id: "3",
-      title: "Réunion programmée",
-      message: "Conseil pédagogique prévu demain à 14h",
-      time: "Il y a 1 heure",
-      type: "info",
-    },
-  ];
 
   // Tous les items du sidebar possibles
   const allSidebarItems: SidebarItem[] = [
@@ -550,87 +544,6 @@ const Dashboard: React.FC = () => {
                   )}
                 </button>
 
-                {/* Notifications */}
-                <div className="relative notification-menu">
-                  <button
-                    onClick={() => setShowNotifications(!showNotifications)}
-                    className={`relative p-3 rounded-xl transition-all duration-300 hover:transform hover:scale-110 ${
-                      isDarkMode
-                        ? "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
-                        : "text-gray-500 hover:text-gray-700 hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
-                    }`}
-                  >
-                    <Bell className="w-5 h-5" />
-                    {notifications.length > 0 && (
-                      <span className="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-r from-red-500 to-red-600 text-white text-xs rounded-full flex items-center justify-center font-medium animate-pulse shadow-lg">
-                        {notifications.length}
-                      </span>
-                    )}
-                  </button>
-
-                  {showNotifications && (
-                    <div
-                      className={`absolute right-0 top-full mt-2 w-80 rounded-xl shadow-2xl border py-3 z-50 max-h-96 overflow-y-auto backdrop-blur-lg ${
-                        isDarkMode
-                          ? "bg-gray-800/95 border-gray-700/50"
-                          : "bg-white/95 border-gray-200/50"
-                      }`}
-                    >
-                      <div
-                        className={`px-4 py-3 border-b ${
-                          isDarkMode
-                            ? "border-gray-700/50"
-                            : "border-gray-200/50"
-                        }`}
-                      >
-                        <h3
-                          className={`font-semibold ${
-                            isDarkMode ? "text-white" : "text-gray-900"
-                          }`}
-                        >
-                          Notifications récentes
-                        </h3>
-                      </div>
-                      {notifications.map((notification) => (
-                        <div
-                          key={notification.id}
-                          className={`px-4 py-3 border-b last:border-b-0 transition-all duration-200 hover:scale-102 cursor-pointer ${
-                            isDarkMode
-                              ? "hover:bg-gradient-to-r hover:from-gray-700/30 hover:to-gray-600/30 border-gray-600/50"
-                              : "hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 border-gray-100"
-                          }`}
-                        >
-                          <div className="flex items-start space-x-3">
-                            {getNotificationIcon(notification.type)}
-                            <div className="flex-1 min-w-0">
-                              <p
-                                className={`text-sm font-medium truncate ${
-                                  isDarkMode ? "text-white" : "text-gray-900"
-                                }`}
-                              >
-                                {notification.title}
-                              </p>
-                              <p
-                                className={`text-sm mt-1 line-clamp-2 ${
-                                  isDarkMode ? "text-gray-400" : "text-gray-600"
-                                }`}
-                              >
-                                {notification.message}
-                              </p>
-                              <div className="flex items-center mt-2">
-                                <Clock className="w-3 h-3 text-gray-400 mr-1" />
-                                <p className="text-xs text-gray-500">
-                                  {notification.time}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
                 {/* Menu utilisateur */}
                 <div className="relative user-menu">
                   <button
@@ -707,6 +620,7 @@ const Dashboard: React.FC = () => {
                             ? "text-gray-300 hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
                             : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100"
                         }`}
+                        onClick={() => setShowProfilModal(true)}
                       >
                         <User className="w-4 h-4 mr-3" />
                         Mon profil
@@ -810,6 +724,12 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </main>
+        <ProfilModal
+          isOpen={showProfilModal}
+          onClose={() => setShowProfilModal(false)}
+          isDarkMode={isDarkMode}
+          onPhotoUpdate={handlePhotoUpdate}
+        />
       </div>
     </ProtectedRoute>
   );

@@ -290,7 +290,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
       value:
         serverGenderDistribution
           ?.find((g) => g.name.includes("Filles"))
-          ?.value?.toString() || "634",
+          ?.value?.toString() || "0",
       change: "+3.2%",
       changeType: "increase",
       illustration: <StudentGirlIllustration />,
@@ -301,23 +301,23 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
       value:
         serverGenderDistribution
           ?.find((g) => g.name.includes("Garçons"))
-          ?.value?.toString() || "600",
+          ?.value?.toString() || "0",
       change: "+2.1%",
       changeType: "increase",
       illustration: <StudentBoyIllustration />,
       color: "blue",
     },
     {
-      title: "Corps Enseignant",
-      value: serverTotals?.enseignants?.toString() || "89",
+      title: "Professeurs",
+      value: serverTotals?.enseignants?.toString() || "0",
       change: "+2.1%",
       changeType: "increase",
       illustration: <TeacherIllustration />,
       color: "amber",
     },
     {
-      title: "Personnel Administratif",
-      value: serverTotals?.employes?.toString() || "42",
+      title: "Personnels",
+      value: serverTotals?.employes?.toString() || "0",
       change: "-1.5%",
       changeType: "decrease",
       illustration: <EmployeeIllustration />,

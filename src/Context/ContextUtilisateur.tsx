@@ -65,6 +65,11 @@ interface ListeContextUtilisateurType {
     autorisations: string[]
   ) => Promise<boolean>;
 
+  //profil
+  SaveProfilPhoto: (userId: string, photoBase64: string) => void;
+  GetProfilPhoto: (userId: string) => string | null;
+  RemoveProfilPhoto: (userId: string) => void;
+
   // Authentification
   Login: (
     email: string,
@@ -500,7 +505,17 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       return null;
     }
   };
+  const SaveProfilPhoto = (userId: string, photoBase64: string): void => {
+    localStorage.setItem(`profil_photo_${userId}`, photoBase64);
+  };
 
+  const GetProfilPhoto = (userId: string): string | null => {
+    return localStorage.getItem(`profil_photo_${userId}`);
+  };
+
+  const RemoveProfilPhoto = (userId: string): void => {
+    localStorage.removeItem(`profil_photo_${userId}`);
+  };
   const Login = async (
     email: string,
     password: string
@@ -684,6 +699,9 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         RefreshUtilisateurs,
         GetUtilisateurAutorisations,
         UpdateUtilisateurAutorisations,
+        SaveProfilPhoto,
+        GetProfilPhoto,
+        RemoveProfilPhoto,
         Login,
         Logout,
         currentSession,

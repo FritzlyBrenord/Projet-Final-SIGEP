@@ -21,7 +21,7 @@ import {
   Mail,
   Key,
 } from "lucide-react";
-import MonCompte from "./Composant/MonCompte";
+
 import GestionUtilisateur from "./Composant/GestionUtilisateur";
 import Roles from "./Composant/Roles";
 import Corbeille from "./Composant/Corbeille";
@@ -30,10 +30,9 @@ interface Props {
   isDarkMode: boolean;
 }
 const AdminSettingsPage = ({ isDarkMode }: Props) => {
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTab] = useState("users");
 
   const tabs = [
-    { id: "profile", label: "Mon Compte", icon: User },
     { id: "users", label: "Gestion Utilisateurs", icon: Users },
     { id: "permissions", label: "Autorisations", icon: Shield },
     { id: "trash", label: "Corbeille", icon: Trash2 },
@@ -94,8 +93,6 @@ const AdminSettingsPage = ({ isDarkMode }: Props) => {
       {/* Main Content */}
       <div className="flex-1 p-8">
         <div className={`${themeClasses.cardBg} rounded-xl shadow-lg p-8`}>
-          {activeTab === "profile" && <MonCompte isDarkMode={isDarkMode} />}
-
           {activeTab === "users" && (
             <GestionUtilisateur isDarkMode={isDarkMode} />
           )}
