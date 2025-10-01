@@ -151,9 +151,67 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
     return `EL${initialNom}${initialPrenom}${rand1}_${rand2Str}`;
   };
 
+  const verifierCapaciteSalle = async (
+    salleId: string,
+    anneeScolaireId: string
+  ): Promise<{ isValid: boolean; message: string }> => {
+    try {
+      // 1. Récupérer les informations de la salle
+      const salles = await SelectData("salles");
+      const salle = salles?.find((s: any) => s.id === salleId);
+
+      if (!salle) {
+        return { isValid: false, message: "Salle introuvable" };
+      }
+
+      const capaciteMax = salle.capacite;
+
+      // 2. Compter le nombre d'élèves actuellement inscrits dans cette salle pour l'année courante
+      const inscriptions = await SelectData("eleves_inscriptions");
+      const inscriptionsActives =
+        inscriptions?.filter(
+          (i: any) =>
+            i.salle_id === salleId &&
+            i.annee_scolaire_id === anneeScolaireId &&
+            !i.deleted
+        ) || [];
+
+      const nombreElevesActuels = inscriptionsActives.length;
+
+      // 3. Vérifier si la capacité est dépassée
+      if (nombreElevesActuels >= capaciteMax) {
+        return {
+          isValid: false,
+          message: `La salle est pleine (${nombreElevesActuels}/${capaciteMax} élèves). Veuillez choisir une autre salle.`,
+        };
+      }
+
+      return {
+        isValid: true,
+        message: `Capacité disponible : ${nombreElevesActuels}/${capaciteMax} élèves`,
+      };
+    } catch (error) {
+      console.error("Erreur lors de la vérification de capacité:", error);
+      return {
+        isValid: false,
+        message: "Erreur lors de la vérification de la capacité",
+      };
+    }
+  };
+
   const ajouterEleve = async (data: EleveFormData) => {
     try {
       setIsLoading(true);
+
+      const capaciteCheck = await verifierCapaciteSalle(
+        data.salle_id,
+        data.annee_scolaire_id
+      );
+
+      if (!capaciteCheck.isValid) {
+        setError(capaciteCheck.message);
+        throw new Error(capaciteCheck.message);
+      }
 
       // Toujours générer un code (EleveFormData V2 n'inclut pas le code)
       const code = await genererNouveauCode(data.nom, data.prenom);
@@ -591,6 +649,15 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   ): Promise<{ eleve: EleveAffiche; doublons: DoublonEleve[] }> => {
     try {
       setIsLoading(true);
+      const capaciteCheck = await verifierCapaciteSalle(
+        data.salle_id,
+        data.annee_scolaire_id
+      );
+
+      if (!capaciteCheck.isValid) {
+        setError(capaciteCheck.message);
+        throw new Error(capaciteCheck.message);
+      }
 
       // Vérifier les doublons
       const doublons = await verifierDoublons(data);
@@ -681,6 +748,15 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   const reinscrireEleve = async (data: ReinscriptionData): Promise<void> => {
     try {
       setIsLoading(true);
+      const capaciteCheck = await verifierCapaciteSalle(
+        data.salle_id,
+        data.annee_scolaire_id
+      );
+
+      if (!capaciteCheck.isValid) {
+        setError(capaciteCheck.message);
+        throw new Error(capaciteCheck.message);
+      }
 
       // Vérifier s'il existe déjà une inscription pour cet élève et cette année (incluant supprimée)
       const allInscriptions = await SelectData("eleves_inscriptions");
