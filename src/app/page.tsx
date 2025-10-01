@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Eye,
@@ -31,7 +31,7 @@ interface SecurityAlert {
   message: string;
 }
 
-export default function SIGEPLoginPage() {
+function SIGEPLoginPageContent() {
   const router = useRouter();
   const { uuid, rafrechieUUID } = Uuid();
   const { addActivity } = useRecentActivities();
@@ -557,5 +557,19 @@ export default function SIGEPLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SIGEPLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        </div>
+      }
+    >
+      <SIGEPLoginPageContent />
+    </Suspense>
   );
 }

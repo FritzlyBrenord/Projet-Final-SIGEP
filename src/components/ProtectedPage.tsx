@@ -89,7 +89,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 }) => {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const params = useParams();
   const { currentSession, loading: contextLoading } = useContextUtilisateur();
   const [uuid] = useState<string>(() => {
