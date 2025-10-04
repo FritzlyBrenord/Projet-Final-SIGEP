@@ -414,6 +414,8 @@ export const useRouteProtection = () => {
 
       await Logout();
       router.push("/");
+      localStorage.setItem("activeMenu", "Tableau de Bord");
+
       addActivity({
         action: "deconnexion",
         module: "Authentification",

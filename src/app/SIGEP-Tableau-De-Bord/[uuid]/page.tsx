@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Home,
   Users,
@@ -45,6 +45,7 @@ import Spinner from "@/utils/Spinner/Spinner";
 import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
 import ProfilModal from "@/components/ProfilModal";
 import { ConnectionNotification } from "@/components/ConnectionNotification";
+import WelcomeScreen from "@/module/Daphboard/WelcomeScreen";
 
 interface User {
   name?: string;
@@ -90,7 +91,7 @@ const isSuperAdmin = (session: any): boolean => {
 };
 
 const Dashboard: React.FC = () => {
-  const { currentYear } = useAnneeScolaire();
+  const { currentYear, schoolYears } = useAnneeScolaire();
   const { currentSession, GetUtilisateurAutorisations, GetProfilPhoto } =
     useContextUtilisateur();
   const { handleLogout, isLoggingOut } = useRouteProtection();
@@ -104,11 +105,139 @@ const Dashboard: React.FC = () => {
   const [isUserSuperAdmin, setIsUserSuperAdmin] = useState(false);
   const [showProfilModal, setShowProfilModal] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string>("/avatar.png");
+  const [showWelcome, setShowWelcome] = useState(false);
 
-  // Charger la photo de profil au montage
+  // Ajoutez ces états et références
+  const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now());
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 heure en millisecondes
+
+  // Fonction pour sauvegarder la page active
+  const saveActivePage = (pageName: string) => {
+    try {
+      localStorage.setItem("activeMenu", pageName);
+      localStorage.setItem("lastActivityTime", Date.now().toString());
+      console.log(`Page active sauvegardée : ${pageName}`);
+    } catch (error) {
+      console.error("Erreur lors de la sauvegarde de la page active:", error);
+    }
+  };
+
+  const hasPermission = useCallback(
+    (permission: string): boolean => {
+      // Super Admin a toutes les permissions
+      if (isUserSuperAdmin) {
+        return true;
+      }
+      return userPermissions.includes(permission);
+    },
+    [isUserSuperAdmin, userPermissions]
+  );
+
+  // Fonction pour charger la page active
+  const loadActivePage = useCallback(() => {
+    try {
+      const savedMenu = localStorage.getItem("activeMenu");
+      const savedTime = localStorage.getItem("lastActivityTime");
+
+      if (savedMenu && savedTime) {
+        const timeDiff = Date.now() - parseInt(savedTime);
+
+        // Si moins d'1 heure s'est écoulée, restaurer la page
+        if (timeDiff < INACTIVITY_TIMEOUT) {
+          // Vérifier que l'utilisateur a toujours la permission
+          if (hasPermission(savedMenu) || isUserSuperAdmin) {
+            setActiveMenu(savedMenu);
+            setLastActivityTime(parseInt(savedTime));
+            console.log(`Page restaurée : ${savedMenu}`);
+            return;
+          }
+        }
+      }
+
+      // Sinon, revenir au Tableau de Bord
+      setActiveMenu("Tableau de Bord");
+      saveActivePage("Tableau de Bord");
+    } catch (error) {
+      console.error("Erreur lors du chargement de la page active:", error);
+      setActiveMenu("Tableau de Bord");
+    }
+  }, [INACTIVITY_TIMEOUT, hasPermission, isUserSuperAdmin]);
+
+  // Fonction pour démarrer le timer d'inactivité
+  const startInactivityTimer = useCallback(() => {
+    // Nettoyer le timer existant
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+
+    // Démarrer un nouveau timer
+    inactivityTimerRef.current = setTimeout(() => {
+      console.log(
+        "⏱️ Timeout d'inactivité atteint - Retour au Tableau de Bord"
+      );
+      setActiveMenu("Tableau de Bord");
+      saveActivePage("Tableau de Bord");
+    }, INACTIVITY_TIMEOUT);
+  }, [INACTIVITY_TIMEOUT]);
+
+  // Fonction pour gérer le changement de menu (modifiée)
+  const handleMenuChange = (menuLabel: string) => {
+    if (isUserSuperAdmin || hasPermission(menuLabel)) {
+      setActiveMenu(menuLabel);
+      saveActivePage(menuLabel);
+      setLastActivityTime(Date.now());
+
+      // Redémarrer le timer d'inactivité
+      startInactivityTimer();
+
+      console.log(`📍 Menu changé vers : ${menuLabel} - Timer reset`);
+    }
+  };
+
+  // useEffect pour charger la page sauvegardée au montage
+  useEffect(() => {
+    if (!loading && userPermissions.length > 0 && schoolYears.length > 0) {
+      loadActivePage();
+      startInactivityTimer();
+    }
+  }, [
+    loading,
+    userPermissions,
+    schoolYears,
+    loadActivePage,
+    startInactivityTimer,
+  ]);
+
+  // useEffect pour nettoyer le timer au démontage
+  useEffect(() => {
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, []);
+
+  // useEffect pour surveiller le changement de menu actif
+  useEffect(() => {
+    if (activeMenu && !loading) {
+      startInactivityTimer();
+    }
+  }, [activeMenu, loading, startInactivityTimer]);
   const handlePhotoUpdate = (newPhotoUrl: string) => {
     setProfilePhoto(newPhotoUrl);
   };
+  useEffect(() => {
+    if (
+      !loading &&
+      schoolYears.length === 0 &&
+      (userPermissions.length > 0 || isUserSuperAdmin)
+    ) {
+      setShowWelcome(true);
+    } else {
+      setShowWelcome(false);
+    }
+  }, [loading, schoolYears, userPermissions, isUserSuperAdmin]);
   useEffect(() => {
     if (currentSession?.user?.id) {
       const savedPhoto = GetProfilPhoto(currentSession.user.id);
@@ -235,25 +364,11 @@ const Dashboard: React.FC = () => {
   }, [GetUtilisateurAutorisations, currentSession]);
 
   // Vérifier si l'utilisateur a une autorisation spécifique
-  const hasPermission = (permission: string): boolean => {
-    // Super Admin a toutes les permissions
-    if (isUserSuperAdmin) {
-      return true;
-    }
-    return userPermissions.includes(permission);
-  };
 
   // Filtrer les items du sidebar en fonction des autorisations
   const sidebarItems = isUserSuperAdmin
     ? allSidebarItems // Super Admin voit tout
     : allSidebarItems.filter((item) => hasPermission(item.label));
-
-  const handleMenuChange = (menuLabel: string) => {
-    // Super Admin peut accéder à tout
-    if (isUserSuperAdmin || hasPermission(menuLabel)) {
-      setActiveMenu(menuLabel);
-    }
-  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -362,6 +477,26 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  // Avant de rendre le contenu principal, vérifier :
+  if (showWelcome) {
+    return (
+      <WelcomeScreen
+        userName={currentUser.name}
+        isDarkMode={isDarkMode}
+        isSuperAdmin={isUserSuperAdmin}
+        onStartConfiguration={() => {
+          if (isUserSuperAdmin) {
+            setActiveMenu("Années Scolaires");
+            setShowWelcome(false);
+          } else {
+            // Afficher un message d'erreur
+            alert("Seul le Super Admin peut créer une année scolaire");
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <ProtectedRoute>
       <div
@@ -382,106 +517,108 @@ const Dashboard: React.FC = () => {
         )}
 
         {/* Sidebar */}
-        {userPermissions.length > 0 && (
-          <aside
-            className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ${
-              sidebarCollapsed ? "w-20" : "w-80"
-            } ${
-              isDarkMode
-                ? "bg-gradient-to-b from-slate-800 via-slate-900 to-slate-800 border-gray-700/50 shadow-2xl"
-                : "bg-gradient-to-b from-white via-gray-50 to-white border-gray-200/50 shadow-xl"
-            } border-r backdrop-blur-sm`}
-          >
-            {/* Header du sidebar */}
-            <div
-              className={`flex items-center justify-between p-6 border-b ${
-                isDarkMode ? "border-gray-700/50" : "border-gray-200/50"
-              }`}
+        {userPermissions.length > 0 &&
+          schoolYears.length > 0 &&
+          !showWelcome && (
+            <aside
+              className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ${
+                sidebarCollapsed ? "w-20" : "w-80"
+              } ${
+                isDarkMode
+                  ? "bg-gradient-to-b from-slate-800 via-slate-900 to-slate-800 border-gray-700/50 shadow-2xl"
+                  : "bg-gradient-to-b from-white via-gray-50 to-white border-gray-200/50 shadow-xl"
+              } border-r backdrop-blur-sm`}
             >
-              <div className="flex items-center space-x-3">
-                <Image src="/logo.png" alt="Logo" width={50} height={50} />
-                {!sidebarCollapsed && (
-                  <div>
-                    <h1
-                      className={`text-xl font-bold ${
-                        isDarkMode ? "text-white" : "text-gray-800"
-                      }`}
-                    >
-                      SIGEP
-                    </h1>
-                    <p
-                      className={`text-sm ${
-                        isDarkMode ? "text-gray-400" : "text-gray-600"
-                      }`}
-                    >
-                      {isUserSuperAdmin ? "Super Admin" : "Gestion Scolaire"}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${
-                  isDarkMode
-                    ? "text-gray-300 hover:text-white hover:bg-gray-700/50"
-                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+              {/* Header du sidebar */}
+              <div
+                className={`flex items-center justify-between p-6 border-b ${
+                  isDarkMode ? "border-gray-700/50" : "border-gray-200/50"
                 }`}
               >
-                {sidebarCollapsed ? (
-                  <Menu className="w-5 h-5" />
-                ) : (
-                  <X className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-
-            {/* Navigation */}
-            <nav className="mt-6 px-4">
-              <ul className="space-y-3">
-                {sidebarItems.map((item) => {
-                  const isActive = activeMenu === item.label;
-                  return (
-                    <li key={item.id}>
-                      <button
-                        className={`flex items-center w-full px-4 py-3 rounded-xl transition-all duration-300 text-left group relative overflow-hidden ${
-                          isActive
-                            ? isDarkMode
-                              ? "bg-gradient-to-r from-blue-600/90 to-amber-500/90 text-white shadow-lg transform scale-105 shadow-blue-500/25"
-                              : "bg-gradient-to-r from-blue-600 to-amber-500 text-white shadow-lg transform scale-105 shadow-blue-500/25"
-                            : isDarkMode
-                            ? "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50 hover:transform hover:scale-102"
-                            : "text-gray-600 hover:text-gray-800 hover:bg-gradient-to-r hover:from-blue-50 hover:to-amber-50 hover:transform hover:scale-102"
+                <div className="flex items-center space-x-3">
+                  <Image src="/logo.png" alt="Logo" width={50} height={50} />
+                  {!sidebarCollapsed && (
+                    <div>
+                      <h1
+                        className={`text-xl font-bold ${
+                          isDarkMode ? "text-white" : "text-gray-800"
                         }`}
-                        onClick={() => handleMenuChange(item.label)}
                       >
-                        <span
-                          className={`flex-shrink-0 transition-transform duration-200 ${
-                            isActive ? "scale-110" : "group-hover:scale-105"
+                        SIGEP
+                      </h1>
+                      <p
+                        className={`text-sm ${
+                          isDarkMode ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        {isUserSuperAdmin ? "Super Admin" : "Gestion Scolaire"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                  className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${
+                    isDarkMode
+                      ? "text-gray-300 hover:text-white hover:bg-gray-700/50"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+                  }`}
+                >
+                  {sidebarCollapsed ? (
+                    <Menu className="w-5 h-5" />
+                  ) : (
+                    <X className="w-5 h-5" />
+                  )}
+                </button>
+              </div>
+
+              {/* Navigation */}
+              <nav className="mt-6 px-4">
+                <ul className="space-y-3">
+                  {sidebarItems.map((item) => {
+                    const isActive = activeMenu === item.label;
+                    return (
+                      <li key={item.id}>
+                        <button
+                          className={`flex items-center w-full px-4 py-3 rounded-xl transition-all duration-300 text-left group relative overflow-hidden ${
+                            isActive
+                              ? isDarkMode
+                                ? "bg-gradient-to-r from-blue-600/90 to-amber-500/90 text-white shadow-lg transform scale-105 shadow-blue-500/25"
+                                : "bg-gradient-to-r from-blue-600 to-amber-500 text-white shadow-lg transform scale-105 shadow-blue-500/25"
+                              : isDarkMode
+                              ? "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50 hover:transform hover:scale-102"
+                              : "text-gray-600 hover:text-gray-800 hover:bg-gradient-to-r hover:from-blue-50 hover:to-amber-50 hover:transform hover:scale-102"
                           }`}
+                          onClick={() => handleMenuChange(item.label)}
                         >
-                          {item.icon}
-                        </span>
-                        {!sidebarCollapsed && (
-                          <span className="ml-3 font-medium transition-all duration-300">
-                            {item.label}
+                          <span
+                            className={`flex-shrink-0 transition-transform duration-200 ${
+                              isActive ? "scale-110" : "group-hover:scale-105"
+                            }`}
+                          >
+                            {item.icon}
                           </span>
-                        )}
-                        {isActive && (
-                          <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-amber-400/20 animate-pulse"></div>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-          </aside>
-        )}
+                          {!sidebarCollapsed && (
+                            <span className="ml-3 font-medium transition-all duration-300">
+                              {item.label}
+                            </span>
+                          )}
+                          {isActive && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-amber-400/20 animate-pulse"></div>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
+            </aside>
+          )}
 
         {/* Contenu principal */}
         <main
           className={`transition-all duration-300 ${
-            userPermissions.length > 0
+            userPermissions.length > 0 && schoolYears.length > 0 && !showWelcome
               ? sidebarCollapsed
                 ? "ml-20"
                 : "ml-80"
@@ -489,184 +626,186 @@ const Dashboard: React.FC = () => {
           }`}
         >
           {/* Header */}
-          <header
-            className={`border-b px-6 py-4 backdrop-blur-lg sticky top-0 z-30 ${
-              isDarkMode
-                ? "bg-gray-800/80 border-gray-700/50 shadow-lg"
-                : "bg-white/80 border-gray-200/50 shadow-sm"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                {userPermissions.length > 0 ? (
-                  <>
-                    <h2 className="hidden sm:flex text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
-                      {activeMenu}
-                    </h2>
-                    <h2 className=" sm:hidden text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
-                      SIGEP
-                    </h2>
+          {schoolYears.length > 0 && !showWelcome && (
+            <header
+              className={`border-b px-6 py-4 backdrop-blur-lg sticky top-0 z-30 ${
+                isDarkMode
+                  ? "bg-gray-800/80 border-gray-700/50 shadow-lg"
+                  : "bg-white/80 border-gray-200/50 shadow-sm"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  {userPermissions.length > 0 ? (
+                    <>
+                      <h2 className="hidden sm:flex text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
+                        {activeMenu}
+                      </h2>
+                      <h2 className=" sm:hidden text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
+                        SIGEP
+                      </h2>
 
-                    {hasPermission("Années Scolaires") && (
-                      <div className="flex items-center space-x-3">
-                        <div
-                          onClick={() => handleMenuChange("Années Scolaires")}
-                          className="hidden sm:flex items-center cursor-pointer space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl shadow-md"
-                        >
-                          <Calendar className="w-4 h-4" />
-                          <span className="font-medium">
-                            {activeYear?.label || "Aucune année"}
-                          </span>
-                          <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
-                            Actuelle
-                          </span>
+                      {hasPermission("Années Scolaires") && (
+                        <div className="flex items-center space-x-3">
+                          <div
+                            onClick={() => handleMenuChange("Années Scolaires")}
+                            className="hidden sm:flex items-center cursor-pointer space-x-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl shadow-md"
+                          >
+                            <Calendar className="w-4 h-4" />
+                            <span className="font-medium">
+                              {activeYear?.label || "Aucune année"}
+                            </span>
+                            <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
+                              Actuelle
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <h2 className="text-2xl font-bold text-red-600">
-                    Accès refusé
-                  </h2>
-                )}
-              </div>
-
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={toggleTheme}
-                  className={`p-3 rounded-xl transition-all duration-300 hover:transform hover:scale-110 ${
-                    isDarkMode
-                      ? "text-gray-300 hover:text-amber-400 hover:bg-gradient-to-r hover:from-amber-500/20 hover:to-yellow-500/20 hover:shadow-lg hover:shadow-amber-500/25"
-                      : "text-gray-500 hover:text-blue-600 hover:bg-gradient-to-r hover:from-blue-500/20 hover:to-sky-500/20 hover:shadow-lg hover:shadow-blue-500/25"
-                  }`}
-                  title={isDarkMode ? "Mode clair" : "Mode sombre"}
-                >
-                  {isDarkMode ? (
-                    <Sun className="w-5 h-5" />
+                      )}
+                    </>
                   ) : (
-                    <Moon className="w-5 h-5" />
+                    <h2 className="text-2xl font-bold text-red-600">
+                      Accès refusé
+                    </h2>
                   )}
-                </button>
+                </div>
 
-                {/* Menu utilisateur */}
-                <div className="relative user-menu">
+                <div className="flex items-center space-x-4">
                   <button
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={`flex items-center space-x-3 p-2 rounded-xl transition-all duration-300 hover:transform hover:scale-105 ${
+                    onClick={toggleTheme}
+                    className={`p-3 rounded-xl transition-all duration-300 hover:transform hover:scale-110 ${
                       isDarkMode
-                        ? "hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
-                        : "hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
+                        ? "text-gray-300 hover:text-amber-400 hover:bg-gradient-to-r hover:from-amber-500/20 hover:to-yellow-500/20 hover:shadow-lg hover:shadow-amber-500/25"
+                        : "text-gray-500 hover:text-blue-600 hover:bg-gradient-to-r hover:from-blue-500/20 hover:to-sky-500/20 hover:shadow-lg hover:shadow-blue-500/25"
                     }`}
+                    title={isDarkMode ? "Mode clair" : "Mode sombre"}
                   >
-                    <img
-                      src={currentUser.avatar}
-                      alt={currentUser.name}
-                      className={`w-10 h-10 rounded-full object-cover ring-2 ${
-                        isUserSuperAdmin ? "ring-purple-500" : "ring-blue-500"
-                      } ring-offset-2 dark:ring-offset-gray-800 transition-transform duration-200 hover:scale-110`}
-                    />
-                    <div className="text-left hidden md:block">
-                      <p
-                        className={`text-sm font-medium ${
-                          isDarkMode ? "text-white" : "text-gray-900"
-                        }`}
-                      >
-                        {currentUser.name}
-                      </p>
-                      <p
-                        className={`text-xs ${
-                          isDarkMode ? "text-gray-400" : "text-gray-500"
-                        }`}
-                      >
-                        {currentUser.role}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      className={`w-4 h-4 transition-transform duration-200 ${
-                        showUserMenu ? "rotate-180" : ""
-                      } ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
-                    />
+                    {isDarkMode ? (
+                      <Sun className="w-5 h-5" />
+                    ) : (
+                      <Moon className="w-5 h-5" />
+                    )}
                   </button>
 
-                  {showUserMenu && (
-                    <div
-                      className={`absolute right-0 top-full mt-2 w-48 rounded-xl shadow-2xl border py-3 z-50 backdrop-blur-lg ${
+                  {/* Menu utilisateur */}
+                  <div className="relative user-menu">
+                    <button
+                      onClick={() => setShowUserMenu(!showUserMenu)}
+                      className={`flex items-center space-x-3 p-2 rounded-xl transition-all duration-300 hover:transform hover:scale-105 ${
                         isDarkMode
-                          ? "bg-gray-800/95 border-gray-700/50"
-                          : "bg-white/95 border-gray-200/50"
+                          ? "hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
+                          : "hover:bg-gradient-to-r hover:from-gray-100 hover:to-gray-200"
                       }`}
                     >
-                      <div
-                        className={`px-4 py-2 border-b ${
-                          isDarkMode
-                            ? "border-gray-700/50"
-                            : "border-gray-200/50"
-                        }`}
-                      >
+                      <img
+                        src={currentUser.avatar}
+                        alt={currentUser.name}
+                        className={`w-10 h-10 rounded-full object-cover ring-2 ${
+                          isUserSuperAdmin ? "ring-purple-500" : "ring-blue-500"
+                        } ring-offset-2 dark:ring-offset-gray-800 transition-transform duration-200 hover:scale-110`}
+                      />
+                      <div className="text-left hidden md:block">
                         <p
-                          className={`font-medium ${
+                          className={`text-sm font-medium ${
                             isDarkMode ? "text-white" : "text-gray-900"
                           }`}
                         >
                           {currentUser.name}
                         </p>
                         <p
-                          className={`text-sm ${
+                          className={`text-xs ${
                             isDarkMode ? "text-gray-400" : "text-gray-500"
                           }`}
                         >
                           {currentUser.role}
                         </p>
                       </div>
-                      <button
-                        className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 flex items-center hover:scale-105 ${
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          showUserMenu ? "rotate-180" : ""
+                        } ${isDarkMode ? "text-gray-400" : "text-gray-500"}`}
+                      />
+                    </button>
+
+                    {showUserMenu && (
+                      <div
+                        className={`absolute right-0 top-full mt-2 w-48 rounded-xl shadow-2xl border py-3 z-50 backdrop-blur-lg ${
                           isDarkMode
-                            ? "text-gray-300 hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
-                            : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100"
+                            ? "bg-gray-800/95 border-gray-700/50"
+                            : "bg-white/95 border-gray-200/50"
                         }`}
-                        onClick={() => setShowProfilModal(true)}
                       >
-                        <User className="w-4 h-4 mr-3" />
-                        Mon profil
-                      </button>
-                      {hasPermission("Paramètres") && (
+                        <div
+                          className={`px-4 py-2 border-b ${
+                            isDarkMode
+                              ? "border-gray-700/50"
+                              : "border-gray-200/50"
+                          }`}
+                        >
+                          <p
+                            className={`font-medium ${
+                              isDarkMode ? "text-white" : "text-gray-900"
+                            }`}
+                          >
+                            {currentUser.name}
+                          </p>
+                          <p
+                            className={`text-sm ${
+                              isDarkMode ? "text-gray-400" : "text-gray-500"
+                            }`}
+                          >
+                            {currentUser.role}
+                          </p>
+                        </div>
                         <button
                           className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 flex items-center hover:scale-105 ${
                             isDarkMode
                               ? "text-gray-300 hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
                               : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100"
                           }`}
-                          onClick={() => setActiveMenu("Paramètres")}
+                          onClick={() => setShowProfilModal(true)}
                         >
-                          <Settings className="w-4 h-4 mr-3" />
-                          Paramètres
+                          <User className="w-4 h-4 mr-3" />
+                          Mon profil
                         </button>
-                      )}
-                      <hr
-                        className={`my-2 ${
-                          isDarkMode
-                            ? "border-gray-700/50"
-                            : "border-gray-200/50"
-                        }`}
-                      />
-                      <button
-                        className={`w-full text-left px-4 py-2 text-sm text-red-600 transition-all duration-200 flex items-center hover:scale-105 ${
-                          isDarkMode
-                            ? "hover:bg-gradient-to-r hover:from-red-900/30 hover:to-red-800/30"
-                            : "hover:bg-gradient-to-r hover:from-red-50 hover:to-red-100"
-                        }`}
-                        onClick={handleLogout}
-                        disabled={isLoggingOut}
-                      >
-                        <LogOut className="w-4 h-4 mr-3" />
-                        {isLoggingOut ? "Déconnexion..." : "Se déconnecter"}
-                      </button>
-                    </div>
-                  )}
+                        {hasPermission("Paramètres") && (
+                          <button
+                            className={`w-full text-left px-4 py-2 text-sm transition-all duration-200 flex items-center hover:scale-105 ${
+                              isDarkMode
+                                ? "text-gray-300 hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50"
+                                : "text-gray-700 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100"
+                            }`}
+                            onClick={() => setActiveMenu("Paramètres")}
+                          >
+                            <Settings className="w-4 h-4 mr-3" />
+                            Paramètres
+                          </button>
+                        )}
+                        <hr
+                          className={`my-2 ${
+                            isDarkMode
+                              ? "border-gray-700/50"
+                              : "border-gray-200/50"
+                          }`}
+                        />
+                        <button
+                          className={`w-full text-left px-4 py-2 text-sm text-red-600 transition-all duration-200 flex items-center hover:scale-105 ${
+                            isDarkMode
+                              ? "hover:bg-gradient-to-r hover:from-red-900/30 hover:to-red-800/30"
+                              : "hover:bg-gradient-to-r hover:from-red-50 hover:to-red-100"
+                          }`}
+                          onClick={handleLogout}
+                          disabled={isLoggingOut}
+                        >
+                          <LogOut className="w-4 h-4 mr-3" />
+                          {isLoggingOut ? "Déconnexion..." : "Se déconnecter"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </header>
+            </header>
+          )}
 
           {/* Contenu */}
           <div className="min-h-screen">

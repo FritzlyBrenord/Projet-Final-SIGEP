@@ -487,7 +487,7 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         description: schoolYear.description,
         date_debut: `${schoolYear.year.split("-")[0]}-09-01`,
         date_fin: `${schoolYear.year.split("-")[1]}-06-30`,
-        active: false,
+        active: true,
       };
 
       const result = await InsertData("annees_scolaires", anneeDB);
