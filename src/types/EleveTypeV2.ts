@@ -7,7 +7,10 @@ export interface ElevePermanent {
   nom: string;
   prenom: string;
   date_naissance: string;
-  lieu_naissance: string;
+  pays_naissance: string;
+  region_naissance: string;
+  ville_naissance: string;
+  section_naissance?: string;
   sexe: "M" | "F";
   adresse_actuelle: string;
   telephone_parents: string;
@@ -54,7 +57,10 @@ export interface EleveFormData {
   nom: string;
   prenom: string;
   date_naissance: string;
-  lieu_naissance: string;
+  pays_naissance: string;
+  region_naissance: string;
+  ville_naissance: string;
+  section_naissance?: string;
   sexe: "M" | "F";
   adresse_actuelle: string;
   telephone_parents: string;
@@ -89,7 +95,10 @@ export interface DoublonEleve {
   nom: string;
   prenom: string;
   date_naissance: string;
-  lieu_naissance: string;
+  pays_naissance: string;
+  region_naissance: string;
+  ville_naissance: string;
+  section_naissance?: string;
   telephone_parents: string;
   nif_parents: string;
   annee_scolaire: string;

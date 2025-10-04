@@ -6,7 +6,6 @@ export interface Eleve {
   nom: string;
   prenom: string;
   date_naissance: string;
-  lieu_naissance: string;
   sexe: "M" | "F";
   adresse_actuelle: string;
   telephone_parents: string;

@@ -25,7 +25,10 @@ interface Student {
   nom: string;
   prenom: string;
   dateNaissance: string;
-  lieuNaissance: string;
+  pays_naissance: string;
+  region_naissance: string;
+  ville_naissance: string;
+  section_naissance?: string;
   sexe: "M" | "F";
   adresseActuelle: string;
   telephoneParents: string;
@@ -105,10 +108,32 @@ const ExportModal: React.FC<ExportModalProps> = ({
       isSelected: false,
       isCustom: false,
     },
+
     {
-      id: "lieuNaissance",
-      label: "Lieu de naissance",
-      key: "lieuNaissance",
+      id: "paysNaissance",
+      label: "Pays de naissance",
+      key: "paysNaissance",
+      isSelected: false,
+      isCustom: false,
+    },
+    {
+      id: "regionNaissance",
+      label: "Region de naissance",
+      key: "regionNaissance",
+      isSelected: false,
+      isCustom: false,
+    },
+    {
+      id: "villeNaissance",
+      label: "Ville de naissance",
+      key: "villeNaissance",
+      isSelected: false,
+      isCustom: false,
+    },
+    {
+      id: "sectionNaissance",
+      label: "Section de naissance",
+      key: "sectionNaissance",
       isSelected: false,
       isCustom: false,
     },

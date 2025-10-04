@@ -44,6 +44,7 @@ import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import Spinner from "@/utils/Spinner/Spinner";
 import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
 import ProfilModal from "@/components/ProfilModal";
+import { ConnectionNotification } from "@/components/ConnectionNotification";
 
 interface User {
   name?: string;
@@ -734,6 +735,7 @@ const Dashboard: React.FC = () => {
           onPhotoUpdate={handlePhotoUpdate}
         />
       </div>
+      <ConnectionNotification />
     </ProtectedRoute>
   );
 };

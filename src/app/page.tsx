@@ -20,6 +20,10 @@ import {
   SUPER_ADMIN_USER_PROFILE,
 } from "@/Config/SuperAdmin/SuperAdmin";
 import { useRecentActivities } from "@/Context/RecentActivitiesContext";
+import {
+  ConnectionNotification,
+  useConnectionStatus,
+} from "@/components/ConnectionNotification";
 
 interface LoginFormData {
   email: string;
@@ -99,6 +103,7 @@ function SIGEPLoginPageContent() {
     }
   }, [searchParams]);
 
+  const isOnline = useConnectionStatus();
   // Gestion du blocage temporaire après plusieurs tentatives
   useEffect(() => {
     if (attemptCount >= 5) {
@@ -367,9 +372,8 @@ function SIGEPLoginPageContent() {
             <BookOpen className="w-6 h-6 text-blue-600 mr-2" />
             <h3 className="text-xl font-semibold text-gray-800">Connexion</h3>
           </div>
-
           {/* Indicateur de tentatives */}
-          {attemptCount > 0 && !isAccountBlocked && (
+          {attemptCount > 0 && !isAccountBlocked && isOnline && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
                 Tentatives de connexion: {attemptCount}/5
@@ -379,7 +383,7 @@ function SIGEPLoginPageContent() {
           )}
 
           {/* Blocage temporaire */}
-          {isBlocked && !isAccountBlocked && (
+          {isBlocked && !isAccountBlocked && isOnline && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-center">
                 <Shield className="w-5 h-5 text-red-600 mr-3" />
@@ -394,7 +398,6 @@ function SIGEPLoginPageContent() {
               </div>
             </div>
           )}
-
           {/* Alerte compte bloqué */}
           {isAccountBlocked && (
             <div className="mb-6 p-4 bg-red-100 border-2 border-red-500 rounded-lg">
@@ -412,7 +415,6 @@ function SIGEPLoginPageContent() {
               </div>
             </div>
           )}
-
           <div className="space-y-6">
             {/* Champ Email */}
             <div className="space-y-2">
@@ -491,7 +493,7 @@ function SIGEPLoginPageContent() {
             </div>
 
             {/* Message d'erreur */}
-            {(loginError || contextError) && !isAccountBlocked && (
+            {(loginError || contextError) && !isAccountBlocked && isOnline && (
               <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                 <p className="text-sm">{loginError || contextError}</p>
               </div>
@@ -542,7 +544,11 @@ function SIGEPLoginPageContent() {
               ) : isAccountBlocked ? (
                 "Compte bloqué"
               ) : isBlocked ? (
-                "Bloqué temporairement"
+                !isOnline ? (
+                  "Pas de connexion Internet"
+                ) : (
+                  "Bloqué temporairement"
+                )
               ) : (
                 "Se connecter"
               )}
@@ -570,6 +576,7 @@ export default function SIGEPLoginPage() {
       }
     >
       <SIGEPLoginPageContent />
+      <ConnectionNotification />
     </Suspense>
   );
 }

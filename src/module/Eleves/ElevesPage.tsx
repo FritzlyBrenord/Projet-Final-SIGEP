@@ -15,6 +15,7 @@ import {
   MapPin,
   Building,
   GraduationCap,
+  SearchIcon,
 } from "lucide-react";
 import ReenrollmentModal from "./Reinscription/Reinscription";
 import ExportModal from "./ExportModal";
@@ -32,6 +33,9 @@ import {
 import Spinner from "@/utils/Spinner/Spinner";
 import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
+import LocationSelect from "./LocationSelectionner";
+import ParcoursAcademiqueModal from "./ParcoursAcademiqueModal";
+import StudentSearchModal from "./modalRecherche";
 
 interface Props {
   isDarkMode: boolean;
@@ -43,6 +47,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     ajouterEleve,
     modifierEleve,
     verifierDoublons,
+    getParcoursAcademique,
     supprimerEleve,
     rechercherEleves,
     genererNouveauCode,
@@ -86,12 +91,25 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     useState<EleveFormData | null>(null);
   const [doublonsDetectes, setDoublonsDetectes] = useState<DoublonEleve[]>([]);
 
+  //parcours
+  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen2, setIsOpen2] = useState(false);
+  const [parcoursEleve, setParcoursEleve] = useState("");
+  const [idEleve, setIdEleve] = useState<any>("");
+
+  const onClose = () => {
+    setIsOpen(!isOpen);
+  };
+
   // Formulaire
   const [formData, setFormData] = useState<EleveFormData>({
     nom: "",
     prenom: "",
     date_naissance: "",
-    lieu_naissance: "",
+    pays_naissance: "",
+    region_naissance: "",
+    ville_naissance: "",
+    section_naissance: "",
     sexe: "M",
     adresse_actuelle: "",
     telephone_parents: "",
@@ -103,7 +121,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     annee_scolaire_id: "",
     classe_id: "",
     salle_id: "",
-    statut: "actif",
+    statut: "inactif",
     observations: "",
   });
 
@@ -212,13 +230,12 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     }
 
     if (filterBirthPlace) {
-      filtered = filtered.filter((student: EleveAffiche) =>
-        student.lieu_naissance
-          .toLowerCase()
-          .includes(filterBirthPlace.toLowerCase())
-      );
+      filtered = filtered.filter((student: EleveAffiche) => {
+        const fullLocation =
+          `${student.pays_naissance} ${student.region_naissance} ${student.ville_naissance}`.toLowerCase();
+        return fullLocation.includes(filterBirthPlace.toLowerCase());
+      });
     }
-
     if (filterAddress) {
       filtered = filtered.filter((student: EleveAffiche) =>
         student.adresse_actuelle
@@ -366,8 +383,16 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       alert("La date de naissance est obligatoire");
       return;
     }
-    if (!formData.lieu_naissance.trim()) {
-      alert("Le lieu de naissance est obligatoire");
+    if (!formData.pays_naissance.trim()) {
+      alert("Le pays de naissance est obligatoire");
+      return;
+    }
+    if (!formData.region_naissance.trim()) {
+      alert("La région de naissance est obligatoire");
+      return;
+    }
+    if (!formData.ville_naissance.trim()) {
+      alert("La ville de naissance est obligatoire");
       return;
     }
     if (!formData.adresse_actuelle.trim()) {
@@ -409,7 +434,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       ...formData,
       annee_scolaire_id: currentYear.id,
       nif_parents: formData.nif_parents ? formatNIF(formData.nif_parents) : "",
-      statut: "actif",
+      statut: "inactif",
     };
 
     try {
@@ -462,7 +487,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       nom: "",
       prenom: "",
       date_naissance: "",
-      lieu_naissance: "",
+      pays_naissance: "",
+      region_naissance: "",
+      ville_naissance: "",
+      section_naissance: "",
       sexe: "M",
       adresse_actuelle: "",
       telephone_parents: "",
@@ -474,7 +502,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       annee_scolaire_id: "",
       classe_id: "",
       salle_id: "",
-      statut: "actif",
+      statut: "inactif",
       observations: "",
     });
     setEditingStudent(null);
@@ -511,13 +539,18 @@ const ElevesPage = ({ isDarkMode }: Props) => {
 
   // Actions sur les étudiants
   const changeStudentStatus = async (
-    studentId: string,
+    student: EleveAffiche, // ⭐ Objet complet au lieu de juste l'ID
     newStatus: "actif" | "inactif" | "suspendu"
   ) => {
     try {
       setIsChangingStatus(true);
-      setLoadingStudentId(studentId);
-      await modifierEleve(studentId, { statut: newStatus });
+      setLoadingStudentId(student.id);
+
+      await modifierEleve(
+        student.id,
+        { statut: newStatus },
+        student.inscription_id // ⭐ AJOUTEZ CECI !
+      );
     } catch (error) {
       console.error("Erreur lors du changement de statut:", error);
       alert("Erreur lors du changement de statut");
@@ -557,7 +590,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       nom: student.nom,
       prenom: student.prenom,
       date_naissance: student.date_naissance,
-      lieu_naissance: student.lieu_naissance,
+      pays_naissance: student.pays_naissance,
+      region_naissance: student.region_naissance,
+      ville_naissance: student.ville_naissance,
+      section_naissance: student.section_naissance || "",
       sexe: student.sexe,
       adresse_actuelle: student.adresse_actuelle,
       telephone_parents: student.telephone_parents,
@@ -575,6 +611,22 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     setShowForm(true);
   };
 
+  const getELeveParcours = () => {
+    setIsOpen2(true);
+  };
+
+  const handleParcoursEleve = (studentCode: string) => {
+    const eleveTrouve = eleves.filter((el) => el.code === studentCode);
+
+    if (eleveTrouve.length > 0) {
+      alert("Élève trouvé !");
+      const idEleve = eleveTrouve[0].id;
+      setIdEleve(idEleve);
+      setIsOpen(true);
+    } else {
+      alert("Aucun élève avec ce code");
+    }
+  };
   // Statistiques
   const stats = {
     total: eleves.length,
@@ -941,7 +993,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </select>
                 </div>
 
-                <div className="flex items-end">
+                <div className="flex items-end gap-3">
                   <button
                     onClick={() => {
                       setSortBy("");
@@ -952,8 +1004,16 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   >
                     Réinitialiser le tri
                   </button>
+                  <button
+                    onClick={getELeveParcours}
+                    className={`w-full flex justify-center gap-2 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses} hover:bg-opacity-80`}
+                  >
+                    <span>Parcours Scolaire</span>
+                  </button>
                 </div>
               </div>
+
+              {/* Section de parcours */}
             </>
           )}
         </div>
@@ -1062,7 +1122,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         <div className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
                           <span className="text-xs">
-                            {student.lieu_naissance}
+                            {student.ville_naissance},{student.region_naissance}
+                            /{student.section_naissance}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 mt-1">
@@ -1118,7 +1179,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         {student.statut === "actif" ? (
                           <button
                             onClick={() =>
-                              changeStudentStatus(student.id, "suspendu")
+                              changeStudentStatus(student, "suspendu")
                             }
                             disabled={
                               isChangingStatus &&
@@ -1137,7 +1198,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         ) : (
                           <button
                             onClick={() =>
-                              changeStudentStatus(student.id, "actif")
+                              changeStudentStatus(student, "actif")
                             }
                             disabled={
                               isChangingStatus &&
@@ -1243,24 +1304,13 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </p>
                 </div>
                 <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Date de naissance
-                  </label>
-                  <p
-                    className={`text-sm p-2 rounded ${
-                      isDarkMode
-                        ? "bg-gray-700 text-white"
-                        : "bg-gray-50 text-gray-900"
-                    }`}
-                  >
+                  <label>Date de naissance</label>
+                  <p>
                     {selectedStudent.date_naissance} (
                     {calculateAge(selectedStudent.date_naissance)} ans)
                   </p>
                 </div>
+
                 <div>
                   <label
                     className={`block text-sm font-medium mb-1 ${
@@ -1276,7 +1326,11 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                         : "bg-gray-50 text-gray-900"
                     }`}
                   >
-                    {selectedStudent.lieu_naissance}
+                    {selectedStudent.ville_naissance},{" "}
+                    {selectedStudent.region_naissance},{" "}
+                    {selectedStudent.pays_naissance}
+                    {selectedStudent.section_naissance &&
+                      ` (${selectedStudent.section_naissance})`}
                   </p>
                 </div>
                 <div>
@@ -1568,19 +1622,25 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     L'élève doit avoir au moins 5 ans
                   </p>
                 </div>
-                <div>
-                  <CitySelect
-                    value={formData.lieu_naissance}
-                    onChange={(value) =>
+                <div className="md:col-span-2">
+                  <LocationSelect
+                    value={{
+                      pays: formData.pays_naissance,
+                      region: formData.region_naissance,
+                      ville: formData.ville_naissance,
+                      section: formData.section_naissance,
+                    }}
+                    onChange={(location) => {
                       setFormData((prev) => ({
                         ...prev,
-                        lieu_naissance: value,
-                      }))
-                    }
-                    placeholder="Sélectionnez ou tapez une ville"
-                    className="w-full"
+                        pays_naissance: location.pays,
+                        region_naissance: location.region,
+                        ville_naissance: location.ville,
+                        section_naissance: location.section,
+                      }));
+                    }}
                     isDarkMode={isDarkMode}
-                    required
+                    required={true}
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -1859,7 +1919,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
           nom: e.nom,
           prenom: e.prenom,
           dateNaissance: e.date_naissance,
-          lieuNaissance: e.lieu_naissance,
+          pays_naissance: e.pays_naissance,
+          region_naissance: e.region_naissance,
+          ville_naissance: e.ville_naissance,
+          section_naissance: e.section_naissance,
           sexe: e.sexe,
           adresseActuelle: e.adresse_actuelle,
           telephoneParents: e.telephone_parents,
@@ -1884,6 +1947,19 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         onCancel={handleDoublonCancel}
         doublons={doublonsDetectes}
         isDarkMode={isDarkMode}
+      />
+      <ParcoursAcademiqueModal
+        getParcoursAcademique={getParcoursAcademique}
+        isOpen={isOpen}
+        onClose={onClose}
+        isDarkMode={isDarkMode}
+        eleveId={idEleve}
+      />
+      <StudentSearchModal
+        isOpen={isOpen2}
+        onClose={() => setIsOpen2(false)}
+        isDarkMode={isDarkMode}
+        onSearchComplete={handleParcoursEleve}
       />
     </div>
   );
