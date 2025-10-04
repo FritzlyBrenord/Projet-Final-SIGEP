@@ -89,6 +89,10 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
   const [showStudentsToReenroll, setShowStudentsToReenroll] = useState(true);
   const [showAlreadyReenrolledModal, setShowAlreadyReenrolledModal] =
     useState(false);
+  // eleve termine
+  const [showGraduationModal, setShowGraduationModal] = useState(false);
+  const [graduatedStudent, setGraduatedStudent] =
+    useState<StudentWithDecision | null>(null);
 
   // Classes organisées depuis le contexte
   const classes = useMemo(
@@ -123,7 +127,12 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
       .filter((y) => y.year < currentYear.year)
       .pop();
   }, [currentYear, schoolYears]);
-
+  // Fonction pour vérifier si l'élève est en classe terminale (NS4)
+  const isTerminalClass = (student: StudentWithDecision): boolean => {
+    const className = student.classeActuelleNom.toUpperCase();
+    // Vérifier si la classe contient "NS4", "NS 4", "TERMINALE", etc.
+    return /NS\s*4|TERMINALE|PHILO|RHETO/i.test(className);
+  };
   const calculateMoyenneTrimestrielleForYear = useCallback(
     (
       eleveId: string,
@@ -596,6 +605,11 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
   // Ajouter un élève à la liste de réinscription
   const addStudentToReenrollment = (student: StudentWithDecision) => {
     const academicDecision = getAcademicDecision(student);
+    if (isTerminalClass(student)) {
+      setGraduatedStudent(student);
+      setShowGraduationModal(true);
+      return;
+    }
 
     if (!academicDecision.canReenroll) {
       alert(
@@ -1566,6 +1580,208 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal de félicitations pour les diplômés */}
+      {showGraduationModal && graduatedStudent && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div
+            className={`${modalClasses} rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-in`}
+          >
+            {/* Confettis animés */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {[...Array(50)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute w-2 h-2 animate-confetti"
+                  style={{
+                    left: `${Math.random() * 100}%`,
+                    top: `-${Math.random() * 20}%`,
+                    backgroundColor: [
+                      "#FFD700",
+                      "#FF6B6B",
+                      "#4ECDC4",
+                      "#45B7D1",
+                      "#FFA07A",
+                    ][i % 5],
+                    animationDelay: `${Math.random() * 2}s`,
+                    animationDuration: `${3 + Math.random() * 2}s`,
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Contenu */}
+            <div className="relative z-10 p-8">
+              {/* En-tête avec icône */}
+              <div className="text-center mb-6">
+                <div className="inline-block p-6 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 mb-4 animate-bounce-slow">
+                  <GraduationCap className="h-16 w-16 text-white" />
+                </div>
+
+                <h2 className="text-4xl font-bold mb-2 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 bg-clip-text text-transparent animate-pulse">
+                  🎓 Félicitations ! 🎓
+                </h2>
+
+                <div className="w-24 h-1 bg-gradient-to-r from-yellow-400 to-orange-500 mx-auto rounded-full mb-4"></div>
+              </div>
+
+              {/* Informations de l'élève */}
+              <div
+                className={`p-6 rounded-xl mb-6 ${
+                  isDarkMode
+                    ? "bg-gray-700/50"
+                    : "bg-gradient-to-br from-yellow-50 to-orange-50"
+                }`}
+              >
+                <div className="text-center space-y-3">
+                  <div className="text-2xl font-bold">
+                    {graduatedStudent.prenom} {graduatedStudent.nom}
+                  </div>
+
+                  <div
+                    className={`text-lg ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Code:{" "}
+                    <span className="font-semibold">
+                      {graduatedStudent.code}
+                    </span>
+                  </div>
+
+                  <div
+                    className={`text-lg ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Classe:{" "}
+                    <span className="font-semibold">
+                      {graduatedStudent.classeActuelleNom}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-center gap-3 mt-4">
+                    <span className="text-2xl font-bold text-green-600">
+                      {graduatedStudent.moyenne_generale.toFixed(2)}/10
+                    </span>
+                    <span
+                      className={`px-4 py-2 rounded-full text-sm font-bold ${
+                        getAcademicDecision(graduatedStudent).bgColor
+                      } ${getAcademicDecision(graduatedStudent).color}`}
+                    >
+                      {getAcademicDecision(graduatedStudent).label}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Message principal */}
+              <div
+                className={`text-center space-y-4 mb-6 ${
+                  isDarkMode ? "text-gray-200" : "text-gray-800"
+                }`}
+              >
+                <p className="text-xl font-semibold">
+                  🎉 Cet élève a terminé son parcours scolaire ! 🎉
+                </p>
+
+                <div
+                  className={`p-4 rounded-lg ${
+                    isDarkMode
+                      ? "bg-blue-900/30 border-blue-700"
+                      : "bg-blue-50 border-blue-200"
+                  } border-2`}
+                >
+                  <p className="text-lg font-medium mb-2">
+                    ✨ Promotion Universitaire ✨
+                  </p>
+                  <p className="text-sm">
+                    Cet élève est désormais prêt pour l'enseignement supérieur
+                    et ne peut pas être réinscrit dans le système scolaire.
+                  </p>
+                </div>
+
+                <p className="text-base italic">
+                  Nous lui souhaitons un brillant avenir universitaire et
+                  professionnel ! 🌟
+                </p>
+              </div>
+
+              {/* Bouton de fermeture */}
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setShowGraduationModal(false);
+                    setGraduatedStudent(null);
+                  }}
+                  className="px-8 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all transform hover:scale-105 shadow-lg"
+                >
+                  J'ai compris
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes confetti {
+          0% {
+            transform: translateY(0) rotate(0deg);
+            opacity: 1;
+          }
+          100% {
+            transform: translateY(100vh) rotate(720deg);
+            opacity: 0;
+          }
+        }
+
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes scale-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+
+        @keyframes bounce-slow {
+          0%,
+          100% {
+            transform: translateY(0);
+          }
+          50% {
+            transform: translateY(-10px);
+          }
+        }
+
+        .animate-confetti {
+          animation: confetti linear infinite;
+        }
+
+        .animate-fade-in {
+          animation: fade-in 0.3s ease-out;
+        }
+
+        .animate-scale-in {
+          animation: scale-in 0.4s ease-out;
+        }
+
+        .animate-bounce-slow {
+          animation: bounce-slow 2s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 };
