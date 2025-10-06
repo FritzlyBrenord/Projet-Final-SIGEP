@@ -61,7 +61,7 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
   const villeRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
 
-  const username = "brenordfritzly";
+  const username = process.env.NEXT_PUBLIC_GEONAMES_USERNAME || "demo";
 
   // Classes CSS
   const inputClasses = isDarkMode
@@ -103,7 +103,7 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         }
       })
       .catch((err) => console.error("Erreur chargement pays:", err));
-  }, [isInitialized, value.pays]);
+  }, [isInitialized, username, value.pays]);
 
   // Charger les régions quand paysId change
   useEffect(() => {
@@ -134,7 +134,7 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         }
       })
       .catch((err) => console.error("Erreur chargement régions:", err));
-  }, [isInitialized, paysId, value.region]);
+  }, [isInitialized, paysId, username, value.region]);
 
   // Charger les villes quand regionId change
   useEffect(() => {
@@ -165,7 +165,7 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         }
       })
       .catch((err) => console.error("Erreur chargement villes:", err));
-  }, [isInitialized, regionId, value.ville]);
+  }, [isInitialized, regionId, username, value.ville]);
 
   // Charger les sections quand villeId change
   useEffect(() => {
@@ -191,7 +191,7 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         }
       })
       .catch((err) => console.error("Erreur chargement sections:", err));
-  }, [isInitialized, villeId]);
+  }, [isInitialized, username, villeId]);
 
   // Gérer les clics en dehors
   useEffect(() => {

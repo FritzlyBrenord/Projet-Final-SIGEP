@@ -233,7 +233,9 @@ const Dashboard: React.FC = () => {
       schoolYears.length === 0 &&
       (userPermissions.length > 0 || isUserSuperAdmin)
     ) {
-      setShowWelcome(true);
+      setTimeout(() => {
+        setShowWelcome(true);
+      }, 3000);
     } else {
       setShowWelcome(false);
     }
