@@ -24,7 +24,11 @@ import {
   ConnectionNotification,
   useConnectionStatus,
 } from "@/components/ConnectionNotification";
-
+import {
+  isUserAlreadyConnected,
+  getUserSession,
+  createSession,
+} from "@/components/SessionManager";
 interface LoginFormData {
   email: string;
   password: string;
@@ -46,6 +50,7 @@ function SIGEPLoginPageContent() {
     currentSession,
     loading: contextLoading,
     error: contextError,
+    BloquerUtilisateurParEmail,
   } = useContextUtilisateur();
 
   const [formData, setFormData] = useState<LoginFormData>({
@@ -109,22 +114,9 @@ function SIGEPLoginPageContent() {
     if (attemptCount >= 5) {
       setIsBlocked(true);
       setBlockTimeRemaining(300); // 5 minutes
-
-      const interval = setInterval(() => {
-        setBlockTimeRemaining((prev) => {
-          if (prev <= 1) {
-            setIsBlocked(false);
-            setAttemptCount(0);
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(interval);
+      BloquerUtilisateurParEmail(formData.email);
     }
-  }, [attemptCount]);
+  }, [BloquerUtilisateurParEmail, attemptCount, formData.email]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -190,15 +182,62 @@ function SIGEPLoginPageContent() {
     setLoginError("");
 
     try {
-      // VÉRIFICATION DU SUPER ADMIN SYSTÈME
+      // ===== VÉRIFICATION DU SUPER ADMIN SYSTÈME =====
       if (
         formData.email.trim().toLowerCase() ===
           SUPER_ADMIN_CREDENTIALS.email.toLowerCase() &&
         formData.password === SUPER_ADMIN_CREDENTIALS.password
       ) {
-        console.log("🔐 Connexion Super Admin Système détectée");
+        console.log("🔐 Connexion Super Admin détectée");
 
-        // Stocker les informations du Super Admin dans localStorage
+        // ✅ Vérifier si déjà connecté
+        const alreadyConnected = await isUserAlreadyConnected(
+          formData.email.trim()
+        );
+
+        if (alreadyConnected) {
+          const existingSession = await getUserSession(formData.email.trim());
+
+          // ❌ BLOQUER LA CONNEXION - Ne pas permettre de forcer
+          const deviceInfo = existingSession?.device_info || "Appareil inconnu";
+          const loginTime = existingSession?.login_time
+            ? new Date(existingSession.login_time).toLocaleString("fr-FR", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "Date inconnue";
+
+          setLoginError(
+            `⚠️  une personne est déjà connectée sur cette compte:\n\n` +
+              `📧 Email : ${formData.email.trim()}\n` +
+              `❌  contactez immédiatement l'administrateur.`
+          );
+
+          setSecurityAlert({
+            type: "error",
+            message:
+              "Connexion refusée - Une session est déjà active sur ce compte",
+          });
+
+          setIsLoading(false);
+          return;
+        }
+
+        // ✅ Créer une nouvelle session
+        console.log("📝 Création d'une nouvelle session...");
+        const sessionToken = await createSession(formData.email.trim());
+
+        if (!sessionToken) {
+          setLoginError("Erreur lors de la création de la session-2");
+          setIsLoading(false);
+          return;
+        }
+        console.log("✅ Nouvelle session Super Admin créée:", sessionToken);
+
+        // Stocker les informations du Super Admin
         localStorage.setItem(
           "superadmin_session",
           JSON.stringify({
@@ -209,7 +248,7 @@ function SIGEPLoginPageContent() {
           })
         );
 
-        // Connexion réussie pour Super Admin
+        // Connexion réussie
         setAttemptCount(0);
 
         // Rediriger
@@ -228,21 +267,69 @@ function SIGEPLoginPageContent() {
         return;
       }
 
-      // CONNEXION NORMALE POUR LES AUTRES UTILISATEURS
+      // ===== CONNEXION NORMALE POUR LES AUTRES UTILISATEURS =====
+      console.log("👤 Connexion utilisateur normal...");
+
+      // ✅ Vérifier si déjà connecté
+      const alreadyConnected = await isUserAlreadyConnected(
+        formData.email.trim()
+      );
+
+      if (alreadyConnected) {
+        const existingSession = await getUserSession(formData.email.trim());
+
+        // ❌ BLOQUER LA CONNEXION - Ne pas permettre de forcer
+        const deviceInfo = existingSession?.device_info || "Appareil inconnu";
+        const loginTime = existingSession?.login_time
+          ? new Date(existingSession.login_time).toLocaleString("fr-FR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "Date inconnue";
+
+        setLoginError(
+          `⚠️ Une personne est déjà connectée sur votre compte :\n\n` +
+            `📧 Email : ${formData.email.trim()}\n` +
+            `💻 Appareil : ${deviceInfo}\n` +
+            `🕒 Depuis : ${loginTime}\n\n` +
+            `❌ Si ce n'est pas vous, contactez immédiatement l'administrateur.`
+        );
+
+        setSecurityAlert({
+          type: "error",
+          message:
+            "Connexion refusée - Une session est déjà active sur ce compte",
+        });
+
+        setIsLoading(false);
+        return;
+      }
+
+      // ✅ Authentification Supabase
       const result = await Login(formData.email.trim(), formData.password);
 
       if (result.success && result.user) {
+        console.log("✅ Authentification réussie");
+
+        // ✅ Créer la session
+        const sessionToken = await createSession(formData.email.trim());
+
+        console.log("✅ Session créée avec token:", sessionToken);
+
+        // Connexion réussie
         setAttemptCount(0);
         const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
-        setTimeout(() => {
-          router.replace(redirectPath);
-          addActivity({
-            action: "connexion",
-            module: "Authentification",
-            title: "Connexion réussie",
-            details: `L'utilisateur  s'est connecté avec succès.`,
-          });
-        }, 500);
+
+        router.replace(redirectPath);
+        addActivity({
+          action: "connexion",
+          module: "Authentification",
+          title: "Connexion réussie",
+          details: `L'utilisateur s'est connecté avec succès.`,
+        });
       } else {
         const messageBlocked =
           result.message?.toLowerCase().includes("bloqué") ||
@@ -262,14 +349,13 @@ function SIGEPLoginPageContent() {
         }
       }
     } catch (error: any) {
-      console.error("Erreur lors de la connexion:", error);
+      console.error("❌ Erreur lors de la connexion:", error);
       setAttemptCount((prev) => prev + 1);
       setLoginError("Erreur de connexion. Veuillez réessayer.");
     } finally {
       setIsLoading(false);
     }
   };
-
   const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -389,10 +475,8 @@ function SIGEPLoginPageContent() {
                 <Shield className="w-5 h-5 text-red-600 mr-3" />
                 <div>
                   <p className="text-sm font-medium text-red-800">
-                    Compte temporairement bloqué
-                  </p>
-                  <p className="text-xs text-red-600">
-                    Temps restant: {formatTime(blockTimeRemaining)}
+                    Compte bloqué définitivement <br /> Contactez
+                    l'administrateur
                   </p>
                 </div>
               </div>
@@ -547,7 +631,7 @@ function SIGEPLoginPageContent() {
                 !isOnline ? (
                   "Pas de connexion Internet"
                 ) : (
-                  "Bloqué temporairement"
+                  "Bloqué définitivement"
                 )
               ) : (
                 "Se connecter"

@@ -6,6 +6,7 @@ import React, {
   useEffect,
   ReactNode,
   useCallback,
+  useMemo,
 } from "react";
 import {
   SelectData,
@@ -215,6 +216,38 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
   // Supprimé: professeurs en local. Utilisez le contexte Professeur directement dans les composants UI si nécessaire.
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Ordre des classes de NSIV à 1ère
+  const CLASSES_ORDER = useMemo(
+    () => [
+      "NSIV",
+      "NSIII",
+      "NSII",
+      "NSI",
+      "9e Année Fondamentale",
+      "8e Année Fondamentale",
+      "7e Année Fondamentale",
+      "6e Année Fondamentale",
+      "5e Année Fondamentale",
+      "4e Année Fondamentale",
+      "3e Année Fondamentale",
+      "2e Année Fondamentale",
+      "1ère Année Fondamentale",
+    ],
+    []
+  );
+
+  const sortClasses = useCallback(
+    (classes: Classe[]): Classe[] => {
+      return [...classes].sort((a, b) => {
+        const indexA = CLASSES_ORDER.indexOf(a.name);
+        const indexB = CLASSES_ORDER.indexOf(b.name);
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
+    },
+    [CLASSES_ORDER]
+  );
 
   // Utilitaires
   const resetError = () => setError(null);
@@ -368,7 +401,7 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
           year: anneeDB.nom,
           description: anneeDB.description || "",
           created: true,
-          classes,
+          classes: sortClasses(classes),
           configurationSaved: classes.length > 0,
           createdAt: anneeDB.created_at,
           updatedAt: anneeDB.updated_at,
@@ -387,7 +420,7 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         };
       }
     },
-    []
+    [sortClasses]
   );
 
   // === ANNÉES SCOLAIRES ===
@@ -611,7 +644,7 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         })
       );
 
-      return classes;
+      return sortClasses(classes); // ← AJOUTER sortClasses()
     } catch (err) {
       handleError("Erreur lors du chargement des classes");
       return [];

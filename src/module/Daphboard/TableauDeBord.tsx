@@ -524,7 +524,11 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
               </ResponsiveContainer>
             </div>
             <div className="mt-6 flex justify-center space-x-4">
-              <div className="flex items-center space-x-2 p-2 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
+              <div
+                className={`flex items-center space-x-2 p-2 ${
+                  isDarkMode ? "bg-pink-900/20" : "bg-pink-50"
+                }   rounded-lg`}
+              >
                 <div className="w-3 h-3 bg-pink-500 rounded-full"></div>
                 <span
                   className={`text-xs font-medium ${
@@ -533,20 +537,24 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                 >
                   Filles:{" "}
                   {genderDistributionData.find((g) => g.name.includes("Filles"))
-                    ?.value ?? 634}
+                    ?.value ?? 0}
                 </span>
               </div>
-              <div className="flex items-center space-x-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <div
+                className={`flex items-center space-x-2 p-2 ${
+                  isDarkMode ? "bg-gray-900/20" : "bg-blue-50"
+                }   rounded-lg`}
+              >
                 <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
                 <span
                   className={`text-xs font-medium ${
                     isDarkMode ? "text-white" : "text-gray-900"
                   }`}
                 >
-                  Garçons:{" "}
+                  Garçons:
                   {genderDistributionData.find((g) =>
                     g.name.includes("Garçons")
-                  )?.value ?? 600}
+                  )?.value ?? 0}
                 </span>
               </div>
             </div>
@@ -610,7 +618,11 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="mt-6 text-center p-4 bg-gray-50 dark:bg-slate-700 rounded-xl">
+            <div
+              className={`mt-6 text-center p-4 ${
+                isDarkMode ? "bg-slate-700/20" : "bg-gray-50"
+              } rounded-xl`}
+            >
               <p
                 className={`text-lg font-bold ${
                   isDarkMode ? "text-white" : "text-gray-100"

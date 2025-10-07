@@ -38,6 +38,7 @@ import {
   generateSchedulePrintContent,
   generateClassesPrintContent,
 } from "./module/PrintUtils";
+import { notify } from "@/components/Notification";
 
 interface ConfigurationAnneeProps {
   isOpen: boolean;
@@ -89,6 +90,10 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     loadSalles,
     loadMatieres,
     createEmploiDuTemps,
+    deleteSalle,
+    deleteClasse,
+    deleteEmploiDuTemps,
+    deleteMatiere,
   } = useAnneeScolaire();
   const { professeurs } = useProfesseur();
 
@@ -125,10 +130,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     { id: "14", name: "Biologie", coefficient: 80 },
     { id: "15", name: "Économie", coefficient: 60 },
   ];
-  const [notification, setNotification] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
+
   const [yearError, setYearError] = useState("");
   const [useTemplate, setUseTemplate] = useState<"empty" | "copy">("empty");
   const [selectedTemplateYear, setSelectedTemplateYear] = useState("");
@@ -343,7 +345,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
 
       setLocalSchoolYear(updatedSchoolYear);
       setCurrentStep(2);
-      showNotification("success", "Année scolaire créée avec succès !");
+      notify("success", "Année scolaire créée avec succès !");
     } finally {
       setIsCreating(false);
     }
@@ -375,26 +377,46 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     }));
 
     setSelectedClasse("");
-    showNotification(
-      "success",
-      `Classe ${selectedClasse} ajoutée avec succès !`
-    );
+    notify("success", `Classe ${selectedClasse} ajoutée avec succès !`);
   };
 
   // Suppression d'une classe
-  const handleRemoveClasse = (classeId: string) => {
+  // ✅ NOUVELLE VERSION (supprime côté serveur ET local)
+  const handleRemoveClasse = async (classeId: string) => {
     const classe = localSchoolYear.classes.find((c) => c.id === classeId);
+    if (!classe) return;
+
     if (
-      classe &&
-      window.confirm(
+      !window.confirm(
         `Êtes-vous sûr de vouloir supprimer la classe "${classe.name}" et toutes ses salles ?`
       )
     ) {
-      setLocalSchoolYear((prev) => ({
-        ...prev,
-        classes: prev.classes.filter((c) => c.id !== classeId),
-      }));
-      showNotification("success", "Classe supprimée avec succès !");
+      return;
+    }
+
+    try {
+      // 1. Supprimer toutes les salles de la classe d'abord
+      const deleteSalleTasks = classe.salles.map((salle) =>
+        deleteSalle(salle.id)
+      );
+      await Promise.all(deleteSalleTasks);
+
+      // 2. Supprimer la classe côté serveur
+      const success = await deleteClasse(classeId);
+
+      if (success) {
+        // 3. Mettre à jour l'état local
+        setLocalSchoolYear((prev) => ({
+          ...prev,
+          classes: prev.classes.filter((c) => c.id !== classeId),
+        }));
+        notify("success", "Classe supprimée avec succès !");
+      } else {
+        notify("error", "Erreur lors de la suppression de la classe");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la suppression:", error);
+      notify("error", "Erreur lors de la suppression de la classe");
     }
   };
 
@@ -405,7 +427,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     maxStudents: number
   ) => {
     if (salleExists(classeId, salleName)) {
-      showNotification(
+      notify(
         "error",
         `La salle "${salleName}" existe déjà dans cette classe !`
       );
@@ -429,32 +451,62 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       ),
     }));
 
-    showNotification("success", `Salle ${salleName} ajoutée avec succès !`);
+    notify("success", `Salle ${salleName} ajoutée avec succès !`);
   };
 
   // Suppression d'une salle
-  const handleRemoveSalle = (classeId: string, salleId: string) => {
+
+  // ✅ NOUVELLE VERSION
+  const handleRemoveSalle = async (classeId: string, salleId: string) => {
     const classe = localSchoolYear.classes.find((c) => c.id === classeId);
     const salle = classe?.salles.find((s) => s.id === salleId);
 
+    if (!salle) return;
+
     if (
-      salle &&
-      window.confirm(
-        `Êtes-vous sûr de vouloir supprimer la salle "${salle.name}" ?`
+      !window.confirm(
+        `Êtes-vous sûr de vouloir supprimer la salle "${salle.name}" et toutes ses matières ?`
       )
     ) {
-      setLocalSchoolYear((prev) => ({
-        ...prev,
-        classes: prev.classes.map((classe) =>
-          classe.id === classeId
-            ? {
-                ...classe,
-                salles: classe.salles.filter((s) => s.id !== salleId),
-              }
-            : classe
-        ),
-      }));
-      showNotification("success", "Salle supprimée avec succès !");
+      return;
+    }
+
+    try {
+      // 1. Supprimer toutes les matières de la salle d'abord
+      const deleteMatieresTasks = salle.subjects.map((subject) =>
+        deleteMatiere(subject.id)
+      );
+      await Promise.all(deleteMatieresTasks);
+
+      // 2. Supprimer tous les emplois du temps de la salle
+      const deleteScheduleTasks = salle.schedule.map((schedule) =>
+        deleteEmploiDuTemps(schedule.id)
+      );
+      await Promise.all(deleteScheduleTasks);
+
+      // 3. Supprimer la salle côté serveur
+      const success = await deleteSalle(salleId);
+
+      if (success) {
+        // 4. Mettre à jour l'état local
+        setLocalSchoolYear((prev) => ({
+          ...prev,
+          classes: prev.classes.map((classe) =>
+            classe.id === classeId
+              ? {
+                  ...classe,
+                  salles: classe.salles.filter((s) => s.id !== salleId),
+                }
+              : classe
+          ),
+        }));
+        notify("success", "Salle supprimée avec succès !");
+      } else {
+        notify("error", "Erreur lors de la suppression de la salle");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la suppression:", error);
+      notify("error", "Erreur lors de la suppression de la salle");
     }
   };
 
@@ -492,7 +544,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       ),
     }));
 
-    showNotification("success", `Matière ${subjectName} ajoutée avec succès !`);
+    notify("success", `Matière ${subjectName} ajoutée avec succès !`);
   };
 
   // Trouver le professeur pour une matière dans une salle spécifique
@@ -517,31 +569,46 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
   };
 
   // Suppression d'une matière d'une salle
-  const handleRemoveSubjectFromSalle = (
+  // ✅ NOUVELLE VERSION
+  const handleRemoveSubjectFromSalle = async (
     classeId: string,
     salleId: string,
     subjectId: string
   ) => {
-    setLocalSchoolYear((prev) => ({
-      ...prev,
-      classes: prev.classes.map((classe) =>
-        classe.id === classeId
-          ? {
-              ...classe,
-              salles: classe.salles.map((salle) =>
-                salle.id === salleId
-                  ? {
-                      ...salle,
-                      subjects: salle.subjects.filter(
-                        (subj) => subj.id !== subjectId
-                      ),
-                    }
-                  : salle
-              ),
-            }
-          : classe
-      ),
-    }));
+    try {
+      // 1. Supprimer la matière côté serveur
+      const success = await deleteMatiere(subjectId);
+
+      if (success) {
+        // 2. Mettre à jour l'état local
+        setLocalSchoolYear((prev) => ({
+          ...prev,
+          classes: prev.classes.map((classe) =>
+            classe.id === classeId
+              ? {
+                  ...classe,
+                  salles: classe.salles.map((salle) =>
+                    salle.id === salleId
+                      ? {
+                          ...salle,
+                          subjects: salle.subjects.filter(
+                            (subj) => subj.id !== subjectId
+                          ),
+                        }
+                      : salle
+                  ),
+                }
+              : classe
+          ),
+        }));
+        notify("success", "Matière supprimée avec succès !");
+      } else {
+        notify("error", "Erreur lors de la suppression de la matière");
+      }
+    } catch (error) {
+      console.error("Erreur lors de la suppression:", error);
+      notify("error", "Erreur lors de la suppression de la matière");
+    }
   };
 
   // Modification du coefficient d'une matière
@@ -578,7 +645,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
   // Enregistrement de la configuration
   const handleSaveConfiguration = async () => {
     if (localSchoolYear.classes.length === 0) {
-      showNotification(
+      notify(
         "error",
         "Veuillez ajouter au moins une classe avant d'enregistrer !"
       );
@@ -589,7 +656,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       (classe) => classe.salles.length === 0
     );
     if (hasEmptyClasses) {
-      showNotification(
+      notify(
         "error",
         "Certaines classes n'ont pas de salles. Veuillez les configurer !"
       );
@@ -605,7 +672,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       const anneeRef =
         annee || schoolYears.find((y) => y.year === localSchoolYear.year);
       if (!anneeRef) {
-        showNotification("error", "Année introuvable côté serveur");
+        notify("error", "Année introuvable côté serveur");
         return;
       }
 
@@ -681,15 +748,12 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       await Promise.all(createMatiereTasks);
 
       setLocalSchoolYear((prev) => ({ ...prev, configurationSaved: true }));
-      showNotification(
+      notify(
         "success",
         "Configuration des classes, salles et matières enregistrée !"
       );
     } catch (e) {
-      showNotification(
-        "error",
-        "Erreur lors de l'enregistrement de la configuration"
-      );
+      notify("error", "Erreur lors de l'enregistrement de la configuration");
     } finally {
       setIsSavingConfig(false);
     }
@@ -706,7 +770,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       !validateTime(scheduleItem.startTime) ||
       !validateTime(scheduleItem.endTime)
     ) {
-      showNotification("error", "Les heures doivent être entre 07h00 et 17h00");
+      notify("error", "Les heures doivent être entre 07h00 et 17h00");
       return;
     }
 
@@ -722,7 +786,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     );
 
     if (hasConflict) {
-      showNotification("error", conflictMessage);
+      notify("error", conflictMessage);
       return;
     }
 
@@ -747,7 +811,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       ),
     }));
 
-    showNotification("success", "Créneau ajouté à l'emploi du temps !");
+    notify("success", "Créneau ajouté à l'emploi du temps !");
   };
 
   // Enregistrement des emplois du temps
@@ -762,7 +826,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       const anneeRef =
         annee || schoolYears.find((y) => y.year === localSchoolYear.year);
       if (!anneeRef) {
-        showNotification("error", "Année introuvable côté serveur");
+        notify("error", "Année introuvable côté serveur");
         return;
       }
 
@@ -819,22 +883,15 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
       });
       await Promise.all(createEmploiTasks);
 
-      showNotification("success", "Emplois du temps enregistrés avec succès !");
+      notify("success", "Emplois du temps enregistrés avec succès !");
     } catch (e) {
-      showNotification(
-        "error",
-        "Erreur lors de l'enregistrement des emplois du temps"
-      );
+      notify("error", "Erreur lors de l'enregistrement des emplois du temps");
     } finally {
       setIsSavingSchedules(false);
     }
   };
 
   // Notification
-  const showNotification = (type: "success" | "error", message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 3000);
-  };
 
   // Fonctions d'impression via PrintUtils
   const handlePrintSalleSchedule = (salle: Salle, classeName: string) => {
@@ -1013,24 +1070,6 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
             <X size={20} />
           </button>
         </div>
-
-        {/* Notification */}
-        {notification && (
-          <div
-            className={`absolute top-20 right-6 p-4 rounded-lg shadow-lg z-60 flex items-center gap-2 ${
-              notification.type === "success"
-                ? "bg-green-100 text-green-800 border border-green-200"
-                : "bg-red-100 text-red-800 border border-red-200"
-            }`}
-          >
-            {notification.type === "success" ? (
-              <CheckCircle size={20} />
-            ) : (
-              <AlertCircle size={20} />
-            )}
-            {notification.message}
-          </div>
-        )}
 
         {/* Contenu principal */}
         <div className="flex-1 overflow-y-auto p-6">
@@ -2158,6 +2197,7 @@ function ScheduleSalleSection({
   isDarkMode: boolean;
 }) {
   const { professeurs } = useProfesseur();
+  const { deleteEmploiDuTemps } = useAnneeScolaire();
   const safeProfesseurs = Array.isArray(professeurs)
     ? professeurs.filter((p) => !p.deleted)
     : [];
@@ -2179,7 +2219,9 @@ function ScheduleSalleSection({
       newSchedule.endTime &&
       newSchedule.subject
     ) {
-      const teacher = safeProfesseurs.find((p) => p.id === newSchedule.teacherId);
+      const teacher = safeProfesseurs.find(
+        (p) => p.id === newSchedule.teacherId
+      );
       onAddScheduleItem(classe.id, salle.id, {
         day: newSchedule.day,
         startTime: newSchedule.startTime,
@@ -2207,11 +2249,30 @@ function ScheduleSalleSection({
           seq.classe === classe.id &&
           seq.salle === salle.id &&
           seq.matiere ===
-            (salle.subjects.find((s) => s.name === subjectName)?.id || subjectName)
+            (salle.subjects.find((s) => s.name === subjectName)?.id ||
+              subjectName)
       )
     );
   };
 
+  const handleRemoveScheduleItem = async (scheduleId: string) => {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce créneau ?")) {
+      return;
+    }
+
+    try {
+      const success = await deleteEmploiDuTemps(scheduleId);
+
+      if (success) {
+        notify("success", "Créneau supprimé avec succès !");
+      } else {
+        notify("error", "Erreur lors de la suppression du créneau");
+      }
+    } catch (error) {
+      console.error("Erreur:", error);
+      notify("error", "Erreur lors de la suppression du créneau");
+    }
+  };
   // Gérer le changement de matière
   const handleSubjectChange = (subjectName: string) => {
     setNewSchedule((prev) => ({ ...prev, subject: subjectName }));
@@ -2401,55 +2462,30 @@ function ScheduleSalleSection({
           {/* Emploi du temps actuel */}
           <div className="grid grid-cols-5 gap-2 text-sm">
             {days.map((day) => (
-              <div
-                key={day}
-                className={`border rounded transition-all duration-300 ${
-                  isDarkMode ? "border-gray-600" : "border-gray-200"
-                }`}
-              >
-                <div
-                  className={`p-2 text-center font-medium ${
-                    isDarkMode
-                      ? "bg-gray-700 text-white"
-                      : "bg-gray-100 text-gray-900"
-                  }`}
-                >
-                  {day}
-                </div>
+              <div key={day}>
+                <div>{day}</div>
                 <div className="p-2 space-y-2">
                   {salle.schedule
                     .filter((item) => item.day === day)
                     .map((item) => (
                       <div
                         key={item.id}
-                        className={`border rounded p-2 transition-all duration-300 ${
-                          isDarkMode
-                            ? "bg-blue-900/30 border-blue-800"
-                            : "bg-blue-50 border-blue-200"
-                        }`}
+                        className="relative border rounded p-2"
                       >
-                        <div
-                          className={`font-medium ${
-                            isDarkMode ? "text-blue-300" : "text-blue-900"
-                          }`}
+                        {/* Bouton supprimer */}
+                        <button
+                          onClick={() => handleRemoveScheduleItem(item.id)}
+                          className="absolute top-1 right-1 text-red-600 hover:text-red-800"
                         >
+                          <X size={14} />
+                        </button>
+
+                        <div className="font-medium">
                           {item.startTime}-{item.endTime}
                         </div>
-                        <div
-                          className={`${
-                            isDarkMode ? "text-blue-200" : "text-blue-700"
-                          }`}
-                        >
-                          {item.subject}
-                        </div>
+                        <div>{item.subject}</div>
                         {item.teacherName && (
-                          <div
-                            className={`text-xs ${
-                              isDarkMode ? "text-blue-400" : "text-blue-600"
-                            }`}
-                          >
-                            {item.teacherName}
-                          </div>
+                          <div className="text-xs">{item.teacherName}</div>
                         )}
                       </div>
                     ))}

@@ -44,6 +44,14 @@ interface SessionData {
   isAuthenticated: boolean;
   canAccess: boolean;
 }
+import {
+  isUserAlreadyConnected,
+  getUserSession,
+  createSession,
+  forceNewSession,
+  getDeviceInfo,
+  deleteCurrentSession,
+} from "@/components/SessionManager";
 
 interface ListeContextUtilisateurType {
   // Gestion des utilisateurs
@@ -54,6 +62,7 @@ interface ListeContextUtilisateurType {
     updatedUtilisateur: Partial<UserProfile>
   ) => Promise<boolean>;
   BloquerUtilisateur: (id: string) => Promise<boolean>;
+  BloquerUtilisateurParEmail: (email: string) => Promise<boolean>;
   DebloquerUtilisateur: (id: string) => Promise<boolean>;
   DeleteUtilisateur: (id: string) => Promise<boolean>;
   RefreshUtilisateurs: () => Promise<void>;
@@ -448,6 +457,62 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // Bloquer un utilisateur par email
+  const BloquerUtilisateurParEmail = async (
+    email: string
+  ): Promise<boolean> => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      console.log("🔒 Tentative de blocage pour email:", email);
+
+      // 1. Trouver l'utilisateur par email
+      const utilisateurs = await SelectData("Utilisateur");
+      const user = utilisateurs?.find(
+        (u: any) => u.email_connexion?.toLowerCase() === email.toLowerCase()
+      );
+
+      if (!user) {
+        console.error("❌ Utilisateur introuvable:", email);
+        setError("Utilisateur introuvable avec cet email");
+        return false;
+      }
+
+      console.log("✅ Utilisateur trouvé:", user.id);
+
+      // 2. Bannir dans l'authentification
+      const authBanResult = await BanUserAdmin(user.id);
+      if (!authBanResult?.succes) {
+        console.error("❌ Erreur lors du blocage auth");
+        setError("Erreur lors du blocage dans l'authentification");
+        return false;
+      }
+
+      console.log("✅ Utilisateur banni dans auth");
+
+      // 3. Mettre à jour dans la table
+      const success = await UpdateData("Utilisateur", user.id, {
+        isbloquer: true,
+        updated_at: new Date().toISOString(),
+      });
+
+      if (success === true) {
+        console.log("✅ Utilisateur bloqué dans la table");
+        await fetchUtilisateurs();
+        return true;
+      }
+
+      console.error("❌ Échec mise à jour table");
+      return false;
+    } catch (error: any) {
+      console.error("❌ Erreur lors du blocage par email:", error);
+      setError(error.message || "Erreur lors du blocage");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
   // Fonction pour supprimer un utilisateur
   const DeleteUtilisateur = async (id: string): Promise<boolean> => {
     try {
@@ -516,6 +581,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
   const RemoveProfilPhoto = (userId: string): void => {
     localStorage.removeItem(`profil_photo_${userId}`);
   };
+
   const Login = async (
     email: string,
     password: string
@@ -523,13 +589,43 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
     try {
       setLoading(true);
 
-      // Tentative de connexion
+      // ===== ÉTAPE 1: Vérifier si l'utilisateur est déjà connecté =====
+      const alreadyConnected = await isUserAlreadyConnected(email);
+
+      if (alreadyConnected) {
+        const existingSession = await getUserSession(email);
+
+        // Afficher une confirmation
+        const forceLogin = window.confirm(
+          `⚠️ Attention !\n\n` +
+            `Ce compte est déjà connecté depuis :\n` +
+            `- Appareil : ${existingSession?.device_info || "Inconnu"}\n` +
+            `- Depuis : ${
+              existingSession?.login_time
+                ? new Date(existingSession.login_time).toLocaleString()
+                : "Inconnu"
+            }\n\n` +
+            `Voulez-vous forcer la déconnexion de l'autre session et vous connecter ici ?`
+        );
+
+        if (!forceLogin) {
+          return {
+            success: false,
+            message: "Connexion annulée. Une session est déjà active.",
+          };
+        }
+
+        // L'utilisateur veut forcer la connexion
+        console.log("🔄 Forçage de la nouvelle session...");
+      }
+
+      // ===== ÉTAPE 2: Tentative de connexion Supabase Auth =====
       const loginResult = await SignIn(email, password);
 
       if (!loginResult.success) {
         const error = loginResult.error;
 
-        // Gérer les différents types d'erreurs Supabase
+        // Gérer les erreurs (votre code existant)
         if (error?.message?.includes("Email not confirmed")) {
           return {
             success: false,
@@ -537,18 +633,8 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           };
         }
 
-        if (error?.message?.includes("Email link is invalid or has expired")) {
-          return {
-            success: false,
-            message:
-              "Le lien de confirmation a expiré. Demandez un nouveau lien.",
-          };
-        }
-
         if (
-          error?.message?.includes("User is disabled") ||
           error?.message?.includes("user is banned") ||
-          error?.message?.includes("User is banned") ||
           error?.message?.toLowerCase().includes("banned")
         ) {
           return {
@@ -557,24 +643,20 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           };
         }
 
-        if (
-          error?.message?.includes("Invalid login credentials") ||
-          error?.message?.includes("Invalid email or password")
-        ) {
+        if (error?.message?.includes("Invalid login credentials")) {
           return {
             success: false,
             message: "Email ou mot de passe incorrect",
           };
         }
 
-        // Erreur générique
         return {
           success: false,
           message: error?.message || "Erreur lors de la connexion",
         };
       }
 
-      // Récupérer les données de l'utilisateur
+      // ===== ÉTAPE 3: Récupérer les données utilisateur =====
       const user = await GetUserByEmail(email);
       if (!user) {
         await SignOut();
@@ -584,7 +666,6 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         };
       }
 
-      // Vérifier si l'utilisateur n'est pas bloqué (dans votre DB)
       if (user.isbloquer) {
         await SignOut();
         return {
@@ -593,7 +674,6 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         };
       }
 
-      // Vérifier si l'employé associé existe
       if (!user.employer) {
         await SignOut();
         return {
@@ -602,12 +682,33 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         };
       }
 
-      // Mettre à jour la dernière connexion
+      // ===== ÉTAPE 4: Créer/Forcer la session =====
+      let sessionToken: string | null;
+
+      if (alreadyConnected) {
+        // Forcer une nouvelle session (supprimer l'ancienne)
+        sessionToken = await forceNewSession(email);
+      } else {
+        // Créer une nouvelle session
+        sessionToken = await createSession(email);
+      }
+
+      if (!sessionToken) {
+        await SignOut();
+        return {
+          success: false,
+          message: "Erreur lors de la création de la session",
+        };
+      }
+
+      console.log("✅ Session créée avec token:", sessionToken);
+
+      // ===== ÉTAPE 5: Mettre à jour la dernière connexion =====
       await UpdateData("Utilisateur", user.id!, {
         derniere_connexion: new Date().toISOString(),
       });
 
-      // Mettre à jour la session
+      // ===== ÉTAPE 6: Mettre à jour la session du context =====
       const authUser = await getUser();
       if (isValidAuthUser(authUser)) {
         setCurrentSession({
@@ -635,10 +736,14 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // Fonction de déconnexion
   const Logout = async (): Promise<boolean> => {
     try {
+      // Supprimer la session de la table
+      await deleteCurrentSession();
+
+      // Déconnexion Supabase
       const success = await SignOut();
+
       if (success === true) {
         setCurrentSession({
           user: null,
@@ -655,7 +760,6 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       return false;
     }
   };
-
   // Fonction pour rafraîchir la liste
   const RefreshUtilisateurs = async () => {
     await fetchUtilisateurs();
@@ -694,6 +798,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         AddUtilisateur,
         UpdateUtilisateur,
         BloquerUtilisateur,
+        BloquerUtilisateurParEmail,
         DebloquerUtilisateur,
         DeleteUtilisateur,
         RefreshUtilisateurs,

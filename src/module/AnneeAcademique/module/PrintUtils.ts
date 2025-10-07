@@ -651,7 +651,7 @@ export const generateSchedulePrintContent = (levels: Level[]) => {
                       return `
                             <td class="empty-cell">
                               <div style="text-align: center; padding: 20px; color: #9ca3af; font-style: italic;">
-                                Aucun cours<br>programmé
+                                
                               </div>
                             </td>
                           `;
@@ -669,7 +669,7 @@ export const generateSchedulePrintContent = (levels: Level[]) => {
                                       ${item.subject}
                                     </div>
                                     <div style="font-size: 10px; color: #64748b; font-style: italic;">
-                                      ${item.teacherName || "Aucun professeur"}
+                                      ${item.teacherName || ""}
                                     </div>
                       </div>
                     `
@@ -947,7 +947,7 @@ export const generateClassSchedulePrintContent = (cls: Class, levelName: string)
                   return `
                       <td class="day-schedule-cell">
                         <div class="empty-day-message" style="color: #9ca3af; font-style: italic;">
-                          Aucun cours<br>programmé
+                          
                         </div>
                       </td>
                     `;
@@ -963,7 +963,7 @@ export const generateClassSchedulePrintContent = (cls: Class, levelName: string)
                           }</div>
                             <div class="course-subject">${item.subject}</div>
                             <div class="course-teacher">${
-                              item.teacherName || "Aucun professeur"
+                              item.teacherName || ""
                             }</div>
                   </div>
                 `

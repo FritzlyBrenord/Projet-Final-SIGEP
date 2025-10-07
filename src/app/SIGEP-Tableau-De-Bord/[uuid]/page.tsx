@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, use } from "react";
 import {
   Home,
   Users,
@@ -44,8 +44,15 @@ import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import Spinner from "@/utils/Spinner/Spinner";
 import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
 import ProfilModal from "@/components/ProfilModal";
-import { ConnectionNotification } from "@/components/ConnectionNotification";
+import {
+  ConnectionNotification,
+  useConnectionStatus,
+} from "@/components/ConnectionNotification";
 import WelcomeScreen from "@/module/Daphboard/WelcomeScreen";
+import { useEleves } from "@/Context/ContextEleves";
+import { useProfesseur } from "@/Context/ContextProfesseur";
+import { useEmployer } from "@/Context/ContextEmployer";
+import { SelectData } from "@/Config/SupabaseData";
 
 interface User {
   name?: string;
@@ -91,7 +98,10 @@ const isSuperAdmin = (session: any): boolean => {
 };
 
 const Dashboard: React.FC = () => {
-  const { currentYear, schoolYears } = useAnneeScolaire();
+  const { currentYear } = useAnneeScolaire();
+  const { eleves } = useEleves();
+  const { professeurs } = useProfesseur();
+  const { employes } = useEmployer();
   const { currentSession, GetUtilisateurAutorisations, GetProfilPhoto } =
     useContextUtilisateur();
   const { handleLogout, isLoggingOut } = useRouteProtection();
@@ -106,12 +116,42 @@ const Dashboard: React.FC = () => {
   const [showProfilModal, setShowProfilModal] = useState(false);
   const [profilePhoto, setProfilePhoto] = useState<string>("/avatar.png");
   const [showWelcome, setShowWelcome] = useState(false);
-
+  const [schoolYearsLoading, setSchoolYearsLoading] = useState(true);
+  const [schoolYearsLoaded, setSchoolYearsLoaded] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
   // Ajoutez ces états et références
   const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now());
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 heure en millisecondes
+  const isOnline = useConnectionStatus();
 
+  const [schoolYears, setSchoolYears] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadSchoolYears = async () => {
+      if (!isOnline) return;
+
+      try {
+        setSchoolYearsLoading(true);
+        const [years] = await Promise.all([SelectData("annees_scolaires")]);
+        setSchoolYears(years || []);
+        setSchoolYearsLoaded(true);
+
+        // Marquer que le chargement initial est terminé
+        if (isInitialLoad) {
+          setIsInitialLoad(false);
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement des années scolaires:", error);
+        setSchoolYears([]);
+      } finally {
+        setSchoolYearsLoading(false);
+      }
+    };
+
+    loadSchoolYears();
+  }, [isOnline, isInitialLoad]); // Recharger quand la connexion revient
   // Fonction pour sauvegarder la page active
   const saveActivePage = (pageName: string) => {
     try {
@@ -134,82 +174,57 @@ const Dashboard: React.FC = () => {
     [isUserSuperAdmin, userPermissions]
   );
 
-  // Fonction pour charger la page active
-  const loadActivePage = useCallback(() => {
-    try {
+  // Fonction pour gérer le changement de menu (modifiée)
+  const handleMenuChange = (menuLabel: string) => {
+    if (isUserSuperAdmin || hasPermission(menuLabel)) {
+      console.log(`Changement de page : ${menuLabel}`);
+
+      // Changer la page
+      setActiveMenu(menuLabel);
+
+      // Sauvegarder immédiatement
+      saveActivePage(menuLabel);
+
+      // Le timer sera redémarré automatiquement par le useEffect
+    }
+  };
+
+  // useEffect pour charger la page sauvegardée AU DÉMARRAGE UNIQUEMENT
+  useEffect(() => {
+    if (!loading && userPermissions.length > 0 && schoolYears.length > 0) {
       const savedMenu = localStorage.getItem("activeMenu");
       const savedTime = localStorage.getItem("lastActivityTime");
 
       if (savedMenu && savedTime) {
         const timeDiff = Date.now() - parseInt(savedTime);
 
-        // Si moins d'1 heure s'est écoulée, restaurer la page
+        // Si moins d'1 heure, restaurer la page
         if (timeDiff < INACTIVITY_TIMEOUT) {
           // Vérifier que l'utilisateur a toujours la permission
           if (hasPermission(savedMenu) || isUserSuperAdmin) {
             setActiveMenu(savedMenu);
-            setLastActivityTime(parseInt(savedTime));
-            console.log(`Page restaurée : ${savedMenu}`);
-            return;
+            console.log(`✅ Page restaurée : ${savedMenu}`);
+          } else {
+            // Pas de permission, aller au tableau de bord
+            setActiveMenu("Tableau de Bord");
+            saveActivePage("Tableau de Bord");
           }
+        } else {
+          // Plus d'1 heure, retour au tableau de bord
+          console.log("⏰ Session expirée (1h) - Retour au Tableau de Bord");
+          setActiveMenu("Tableau de Bord");
+          saveActivePage("Tableau de Bord");
         }
+      } else {
+        // Pas de sauvegarde, aller au tableau de bord
+        setActiveMenu("Tableau de Bord");
+        saveActivePage("Tableau de Bord");
       }
-
-      // Sinon, revenir au Tableau de Bord
-      setActiveMenu("Tableau de Bord");
-      saveActivePage("Tableau de Bord");
-    } catch (error) {
-      console.error("Erreur lors du chargement de la page active:", error);
-      setActiveMenu("Tableau de Bord");
     }
-  }, [INACTIVITY_TIMEOUT, hasPermission, isUserSuperAdmin]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]); // ← Seulement quand loading change !
 
-  // Fonction pour démarrer le timer d'inactivité
-  const startInactivityTimer = useCallback(() => {
-    // Nettoyer le timer existant
-    if (inactivityTimerRef.current) {
-      clearTimeout(inactivityTimerRef.current);
-    }
-
-    // Démarrer un nouveau timer
-    inactivityTimerRef.current = setTimeout(() => {
-      console.log(
-        "⏱️ Timeout d'inactivité atteint - Retour au Tableau de Bord"
-      );
-      setActiveMenu("Tableau de Bord");
-      saveActivePage("Tableau de Bord");
-    }, INACTIVITY_TIMEOUT);
-  }, [INACTIVITY_TIMEOUT]);
-
-  // Fonction pour gérer le changement de menu (modifiée)
-  const handleMenuChange = (menuLabel: string) => {
-    if (isUserSuperAdmin || hasPermission(menuLabel)) {
-      setActiveMenu(menuLabel);
-      saveActivePage(menuLabel);
-      setLastActivityTime(Date.now());
-
-      // Redémarrer le timer d'inactivité
-      startInactivityTimer();
-
-      console.log(`📍 Menu changé vers : ${menuLabel} - Timer reset`);
-    }
-  };
-
-  // useEffect pour charger la page sauvegardée au montage
-  useEffect(() => {
-    if (!loading && userPermissions.length > 0 && schoolYears.length > 0) {
-      loadActivePage();
-      startInactivityTimer();
-    }
-  }, [
-    loading,
-    userPermissions,
-    schoolYears,
-    loadActivePage,
-    startInactivityTimer,
-  ]);
-
-  // useEffect pour nettoyer le timer au démontage
+  // Nettoyer le timer au démontage
   useEffect(() => {
     return () => {
       if (inactivityTimerRef.current) {
@@ -218,12 +233,25 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  // useEffect pour surveiller le changement de menu actif
+  // Démarrer le timer quand l'utilisateur change de page
   useEffect(() => {
-    if (activeMenu && !loading) {
-      startInactivityTimer();
+    if (!loading && activeMenu) {
+      // Nettoyer l'ancien timer
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+
+      // Démarrer un nouveau timer
+      inactivityTimerRef.current = setTimeout(() => {
+        console.log("⏱️ Timeout d'inactivité (1h) - Retour au Tableau de Bord");
+        setActiveMenu("Tableau de Bord");
+        saveActivePage("Tableau de Bord");
+      }, INACTIVITY_TIMEOUT);
+
+      console.log(`⏲️ Timer d'inactivité démarré pour : ${activeMenu}`);
     }
-  }, [activeMenu, loading, startInactivityTimer]);
+  }, [activeMenu, loading, INACTIVITY_TIMEOUT]);
+
   const handlePhotoUpdate = (newPhotoUrl: string) => {
     setProfilePhoto(newPhotoUrl);
   };
@@ -233,9 +261,7 @@ const Dashboard: React.FC = () => {
       schoolYears.length === 0 &&
       (userPermissions.length > 0 || isUserSuperAdmin)
     ) {
-      setTimeout(() => {
-        setShowWelcome(true);
-      }, 3000);
+      setShowWelcome(true);
     } else {
       setShowWelcome(false);
     }
@@ -336,7 +362,10 @@ const Dashboard: React.FC = () => {
           "Calendrier",
           "Paramètres",
         ]);
-        setLoading(false);
+        setTimeout(() => {
+          setLoading(false);
+        }, 10000);
+
         return;
       }
 
@@ -355,10 +384,14 @@ const Dashboard: React.FC = () => {
           console.error("Erreur lors du chargement des autorisations:", error);
           setUserPermissions([]);
         } finally {
-          setLoading(false);
+          setTimeout(() => {
+            setLoading(false);
+          }, 10000);
         }
       } else {
-        setLoading(false);
+        setTimeout(() => {
+          setLoading(false);
+        }, 10000);
       }
     };
 
@@ -466,8 +499,7 @@ const Dashboard: React.FC = () => {
         return <TableauDeBord isDarkMode={isDarkMode} />;
     }
   };
-
-  if (loading) {
+  if (loading || schoolYearsLoading) {
     return (
       <div
         className={`min-h-screen flex items-center justify-center ${
@@ -479,6 +511,79 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  if (!isOnline) {
+    return (
+      <div
+        className={`min-h-screen flex items-center justify-center ${
+          isDarkMode ? "bg-gray-900" : "bg-gray-50"
+        }`}
+      >
+        <div className="text-center px-6 max-w-md">
+          {/* Icône WiFi barré */}
+          <div className="mb-6">
+            <svg
+              className={`mx-auto h-16 w-16 ${
+                isDarkMode ? "text-gray-600" : "text-gray-400"
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"
+              />
+            </svg>
+          </div>
+
+          {/* Titre */}
+          <h2
+            className={`text-2xl font-semibold mb-3 ${
+              isDarkMode ? "text-gray-100" : "text-gray-900"
+            }`}
+          >
+            Pas de connexion internet
+          </h2>
+
+          {/* Description */}
+          <p
+            className={`mb-6 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
+          >
+            Impossible de charger les données. Vérifiez votre connexion et
+            réessayez.
+          </p>
+
+          {/* Bouton réessayer */}
+          <button
+            onClick={() => window.location.reload()}
+            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+              isDarkMode
+                ? "bg-blue-600 hover:bg-blue-700 text-white"
+                : "bg-blue-500 hover:bg-blue-600 text-white"
+            }`}
+          >
+            Réessayer
+          </button>
+
+          {/* Message d'aide optionnel */}
+          <div className="flex gap-2">
+            <p
+              className={`mt-4 text-sm ${
+                isDarkMode ? "text-gray-500" : "text-gray-500"
+              }`}
+            >
+              Tentative de reconnexion automatique en cours...
+            </p>
+            <div className="mt-4">
+              <Spinner />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   // Avant de rendre le contenu principal, vérifier :
   if (showWelcome) {
     return (
@@ -490,8 +595,8 @@ const Dashboard: React.FC = () => {
           if (isUserSuperAdmin) {
             setActiveMenu("Années Scolaires");
             setShowWelcome(false);
+            setHasSeenWelcome(true);
           } else {
-            // Afficher un message d'erreur
             alert("Seul le Super Admin peut créer une année scolaire");
           }
         }}
@@ -517,9 +622,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         )}
-
         {/* Sidebar */}
         {userPermissions.length > 0 &&
+          schoolYears &&
           schoolYears.length > 0 &&
           !showWelcome && (
             <aside
@@ -616,11 +721,13 @@ const Dashboard: React.FC = () => {
               </nav>
             </aside>
           )}
-
         {/* Contenu principal */}
         <main
           className={`transition-all duration-300 ${
-            userPermissions.length > 0 && schoolYears.length > 0 && !showWelcome
+            userPermissions.length > 0 &&
+            schoolYears &&
+            schoolYears.length > 0 &&
+            !showWelcome
               ? sidebarCollapsed
                 ? "ml-20"
                 : "ml-80"
@@ -628,7 +735,7 @@ const Dashboard: React.FC = () => {
           }`}
         >
           {/* Header */}
-          {schoolYears.length > 0 && !showWelcome && (
+          {schoolYears && schoolYears.length > 0 && !showWelcome && (
             <header
               className={`border-b px-6 py-4 backdrop-blur-lg sticky top-0 z-30 ${
                 isDarkMode
