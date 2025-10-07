@@ -32,7 +32,7 @@ export interface TypeFrais {
 
 export interface FraisParClasse {
   id: string;
-  classe: string;
+  classe_id: string;
   type_frais_id: string;
   montant: number;
   annee_scolaire_id: string;
@@ -113,7 +113,7 @@ interface TypeFraisDB {
 
 interface FraisParClasseDB {
   id: string;
-  classe: string;
+  classe_id: string;
   type_frais_id: string;
   montant: number;
   annee_scolaire_id: string;
@@ -222,7 +222,7 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
 
   const toFraisParClasse = (r: FraisParClasseDB): FraisParClasse => ({
     id: r.id,
-    classe: r.classe,
+    classe_id: r.classe_id,
     type_frais_id: r.type_frais_id,
     montant: r.montant,
     annee_scolaire_id: r.annee_scolaire_id,
@@ -454,7 +454,7 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
 
       // Vérifier l'unicité classe/type_frais
       const existe = await DataObjectExiste("frais_par_classe", {
-        classe: data.classe.trim(),
+        classe_id: data.classe.trim(),
         type_frais_id: data.type_frais_id,
         annee_scolaire_id: data.annee_scolaire_id,
         deleted: false,
@@ -471,7 +471,7 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
         "id" | "created_at" | "updated_at"
       > = {
         ...data,
-        classe: data.classe.trim(),
+        classe_id: data.classe.trim(),
         deleted: false,
       };
 
@@ -506,11 +506,26 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
         throw new Error("Le montant ne peut pas être négatif");
       }
 
+      // CORRECTION : Convertir 'classe' en 'classe_id' pour la base de données
+      const updatePayload: any = {};
+
       if (data.classe?.trim()) {
-        data.classe = data.classe.trim();
+        updatePayload.classe_id = data.classe.trim();
       }
 
-      const ok = await UpdateData("frais_par_classe", id, data);
+      if (data.montant !== undefined) {
+        updatePayload.montant = data.montant;
+      }
+
+      if (data.type_frais_id) {
+        updatePayload.type_frais_id = data.type_frais_id;
+      }
+
+      if (data.annee_scolaire_id) {
+        updatePayload.annee_scolaire_id = data.annee_scolaire_id;
+      }
+
+      const ok = await UpdateData("frais_par_classe", id, updatePayload);
       if (!ok)
         throw new Error("Erreur lors de la modification du frais par classe");
 
@@ -744,9 +759,10 @@ export const FraisScolariteProvider: React.FC<{ children: ReactNode }> = ({
 
   const getFraisForClasse = (classe: string, typeFraisId: string): number => {
     const frais = fraisParClasse.find(
-      (f) => f.classe === classe && f.type_frais_id === typeFraisId
+      (f) => f.classe_id === classe && f.type_frais_id === typeFraisId
     );
 
+    console.log("frais", classe);
     if (frais) return frais.montant;
 
     // Si pas de frais spécifique pour la classe, retourner le montant par défaut

@@ -175,9 +175,15 @@ const NotesPage = ({ isDarkMode }: Props) => {
   const [searchStudentsForReleve, setSearchStudentsForReleve] = useState("");
 
   // États de pagination
+  // États de pagination (EXISTANTS - à modifier)
   const [currentPageConsultation, setCurrentPageConsultation] = useState(1);
   const [currentPageResultat, setCurrentPageResultat] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10); // ✅ CHANGÉ: rendre modifiable
+
+  // ✅ NOUVEAUX ÉTATS pour pagination de la saisie
+  const [currentPageSaisie, setCurrentPageSaisie] = useState(1);
+  const [itemsPerPageSaisie, setItemsPerPageSaisie] = useState(10);
+  const [itemsPerPageResultat, setItemsPerPageResultat] = useState(10);
 
   // Fonctions utilitaires
   const getNoteColor = (note: number) => {
@@ -194,13 +200,28 @@ const NotesPage = ({ isDarkMode }: Props) => {
     currentPage: number,
     itemsPerPage: number
   ) => {
+    // ✅ Vérifications de sécurité
+    if (!data || data.length === 0) return [];
+    if (!isFinite(currentPage) || currentPage < 1)
+      return data.slice(0, itemsPerPage);
+    if (!isFinite(itemsPerPage) || itemsPerPage < 1) return data;
+
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
+
     return data.slice(startIndex, endIndex);
   };
-
   const getTotalPages = (totalItems: number, itemsPerPage: number) => {
-    return Math.ceil(totalItems / itemsPerPage);
+    // ✅ Sécurisation contre division par zéro et valeurs invalides
+    if (!totalItems || totalItems <= 0) return 1;
+    if (!itemsPerPage || itemsPerPage <= 0) return 1;
+
+    const pages = Math.ceil(totalItems / itemsPerPage);
+
+    // ✅ Vérifier que le résultat est un nombre fini valide
+    if (!isFinite(pages) || pages < 1) return 1;
+
+    return pages;
   };
 
   const PaginationComponent = ({
@@ -208,77 +229,197 @@ const NotesPage = ({ isDarkMode }: Props) => {
     totalPages,
     onPageChange,
     totalItems,
+    itemsPerPage,
+    onItemsPerPageChange,
+    showItemsPerPage = true,
   }: {
     currentPage: number;
     totalPages: number;
     onPageChange: (page: number) => void;
     totalItems: number;
+    itemsPerPage: number;
+    onItemsPerPageChange?: (items: number) => void;
+    showItemsPerPage?: boolean;
   }) => {
-    if (totalPages <= 1) return null;
+    // ✅ Vérifications de sécurité
+    if (totalItems === 0) return null;
+    if (!isFinite(totalPages) || totalPages < 1) return null; // ✅ AJOUTÉ
+    if (!isFinite(currentPage) || currentPage < 1) return null; // ✅ AJOUTÉ
+    if (!isFinite(itemsPerPage) || itemsPerPage < 1) return null; // ✅ AJOUTÉ
 
     const startItem = (currentPage - 1) * itemsPerPage + 1;
     const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
     return (
-      <div
-        className={`flex items-center justify-between mt-4 ${
-          isDarkMode ? "text-gray-300" : "text-gray-700"
-        }`}
-      >
-        <div className="text-sm">
-          Affichage de {startItem} à {endItem} sur {totalItems} résultats
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => onPageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className={`px-3 py-1 text-sm border rounded ${
-              currentPage === 1
-                ? isDarkMode
-                  ? "border-gray-600 text-gray-500 cursor-not-allowed"
-                  : "border-gray-300 text-gray-400 cursor-not-allowed"
-                : isDarkMode
-                ? "border-gray-600 text-gray-300 hover:bg-gray-700"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
+      <div className="space-y-4">
+        {/* Sélecteur du nombre d'éléments par page */}
+        {onItemsPerPageChange && showItemsPerPage && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <label
+                className={`text-sm font-medium ${
+                  isDarkMode ? "text-gray-300" : "text-gray-600"
+                }`}
+              >
+                Afficher par page :
+              </label>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const newValue = Number(e.target.value);
+                  if (newValue > 0) {
+                    // ✅ Vérification supplémentaire
+                    onItemsPerPageChange(newValue);
+                    onPageChange(1);
+                  }
+                }}
+                className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={20}>20</option>
+                <option value={25}>25</option>
+                <option value={30}>30</option>
+              </select>
+            </div>
+
+            <div
+              className={`text-sm ${
+                isDarkMode ? "text-gray-300" : "text-gray-700"
+              }`}
+            >
+              Affichage de <span className="font-semibold">{startItem}</span> à{" "}
+              <span className="font-semibold">{endItem}</span> sur{" "}
+              <span className="font-semibold">{totalItems}</span> résultats
+            </div>
+          </div>
+        )}
+
+        {/* Compteur seul si pas de sélecteur */}
+        {(!onItemsPerPageChange || !showItemsPerPage) && (
+          <div
+            className={`text-sm text-center ${
+              isDarkMode ? "text-gray-300" : "text-gray-700"
             }`}
           >
-            Précédent
-          </button>
+            Affichage de <span className="font-semibold">{startItem}</span> à{" "}
+            <span className="font-semibold">{endItem}</span> sur{" "}
+            <span className="font-semibold">{totalItems}</span> résultats
+          </div>
+        )}
 
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+        {/* Boutons de navigation */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center space-x-2">
             <button
-              key={page}
-              onClick={() => onPageChange(page)}
+              onClick={() => onPageChange(1)}
+              disabled={currentPage === 1}
               className={`px-3 py-1 text-sm border rounded ${
-                page === currentPage
+                currentPage === 1
                   ? isDarkMode
-                    ? "bg-blue-600 border-blue-600 text-white"
-                    : "bg-blue-600 border-blue-600 text-white"
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
                   : isDarkMode
                   ? "border-gray-600 text-gray-300 hover:bg-gray-700"
                   : "border-gray-300 text-gray-700 hover:bg-gray-50"
               }`}
             >
-              {page}
+              ««
             </button>
-          ))}
 
-          <button
-            onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className={`px-3 py-1 text-sm border rounded ${
-              currentPage === totalPages
-                ? isDarkMode
-                  ? "border-gray-600 text-gray-500 cursor-not-allowed"
-                  : "border-gray-300 text-gray-400 cursor-not-allowed"
-                : isDarkMode
-                ? "border-gray-600 text-gray-300 hover:bg-gray-700"
-                : "border-gray-300 text-gray-700 hover:bg-gray-50"
-            }`}
-          >
-            Suivant
-          </button>
-        </div>
+            <button
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`px-3 py-1 text-sm border rounded ${
+                currentPage === 1
+                  ? isDarkMode
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Précédent
+            </button>
+
+            {/* ✅ CORRECTION: Sécuriser le calcul des numéros de page */}
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNumber;
+
+              // ✅ Calcul sécurisé des numéros de page
+              if (totalPages <= 5) {
+                pageNumber = i + 1;
+              } else if (currentPage <= 3) {
+                pageNumber = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNumber = Math.max(1, totalPages - 4 + i); // ✅ AJOUT de Math.max
+              } else {
+                pageNumber = Math.max(1, currentPage - 2 + i); // ✅ AJOUT de Math.max
+              }
+
+              // ✅ Vérification finale que pageNumber est valide
+              if (
+                !isFinite(pageNumber) ||
+                pageNumber < 1 ||
+                pageNumber > totalPages
+              ) {
+                return null;
+              }
+
+              return (
+                <button
+                  key={pageNumber}
+                  onClick={() => onPageChange(pageNumber)}
+                  className={`px-3 py-1 text-sm border rounded ${
+                    pageNumber === currentPage
+                      ? isDarkMode
+                        ? "bg-blue-600 border-blue-600 text-white"
+                        : "bg-blue-600 border-blue-600 text-white"
+                      : isDarkMode
+                      ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              );
+            })}
+
+            <button
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1 text-sm border rounded ${
+                currentPage === totalPages
+                  ? isDarkMode
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Suivant
+            </button>
+
+            <button
+              onClick={() => onPageChange(totalPages)}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1 text-sm border rounded ${
+                currentPage === totalPages
+                  ? isDarkMode
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              »»
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -379,52 +520,93 @@ const NotesPage = ({ isDarkMode }: Props) => {
   const saveNotes = async () => {
     try {
       setIsSavingNotes(true);
-      const promises: Promise<void>[] = [];
+
+      // ✅ ÉTAPE 1 : Valider TOUTES les notes AVANT de sauvegarder
+      let hasValidationError = false;
+      const validEntries: Array<{
+        eleveId: string;
+        data: { note: string; observation: string };
+      }> = [];
 
       Object.entries(notesForm).forEach(([eleveId, data]) => {
         if (data.note && !isNaN(parseFloat(data.note))) {
           const noteValue = parseFloat(data.note);
           const maxAllowed = selectedMatiereObj?.coefficient ?? 100;
+
           if (noteValue < 0 || noteValue > maxAllowed) {
-            alert(`La note doit être entre 0 et ${maxAllowed}`);
-            return;
-          }
-
-          // Vérifier si la note existe déjà
-          const existingNote = getNotesByEleveMatiereTrimestre(
-            eleveId,
-            selectedMatiere,
-            selectedTrimestre
-          );
-
-          const noteData = {
-            eleve_id: eleveId,
-            matiere_id: selectedMatiere,
-            trimestre: selectedTrimestre,
-            note: noteValue,
-            observation: data.observation || undefined,
-            annee_scolaire_id: currentYear?.id || "",
-          };
-
-          console.log("noteData", noteData);
-          if (existingNote) {
-            // Modifier la note existante
-            promises.push(modifierNote(existingNote.id, noteData));
+            const student = activeStudents.find((s) => s.id === eleveId);
+            const studentName = student
+              ? `${student.prenom} ${student.nom}`
+              : "Élève inconnu";
+            alert(
+              `❌ Erreur pour ${studentName}: La note doit être entre 0 et ${maxAllowed}`
+            );
+            hasValidationError = true;
           } else {
-            // Ajouter une nouvelle note
-            promises.push(ajouterNote(noteData));
+            validEntries.push({ eleveId, data });
           }
         }
       });
 
+      // ✅ ÉTAPE 2 : Si erreur de validation, arrêter ici
+      if (hasValidationError) {
+        setIsSavingNotes(false);
+        return; // ✅ Sortie complète de la fonction
+      }
+
+      // ✅ ÉTAPE 3 : Si aucune note valide à sauvegarder
+      if (validEntries.length === 0) {
+        alert("ℹ️ Aucune note à sauvegarder");
+        setIsSavingNotes(false);
+        return;
+      }
+
+      // ✅ ÉTAPE 4 : Sauvegarder toutes les notes valides
+      const promises: Promise<void>[] = [];
+
+      validEntries.forEach(({ eleveId, data }) => {
+        const noteValue = parseFloat(data.note);
+
+        // Vérifier si la note existe déjà
+        const existingNote = getNotesByEleveMatiereTrimestre(
+          eleveId,
+          selectedMatiere,
+          selectedTrimestre
+        );
+
+        const noteData = {
+          eleve_id: eleveId,
+          matiere_id: selectedMatiere,
+          trimestre: selectedTrimestre,
+          note: noteValue,
+          observation: data.observation || undefined,
+          annee_scolaire_id: currentYear?.id || "",
+        };
+
+        if (existingNote) {
+          // Modifier la note existante
+          promises.push(modifierNote(existingNote.id, noteData));
+        } else {
+          // Ajouter une nouvelle note
+          promises.push(ajouterNote(noteData));
+        }
+      });
+
+      // ✅ ÉTAPE 5 : Attendre que toutes les sauvegardes soient terminées
       await Promise.all(promises);
 
-      // Réinitialiser le formulaire
+      // ✅ ÉTAPE 6 : Réinitialiser le formulaire UNIQUEMENT après succès
       setNotesForm({});
-      alert(`Notes sauvegardées avec succès!`);
+
+      // ✅ ÉTAPE 7 : Afficher le message de succès avec le nombre de notes sauvegardées
+      alert(`✅ ${validEntries.length} note(s) sauvegardée(s) avec succès!`);
     } catch (error) {
-      console.error("Erreur lors de la sauvegarde:", error);
-      alert("Erreur lors de la sauvegarde des notes");
+      console.error("❌ Erreur lors de la sauvegarde:", error);
+      alert(
+        `❌ Erreur lors de la sauvegarde des notes: ${
+          error instanceof Error ? error.message : "Erreur inconnue"
+        }`
+      );
     } finally {
       setIsSavingNotes(false);
     }
@@ -1839,6 +2021,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
   });
 
   // Synchroniser le formulaire avec les notes existantes
+  // Synchroniser le formulaire avec les notes existantes
   useEffect(() => {
     if (selectedMatiere && selectedTrimestre) {
       const currentSync = {
@@ -1852,7 +2035,8 @@ const NotesPage = ({ isDarkMode }: Props) => {
       const hasRealChanges =
         lastSyncRef.current.selectedMatiere !== selectedMatiere ||
         lastSyncRef.current.selectedTrimestre !== selectedTrimestre ||
-        lastSyncRef.current.activeStudentsCount !== activeStudents.length;
+        lastSyncRef.current.activeStudentsCount !== activeStudents.length ||
+        lastSyncRef.current.notesCount !== notes.length; // ✅ Ajouté
 
       if (hasRealChanges) {
         const formData: {
@@ -1891,6 +2075,10 @@ const NotesPage = ({ isDarkMode }: Props) => {
     selectedClasse,
     selectedSalle,
   ]);
+
+  useEffect(() => {
+    setCurrentPageSaisie(1);
+  }, [selectedClasse, selectedSalle, selectedMatiere, selectedTrimestre]);
 
   useEffect(() => {
     setCurrentPageResultat(1);
@@ -2146,87 +2334,122 @@ const NotesPage = ({ isDarkMode }: Props) => {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {activeStudents.map((student) => {
-                    const existingNote = notes.find(
-                      (n) =>
-                        n.eleve_id === student.id &&
-                        n.matiere_id === selectedMatiere &&
-                        n.trimestre === selectedTrimestre
-                    );
+                <>
+                  {/* ✅ PAGINATION EN HAUT - AVEC SÉLECTEUR */}
+                  <PaginationComponent
+                    currentPage={currentPageSaisie}
+                    totalPages={getTotalPages(
+                      activeStudents.length,
+                      itemsPerPageSaisie
+                    )}
+                    onPageChange={setCurrentPageSaisie}
+                    totalItems={activeStudents.length}
+                    itemsPerPage={itemsPerPageSaisie}
+                    onItemsPerPageChange={setItemsPerPageSaisie}
+                    showItemsPerPage={true} // ✅ Afficher le sélecteur
+                  />
 
-                    return (
-                      <div
-                        key={student.id}
-                        className={`p-4 border rounded-lg ${
-                          isDarkMode ? "border-gray-600" : "border-gray-200"
-                        } ${
-                          existingNote
-                            ? isDarkMode
-                              ? "bg-gray-700"
-                              : "bg-green-50"
-                            : ""
-                        }`}
-                      >
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                          <div>
-                            <div className="font-medium">
-                              {student.prenom} {student.nom}
-                              {existingNote && (
-                                <span className="ml-2 text-green-600 text-xs">
-                                  (Note existante)
-                                </span>
-                              )}
-                            </div>
-                            <div
-                              className={`text-sm ${
-                                isDarkMode ? "text-gray-400" : "text-gray-500"
-                              }`}
-                            >
-                              {student.code} •{" "}
-                              {currentYear?.classes.find(
-                                (c) => c.id === student.classe_id
-                              )?.name || "N/A"}{" "}
-                              -{" "}
-                              {currentYear?.classes
-                                .find((c) => c.id === student.classe_id)
-                                ?.salles.find((s) => s.id === student.salle_id)
-                                ?.name || "N/A"}
-                            </div>
-                          </div>
+                  {/* LISTE DES ÉLÈVES */}
+                  <div className="space-y-4 my-6">
+                    {getPaginatedData(
+                      activeStudents,
+                      currentPageSaisie,
+                      itemsPerPageSaisie
+                    ).map((student) => {
+                      const existingNote = notes.find(
+                        (n) =>
+                          n.eleve_id === student.id &&
+                          n.matiere_id === selectedMatiere &&
+                          n.trimestre === selectedTrimestre
+                      );
 
-                          <div>
-                            <label
-                              className={`block text-sm font-medium mb-1 ${
-                                isDarkMode ? "text-gray-300" : "text-gray-700"
-                              }`}
-                            >
-                              {`Note (/ ${
-                                selectedMatiereObj?.coefficient ?? 100
-                              })`}
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              max={selectedMatiereObj?.coefficient ?? 100}
-                              step="0.5"
-                              placeholder="Note"
-                              className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                              value={notesForm[student.id]?.note || ""}
-                              onChange={(e) =>
-                                handleNoteChange(
-                                  student.id,
-                                  "note",
-                                  e.target.value
-                                )
-                              }
-                            />
+                      return (
+                        <div
+                          key={student.id}
+                          className={`p-4 border rounded-lg ${
+                            isDarkMode ? "border-gray-600" : "border-gray-200"
+                          } ${
+                            existingNote
+                              ? isDarkMode
+                                ? "bg-gray-700"
+                                : "bg-green-50"
+                              : ""
+                          }`}
+                        >
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                            <div>
+                              <div className="font-medium">
+                                {student.prenom} {student.nom}
+                                {existingNote && (
+                                  <span className="ml-2 text-green-600 text-xs">
+                                    (Note existante)
+                                  </span>
+                                )}
+                              </div>
+                              <div
+                                className={`text-sm ${
+                                  isDarkMode ? "text-gray-400" : "text-gray-500"
+                                }`}
+                              >
+                                {student.code} •{" "}
+                                {currentYear?.classes.find(
+                                  (c) => c.id === student.classe_id
+                                )?.name || "N/A"}{" "}
+                                -{" "}
+                                {currentYear?.classes
+                                  .find((c) => c.id === student.classe_id)
+                                  ?.salles.find(
+                                    (s) => s.id === student.salle_id
+                                  )?.name || "N/A"}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label
+                                className={`block text-sm font-medium mb-1 ${
+                                  isDarkMode ? "text-gray-300" : "text-gray-700"
+                                }`}
+                              >
+                                {`Note (/ ${
+                                  selectedMatiereObj?.coefficient ?? 100
+                                })`}
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={selectedMatiereObj?.coefficient ?? 100}
+                                step="0.5"
+                                placeholder="Note"
+                                className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                                value={notesForm[student.id]?.note || ""}
+                                onChange={(e) =>
+                                  handleNoteChange(
+                                    student.id,
+                                    "note",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* ✅ PAGINATION EN BAS - SANS SÉLECTEUR (juste navigation) */}
+                  <PaginationComponent
+                    currentPage={currentPageSaisie}
+                    totalPages={getTotalPages(
+                      activeStudents.length,
+                      itemsPerPageSaisie
+                    )}
+                    onPageChange={setCurrentPageSaisie}
+                    totalItems={activeStudents.length}
+                    itemsPerPage={itemsPerPageSaisie}
+                    showItemsPerPage={false} // ✅ Masquer le sélecteur en bas
+                  />
+                </>
               )}
             </div>
           </div>
@@ -2888,9 +3111,7 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 </div>
               </div>
 
-              {/* Tableau des résultats */}
               {(() => {
-                // Élèves actifs de la classe/salle sélectionnée ayant AU MOINS une note
                 const studentsWithNotes = eleves.filter((s) => {
                   if (s.statut !== "actif") return false;
                   if (selectedClasse && s.classe_id !== selectedClasse)
@@ -2913,16 +3134,27 @@ const NotesPage = ({ isDarkMode }: Props) => {
                 const paginatedStudents = getPaginatedData(
                   filteredStudents,
                   currentPageResultat,
-                  itemsPerPage
+                  itemsPerPageResultat
                 );
                 const totalPages = getTotalPages(
                   filteredStudents.length,
-                  itemsPerPage
+                  itemsPerPageResultat
                 );
 
                 return (
                   <>
-                    <div className="overflow-x-auto">
+                    {/* ✅ PAGINATION EN HAUT - AVEC SÉLECTEUR */}
+                    <PaginationComponent
+                      currentPage={currentPageResultat}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPageResultat}
+                      totalItems={filteredStudents.length}
+                      itemsPerPage={itemsPerPageResultat}
+                      onItemsPerPageChange={setItemsPerPageResultat}
+                      showItemsPerPage={true} // ✅ Afficher le sélecteur
+                    />
+
+                    <div className="overflow-x-auto my-6">
                       <table className="min-w-full">
                         <thead
                           className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}
@@ -3298,11 +3530,14 @@ const NotesPage = ({ isDarkMode }: Props) => {
                       </table>
                     </div>
 
+                    {/* ✅ PAGINATION EN BAS - SANS SÉLECTEUR */}
                     <PaginationComponent
                       currentPage={currentPageResultat}
                       totalPages={totalPages}
                       onPageChange={setCurrentPageResultat}
                       totalItems={filteredStudents.length}
+                      itemsPerPage={itemsPerPageResultat}
+                      showItemsPerPage={false} // ✅ Masquer le sélecteur en bas
                     />
                   </>
                 );

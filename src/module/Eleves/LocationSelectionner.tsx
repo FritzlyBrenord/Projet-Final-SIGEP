@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 
 interface LocationSelectProps {
   value: {
@@ -22,6 +22,9 @@ interface LocationOption {
   label: string;
   geonameId: string;
 }
+
+// Cache pour stocker les données déjà chargées
+const dataCache = new Map();
 
 const LocationSelect: React.FC<LocationSelectProps> = ({
   value,
@@ -52,16 +55,19 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
   const [regionId, setRegionId] = useState("");
   const [villeId, setVilleId] = useState("");
 
-  // État pour tracker si les données ont été initialisées
-  const [isInitialized, setIsInitialized] = useState(false);
+  // États de chargement
+  const [loading, setLoading] = useState({
+    countries: false,
+    regions: false,
+    cities: false,
+    sections: false,
+  });
 
   // Refs
   const paysRef = useRef<HTMLDivElement>(null);
   const regionRef = useRef<HTMLDivElement>(null);
   const villeRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
-
-  const username = process.env.NEXT_PUBLIC_GEONAMES_USERNAME || "demo";
 
   // Classes CSS
   const inputClasses = isDarkMode
@@ -76,13 +82,41 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
     ? "hover:bg-gray-700 text-white"
     : "hover:bg-gray-100 text-gray-900";
 
+  // Fonction pour appeler l'API via le proxy avec cache
+  const fetchGeonamesData = useCallback(
+    async (endpoint: string, params: Record<string, string> = {}) => {
+      const cacheKey = `${endpoint}-${JSON.stringify(params)}`;
+
+      // Vérifier le cache
+      if (dataCache.has(cacheKey)) {
+        return dataCache.get(cacheKey);
+      }
+
+      const searchParams = new URLSearchParams(params);
+      const response = await fetch(
+        `/api/geonames/${endpoint}?${searchParams.toString()}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Erreur API: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Mettre en cache
+      dataCache.set(cacheKey, data);
+      return data;
+    },
+    []
+  );
+
   // Charger les pays au démarrage
   useEffect(() => {
-    fetch(
-      `http://api.geonames.org/countryInfoJSON?username=${username}&lang=fr`
-    )
-      .then((res) => res.json())
-      .then((data) => {
+    const loadCountries = async () => {
+      setLoading((prev) => ({ ...prev, countries: true }));
+      try {
+        const data = await fetchGeonamesData("countryInfoJSON", { lang: "fr" });
+
         if (data.geonames) {
           const options = data.geonames.map((c: any) => ({
             value: c.countryName,
@@ -91,8 +125,8 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
           }));
           setCountries(options);
 
-          // Si un pays est déjà sélectionné, trouver son ID
-          if (value.pays && !isInitialized) {
+          // Si un pays est déjà sélectionné, initialiser les données enfants
+          if (value.pays) {
             const selectedCountry = options.find(
               (opt: LocationOption) => opt.value === value.pays
             );
@@ -101,19 +135,31 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
             }
           }
         }
-      })
-      .catch((err) => console.error("Erreur chargement pays:", err));
-  }, [isInitialized, username, value.pays]);
+      } catch (err) {
+        console.error("Erreur chargement pays:", err);
+      } finally {
+        setLoading((prev) => ({ ...prev, countries: false }));
+      }
+    };
 
-  // Charger les régions quand paysId change
+    loadCountries();
+  }, [fetchGeonamesData, value.pays]);
+
+  // Charger les régions quand paysId change - OPTIMISÉ
   useEffect(() => {
-    if (!paysId) return;
+    if (!paysId) {
+      setRegions([]);
+      return;
+    }
 
-    fetch(
-      `http://api.geonames.org/childrenJSON?geonameId=${paysId}&username=${username}&lang=fr`
-    )
-      .then((res) => res.json())
-      .then((data) => {
+    const loadRegions = async () => {
+      setLoading((prev) => ({ ...prev, regions: true }));
+      try {
+        const data = await fetchGeonamesData("childrenJSON", {
+          geonameId: paysId,
+          lang: "fr",
+        });
+
         if (data.geonames) {
           const options = data.geonames.map((r: any) => ({
             value: r.name,
@@ -122,8 +168,8 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
           }));
           setRegions(options);
 
-          // Si une région est déjà sélectionnée, trouver son ID
-          if (value.region && !isInitialized) {
+          // Si une région est déjà sélectionnée, charger les villes immédiatement
+          if (value.region) {
             const selectedRegion = options.find(
               (opt: LocationOption) => opt.value === value.region
             );
@@ -132,19 +178,31 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
             }
           }
         }
-      })
-      .catch((err) => console.error("Erreur chargement régions:", err));
-  }, [isInitialized, paysId, username, value.region]);
+      } catch (err) {
+        console.error("Erreur chargement régions:", err);
+      } finally {
+        setLoading((prev) => ({ ...prev, regions: false }));
+      }
+    };
 
-  // Charger les villes quand regionId change
+    loadRegions();
+  }, [fetchGeonamesData, paysId, value.region]);
+
+  // Charger les villes quand regionId change - OPTIMISÉ
   useEffect(() => {
-    if (!regionId) return;
+    if (!regionId) {
+      setCities([]);
+      return;
+    }
 
-    fetch(
-      `http://api.geonames.org/childrenJSON?geonameId=${regionId}&username=${username}&lang=fr`
-    )
-      .then((res) => res.json())
-      .then((data) => {
+    const loadCities = async () => {
+      setLoading((prev) => ({ ...prev, cities: true }));
+      try {
+        const data = await fetchGeonamesData("childrenJSON", {
+          geonameId: regionId,
+          lang: "fr",
+        });
+
         if (data.geonames) {
           const options = data.geonames.map((v: any) => ({
             value: v.name,
@@ -153,8 +211,8 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
           }));
           setCities(options);
 
-          // Si une ville est déjà sélectionnée, trouver son ID
-          if (value.ville && !isInitialized) {
+          // Si une ville est déjà sélectionnée, charger les sections immédiatement
+          if (value.ville) {
             const selectedCity = options.find(
               (opt: LocationOption) => opt.value === value.ville
             );
@@ -163,19 +221,31 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
             }
           }
         }
-      })
-      .catch((err) => console.error("Erreur chargement villes:", err));
-  }, [isInitialized, regionId, username, value.ville]);
+      } catch (err) {
+        console.error("Erreur chargement villes:", err);
+      } finally {
+        setLoading((prev) => ({ ...prev, cities: false }));
+      }
+    };
+
+    loadCities();
+  }, [fetchGeonamesData, regionId, value.ville]);
 
   // Charger les sections quand villeId change
   useEffect(() => {
-    if (!villeId) return;
+    if (!villeId) {
+      setSections([]);
+      return;
+    }
 
-    fetch(
-      `http://api.geonames.org/childrenJSON?geonameId=${villeId}&username=${username}&lang=fr`
-    )
-      .then((res) => res.json())
-      .then((data) => {
+    const loadSections = async () => {
+      setLoading((prev) => ({ ...prev, sections: true }));
+      try {
+        const data = await fetchGeonamesData("childrenJSON", {
+          geonameId: villeId,
+          lang: "fr",
+        });
+
         if (data.geonames) {
           const options = data.geonames.map((s: any) => ({
             value: s.name,
@@ -183,15 +253,16 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
             geonameId: s.geonameId,
           }));
           setSections(options);
-
-          // Marquer comme initialisé après le chargement des sections
-          if (!isInitialized) {
-            setIsInitialized(true);
-          }
         }
-      })
-      .catch((err) => console.error("Erreur chargement sections:", err));
-  }, [isInitialized, username, villeId]);
+      } catch (err) {
+        console.error("Erreur chargement sections:", err);
+      } finally {
+        setLoading((prev) => ({ ...prev, sections: false }));
+      }
+    };
+
+    loadSections();
+  }, [fetchGeonamesData, villeId]);
 
   // Gérer les clics en dehors
   useEffect(() => {
@@ -241,59 +312,73 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
     s.label.toLowerCase().includes(sectionSearch.toLowerCase())
   );
 
-  // Handlers
-  const handlePaysSelect = (option: LocationOption) => {
-    setPaysId(option.geonameId);
-    onChange({
-      pays: option.value,
-      region: "",
-      ville: "",
-      section: "",
-    });
-    setRegionId("");
-    setVilleId("");
-    setRegions([]);
-    setCities([]);
-    setSections([]);
-    setIsPaysOpen(false);
-    setPaysSearch("");
-  };
+  // Handlers optimisés
+  const handlePaysSelect = useCallback(
+    (option: LocationOption) => {
+      setPaysId(option.geonameId);
+      onChange({
+        pays: option.value,
+        region: "",
+        ville: "",
+        section: "",
+      });
+      // Réinitialiser les états enfants immédiatement
+      setRegions([]);
+      setCities([]);
+      setSections([]);
+      setRegionId("");
+      setVilleId("");
+      setIsPaysOpen(false);
+      setPaysSearch("");
+    },
+    [onChange]
+  );
 
-  const handleRegionSelect = (option: LocationOption) => {
-    setRegionId(option.geonameId);
-    onChange({
-      ...value,
-      region: option.value,
-      ville: "",
-      section: "",
-    });
-    setVilleId("");
-    setCities([]);
-    setSections([]);
-    setIsRegionOpen(false);
-    setRegionSearch("");
-  };
+  const handleRegionSelect = useCallback(
+    (option: LocationOption) => {
+      setRegionId(option.geonameId);
+      onChange({
+        ...value,
+        region: option.value,
+        ville: "",
+        section: "",
+      });
+      // Réinitialiser les états enfants immédiatement
+      setCities([]);
+      setSections([]);
+      setVilleId("");
+      setIsRegionOpen(false);
+      setRegionSearch("");
+    },
+    [onChange, value]
+  );
 
-  const handleVilleSelect = (option: LocationOption) => {
-    setVilleId(option.geonameId);
-    onChange({
-      ...value,
-      ville: option.value,
-      section: "",
-    });
-    setSections([]);
-    setIsVilleOpen(false);
-    setVilleSearch("");
-  };
+  const handleVilleSelect = useCallback(
+    (option: LocationOption) => {
+      setVilleId(option.geonameId);
+      onChange({
+        ...value,
+        ville: option.value,
+        section: "",
+      });
+      setSections([]);
+      setIsVilleOpen(false);
+      setVilleSearch("");
+    },
+    [onChange, value]
+  );
 
-  const handleSectionSelect = (option: LocationOption) => {
-    onChange({
-      ...value,
-      section: option.value,
-    });
-    setIsSectionOpen(false);
-    setSectionSearch("");
-  };
+  const handleSectionSelect = useCallback(
+    (option: LocationOption) => {
+      onChange({
+        ...value,
+        section: option.value,
+      });
+      setIsSectionOpen(false);
+      setSectionSearch("");
+    },
+    [onChange, value]
+  );
 
   const renderDropdown = (
     ref: React.RefObject<HTMLDivElement | null>,
@@ -306,7 +391,8 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
     filteredOptions: LocationOption[],
     onSelect: (option: LocationOption) => void,
     label: string,
-    disabled: boolean = false
+    disabled: boolean = false,
+    isLoading: boolean = false
   ) => (
     <div className="relative" ref={ref}>
       <label
@@ -325,29 +411,33 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
             if (!isOpen) setIsOpen(true);
           }}
           onClick={() => !disabled && setIsOpen(true)}
-          placeholder={placeholder}
-          disabled={disabled}
+          placeholder={isLoading ? "Chargement..." : placeholder}
+          disabled={disabled || isLoading}
           className={`w-full p-3 border rounded-lg pr-10 cursor-pointer ${inputClasses} ${
-            disabled ? "opacity-50 cursor-not-allowed" : ""
+            disabled || isLoading ? "opacity-50 cursor-not-allowed" : ""
           }`}
           autoComplete="off"
         />
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-          <svg
-            className={`w-4 h-4 transition-transform ${
-              isOpen ? "rotate-180" : ""
-            }`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
+          {isLoading ? (
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+          ) : (
+            <svg
+              className={`w-4 h-4 transition-transform ${
+                isOpen ? "rotate-180" : ""
+              }`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          )}
         </div>
       </div>
 
@@ -355,10 +445,17 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         <div
           className={`absolute z-50 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-y-auto ${dropdownClasses}`}
         >
-          {filteredOptions.length > 0 ? (
-            filteredOptions.map((option, index) => (
+          {isLoading ? (
+            <div className="px-3 py-2 text-sm text-gray-500 text-center">
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                Chargement...
+              </div>
+            </div>
+          ) : filteredOptions.length > 0 ? (
+            filteredOptions.map((option) => (
               <button
-                key={`${option.geonameId}-${index}`}
+                key={option.geonameId}
                 type="button"
                 className={`w-full text-left px-3 py-2 text-sm ${optionClasses} ${
                   displayValue === option.value
@@ -374,7 +471,9 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
             ))
           ) : (
             <div className="px-3 py-2 text-sm text-gray-500">
-              {searchValue ? "Aucun résultat trouvé" : "Chargement..."}
+              {searchValue
+                ? "Aucun résultat trouvé"
+                : "Aucune option disponible"}
             </div>
           )}
         </div>
@@ -394,7 +493,9 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         "Sélectionnez un pays",
         filteredCountries,
         handlePaysSelect,
-        "Pays"
+        "Pays",
+        false,
+        loading.countries
       )}
 
       {renderDropdown(
@@ -408,7 +509,8 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         filteredRegions,
         handleRegionSelect,
         "Département / Région",
-        !value.pays
+        !value.pays || !paysId,
+        loading.regions
       )}
 
       {renderDropdown(
@@ -422,7 +524,8 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         filteredCities,
         handleVilleSelect,
         "Ville / Commune",
-        !value.region
+        !value.region || !regionId,
+        loading.cities
       )}
 
       {renderDropdown(
@@ -436,7 +539,8 @@ const LocationSelect: React.FC<LocationSelectProps> = ({
         filteredSections,
         handleSectionSelect,
         "Section Communale",
-        !value.ville
+        !value.ville || !villeId,
+        loading.sections
       )}
 
       {required && (

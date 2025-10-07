@@ -51,6 +51,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     supprimerEleve,
     rechercherEleves,
     genererNouveauCode,
+    rechargerEleves,
   } = useEleves();
   const { addActivity } = useRecentActivities();
   const { currentYear } = useAnneeScolaire();
@@ -97,6 +98,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
   const [parcoursEleve, setParcoursEleve] = useState("");
   const [idEleve, setIdEleve] = useState<any>("");
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const onClose = () => {
     setIsOpen(!isOpen);
   };
@@ -288,6 +291,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     }
 
     setFilteredStudents(filtered);
+    setCurrentPage(1);
   }, [
     eleves,
     searchTerm,
@@ -303,6 +307,44 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     sortOrder,
     rechercherEleves,
   ]);
+
+  // ✅ NOUVEAU : Calcul de la pagination
+  const totalItems = filteredStudents.length;
+  const totalPages =
+    itemsPerPage === -1 ? 1 : Math.ceil(totalItems / itemsPerPage);
+
+  // S'assurer que la page actuelle est valide
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  // Obtenir les éléments de la page actuelle
+  const paginatedStudents = useMemo(() => {
+    if (itemsPerPage === -1) {
+      return filteredStudents; // Afficher tous
+    }
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredStudents.slice(startIndex, endIndex);
+  }, [filteredStudents, currentPage, itemsPerPage]);
+
+  // Fonctions de navigation
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const goToFirstPage = () => setCurrentPage(1);
+  const goToLastPage = () => setCurrentPage(totalPages);
+  const goToPreviousPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
+  const goToNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
 
   // Gestion du formulaire
   const handleInputChange = (
@@ -434,7 +476,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       ...formData,
       annee_scolaire_id: currentYear.id,
       nif_parents: formData.nif_parents ? formatNIF(formData.nif_parents) : "",
-      statut: "inactif",
+      statut: formData.statut,
     };
 
     try {
@@ -539,27 +581,70 @@ const ElevesPage = ({ isDarkMode }: Props) => {
 
   // Actions sur les étudiants
   const changeStudentStatus = async (
-    student: EleveAffiche, // ⭐ Objet complet au lieu de juste l'ID
+    student: EleveAffiche,
     newStatus: "actif" | "inactif" | "suspendu"
   ) => {
+    // ✅ Confirmation avant changement
+    const statusLabels = {
+      actif: "actif",
+      inactif: "inactif",
+      suspendu: "suspendu",
+    };
+
+    const confirmed = window.confirm(
+      `Voulez-vous vraiment changer le statut de ${student.prenom} ${
+        student.nom
+      } de "${statusLabels[student.statut]}" à "${statusLabels[newStatus]}" ?`
+    );
+
+    if (!confirmed) return;
+
     try {
       setIsChangingStatus(true);
       setLoadingStudentId(student.id);
 
+      console.log("🔄 Changement de statut:", {
+        eleveId: student.id,
+        inscriptionId: student.inscription_id,
+        ancienStatut: student.statut,
+        nouveauStatut: newStatus,
+      });
+
       await modifierEleve(
         student.id,
         { statut: newStatus },
-        student.inscription_id // ⭐ AJOUTEZ CECI !
+        student.inscription_id
       );
+
+      // Recharger explicitement les données
+      await rechargerEleves();
+
+      // Notification de succès
+      await addActivity({
+        action: "modification",
+        module: "Gestion Élèves",
+        title: "Changement de statut",
+        details: `Le statut de ${student.prenom} ${student.nom} a été changé de "${student.statut}" à "${newStatus}".`,
+      });
+
+      // ✅ AJOUT : Alerte de succès
+      alert(
+        `Statut changé avec succès : ${student.prenom} ${student.nom} est maintenant "${statusLabels[newStatus]}"`
+      );
+
+      console.log("✅ Statut changé avec succès");
     } catch (error) {
-      console.error("Erreur lors du changement de statut:", error);
-      alert("Erreur lors du changement de statut");
+      console.error("❌ Erreur lors du changement de statut:", error);
+      alert(
+        `Erreur lors du changement de statut: ${
+          error instanceof Error ? error.message : "Erreur inconnue"
+        }`
+      );
     } finally {
       setIsChangingStatus(false);
       setLoadingStudentId(null);
     }
   };
-
   const deleteStudent = async (studentId: string) => {
     if (confirm("Êtes-vous sûr de vouloir supprimer cet élève ?")) {
       try {
@@ -1022,6 +1107,151 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         <div
           className={`${cardClasses} rounded-lg shadow-sm border overflow-hidden`}
         >
+          {/* ✅ CONTRÔLES DE PAGINATION - AU-DESSUS DU TABLEAU */}
+          <div
+            className={`${cardClasses} p-4 rounded-lg shadow-sm border mb-4`}
+          >
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Informations et sélecteur */}
+              <div className="flex items-center gap-4">
+                <div
+                  className={`text-sm ${
+                    isDarkMode ? "text-gray-300" : "text-gray-600"
+                  }`}
+                >
+                  Affichage de{" "}
+                  <span className="font-semibold">
+                    {itemsPerPage === -1
+                      ? totalItems
+                      : Math.min(
+                          (currentPage - 1) * itemsPerPage + 1,
+                          totalItems
+                        )}
+                  </span>{" "}
+                  à{" "}
+                  <span className="font-semibold">
+                    {itemsPerPage === -1
+                      ? totalItems
+                      : Math.min(currentPage * itemsPerPage, totalItems)}
+                  </span>{" "}
+                  sur <span className="font-semibold">{totalItems}</span> élèves
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label
+                    className={`text-sm ${
+                      isDarkMode ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  >
+                    Par page:
+                  </label>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className={`px-3 py-1 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={20}>20</option>
+                    <option value={25}>25</option>
+                    <option value={30}>30</option>
+                    <option value={-1}>Tous</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Boutons de navigation */}
+              {itemsPerPage !== -1 && totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={goToFirstPage}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                    title="Première page"
+                  >
+                    ««
+                  </button>
+                  <button
+                    onClick={goToPreviousPage}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                    title="Page précédente"
+                  >
+                    «
+                  </button>
+
+                  {/* Numéros de page */}
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNumber;
+                      if (totalPages <= 5) {
+                        pageNumber = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNumber = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNumber = totalPages - 4 + i;
+                      } else {
+                        pageNumber = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNumber}
+                          onClick={() => goToPage(pageNumber)}
+                          className={`px-3 py-1 rounded-lg transition-colors ${
+                            currentPage === pageNumber
+                              ? buttonPrimaryClasses
+                              : isDarkMode
+                              ? "bg-gray-700 hover:bg-gray-600 text-white"
+                              : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                          }`}
+                        >
+                          {pageNumber}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={goToNextPage}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                    title="Page suivante"
+                  >
+                    »
+                  </button>
+                  <button
+                    onClick={goToLastPage}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                    title="Dernière page"
+                  >
+                    »»
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}>
@@ -1077,7 +1307,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     : "bg-white divide-gray-200"
                 }`}
               >
-                {filteredStudents.map((student) => (
+                {paginatedStudents.map((student) => (
                   <tr
                     key={student.id}
                     className={
@@ -1180,7 +1410,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                           <button
                             onClick={() =>
                               changeStudentStatus(student, "suspendu")
-                            }
+                            } // ✅ Objet complet
                             disabled={
                               isChangingStatus &&
                               loadingStudentId === student.id
@@ -1199,7 +1429,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                           <button
                             onClick={() =>
                               changeStudentStatus(student, "actif")
-                            }
+                            } // ✅ Objet complet
                             disabled={
                               isChangingStatus &&
                               loadingStudentId === student.id
@@ -1235,13 +1465,77 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                 ))}
               </tbody>
             </table>
+            {/* ✅ CONTRÔLES DE PAGINATION - EN BAS DU TABLEAU */}
+            {itemsPerPage !== -1 && totalPages > 1 && (
+              <div
+                className={`${cardClasses} p-4 rounded-lg shadow-sm border mt-4`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={goToFirstPage}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                  >
+                    ««
+                  </button>
+                  <button
+                    onClick={goToPreviousPage}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                  >
+                    « Précédent
+                  </button>
+
+                  <span
+                    className={`px-4 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-600"
+                    }`}
+                  >
+                    Page {currentPage} sur {totalPages}
+                  </span>
+
+                  <button
+                    onClick={goToNextPage}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                  >
+                    Suivant »
+                  </button>
+                  <button
+                    onClick={goToLastPage}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-1 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                      isDarkMode
+                        ? "bg-gray-700 hover:bg-gray-600 text-white"
+                        : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+                    }`}
+                  >
+                    »»
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {filteredStudents.length === 0 && (
+        {paginatedStudents.length === 0 && (
           <div className="text-center py-12">
             <p className={isDarkMode ? "text-gray-400" : "text-gray-500"}>
-              Aucun élève trouvé selon vos critères de recherche.
+              {filteredStudents.length === 0
+                ? "Aucun élève trouvé selon vos critères de recherche."
+                : "Aucun élève sur cette page."}
             </p>
           </div>
         )}

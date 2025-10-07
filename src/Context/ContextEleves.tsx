@@ -484,23 +484,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         const okIns = await UpdateData(
           "eleves_inscriptions",
           currentInscription.id,
-          {
-            ...(payloadInscription.statut !== undefined && {
-              statut: payloadInscription.statut,
-            }),
-            ...(payloadInscription.observations !== undefined && {
-              observations: payloadInscription.observations,
-            }),
-            ...(payloadInscription.annee_scolaire_id !== undefined && {
-              annee_scolaire_id: payloadInscription.annee_scolaire_id,
-            }),
-            ...(payloadInscription.classe_id !== undefined && {
-              classe_id: payloadInscription.classe_id,
-            }),
-            ...(payloadInscription.salle_id !== undefined && {
-              salle_id: payloadInscription.salle_id,
-            }),
-          }
+          payloadInscription
         );
 
         if (!okIns)

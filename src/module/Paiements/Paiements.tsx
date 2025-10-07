@@ -47,6 +47,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     getFraisForClasse,
     getStudentBalance,
     generateReceiptNumber,
+    supprimerTypeFraisDefinitif,
     modifierPaiement, // NOUVEAU: Fonction pour modifier un paiement
   } = useFraisScolarite();
 
@@ -136,6 +137,13 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     return <AlertTriangle className="h-4 w-4" />;
   };
 
+  const getClasseIdById = useCallback(
+    (classeId: string) => {
+      const classe = classes.find((c) => c.value === classeId);
+      return classe ? classe.value : "";
+    },
+    [classes]
+  );
   const getClasseNameById = useCallback(
     (classeId: string) => {
       const classe = classes.find((c) => c.value === classeId);
@@ -143,7 +151,6 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     },
     [classes]
   );
-
   const getSalleNameById = (classeId: string, salleId: string) => {
     const salles = sallesByClass[classeId] || [];
     const salle = salles.find((s) => s.value === salleId);
@@ -171,8 +178,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     const student = eleves.find((e) => e.id === eleveId);
     if (!student) return false;
 
-    const classeNom = getClasseNameById(student.classe_id);
-    const montantDu = getFraisForClasse(classeNom, typeFraisId);
+    const classeId = getClasseIdById(student.classe_id);
+    const montantDu = getFraisForClasse(classeId, typeFraisId);
 
     const paiementsExistants = paiements.filter(
       (p) => p.eleve_id === eleveId && p.type_frais_id === typeFraisId
@@ -190,7 +197,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     const student = eleves.find((e) => e.id === eleveId);
     if (!student) return {};
 
-    const classeNom = getClasseNameById(student.classe_id);
+    const classeId = getClasseIdById(student.classe_id);
     const balances: {
       [key: string]: {
         due: number;
@@ -201,7 +208,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     } = {};
 
     typesFrais.forEach((type) => {
-      const montantDu = getFraisForClasse(classeNom, type.id);
+      const montantDu = getFraisForClasse(classeId, type.id);
       const paiementsExistants = paiements.filter(
         (p) => p.eleve_id === eleveId && p.type_frais_id === type.id
       );
@@ -229,12 +236,12 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     const student = eleves.find((e) => e.id === eleveId);
     if (!student) return [];
 
-    const classeNom = getClasseNameById(student.classe_id);
+    const classeId = getClasseIdById(student.classe_id);
 
     return typesFrais.filter((type) => {
       if (type.id === currentTypeId) return false;
 
-      const montantDu = getFraisForClasse(classeNom, type.id);
+      const montantDu = getFraisForClasse(classeId, type.id);
       const paiementsExistants = paiements.filter(
         (p) => p.eleve_id === eleveId && p.type_frais_id === type.id
       );
@@ -408,11 +415,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
       const student = eleves.find((e) => e.id === excessData.eleveId);
       if (!student) return;
 
-      const classeNom = getClasseNameById(student.classe_id);
-      const montantDuSelectedType = getFraisForClasse(
-        classeNom,
-        selectedTypeId
-      );
+      const classeId = getClasseIdById(student.classe_id);
+      const montantDuSelectedType = getFraisForClasse(classeId, selectedTypeId);
 
       const paiementsExistants = paiements.filter(
         (p) =>
@@ -543,19 +547,23 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
 
       const existingFrais = fraisParClasse.find(
         (f) =>
-          f.classe === selectedClasseForConfig &&
+          f.classe_id === selectedClasseForConfig &&
           f.type_frais_id === typeFraisId
       );
 
       if (existingFrais) {
+        // Modifier le frais existant
         await modifierFraisParClasse(existingFrais.id, { montant });
+        alert("Frais modifié avec succès!");
       } else {
+        // Ajouter un nouveau frais
         await ajouterFraisParClasse({
           classe: selectedClasseForConfig,
           type_frais_id: typeFraisId,
           montant,
           annee_scolaire_id: currentYear.id,
         });
+        alert("Frais ajouté avec succès!");
       }
     } catch (error) {
       alert(
@@ -567,8 +575,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
   // Auto-remplissage du montant (INCHANGÉ)
   useEffect(() => {
     if (paiementForm.type_frais_id && selectedStudent) {
-      const classeNom = getClasseNameById(selectedStudent.classe_id);
-      const montant = getFraisForClasse(classeNom, paiementForm.type_frais_id);
+      const classeId = getClasseIdById(selectedStudent.classe_id);
+      const montant = getFraisForClasse(classeId, paiementForm.type_frais_id);
       setPaiementForm((prev) => ({
         ...prev,
         montant_du: montant.toString(),
@@ -578,7 +586,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     paiementForm.type_frais_id,
     selectedStudent,
     getFraisForClasse,
-    getClasseNameById,
+    getClasseIdById,
   ]);
 
   // FONCTION AMÉLIORÉE pour la génération de reçu
@@ -590,7 +598,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     const receiptWindow = window.open("", "_blank", "width=800,height=600");
     if (!receiptWindow) return;
 
-    const classeNom = getClasseNameById(student.classe_id);
+    const classeId = getClasseIdById(student.classe_id);
     const salleNom = getSalleNameById(student.classe_id, student.salle_id);
     const balances = getStudentBalanceByType(student.id);
     const currentBalance = balances[typeFrais.id];
@@ -729,7 +737,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
           </div>
           <div class="info-row">
             <span class="info-label">Classe:</span>
-            <span>${classeNom} - ${salleNom}</span>
+            <span>${classeId} - ${salleNom}</span>
           </div>
           <div class="info-row">
             <span class="info-label">N° Fiche:</span>
@@ -979,8 +987,8 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   const student = eleves.find(
                     (e) => e.id === excessData.eleveId
                   );
-                  const classeNom = getClasseNameById(student?.classe_id || "");
-                  const montantDu = getFraisForClasse(classeNom, type.id);
+                  const classeId = getClasseIdById(student?.classe_id || "");
+                  const montantDu = getFraisForClasse(classeId, type.id);
                   const paiementsExistants = paiements.filter(
                     (p) =>
                       p.eleve_id === excessData.eleveId &&
@@ -1148,6 +1156,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   })
                   .map((student) => {
                     const balancesByType = getStudentBalanceByType(student.id);
+                    const classeId = getClasseIdById(student.classe_id);
                     const classeNom = getClasseNameById(student.classe_id);
                     const salleNom = getSalleNameById(
                       student.classe_id,
@@ -1274,10 +1283,10 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                       >
                         <option value="">Sélectionner un type de frais</option>
                         {typesFrais.map((type) => {
-                          const classeNom = getClasseNameById(
+                          const classeId = getClasseIdById(
                             selectedStudent.classe_id
                           );
-                          const montant = getFraisForClasse(classeNom, type.id);
+                          const montant = getFraisForClasse(classeId, type.id);
                           const isSolde = isTypeFraisSolde(
                             selectedStudent.id,
                             type.id
@@ -1758,7 +1767,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                   >
                     <option value="">Choisir une classe</option>
                     {classes.map((classe) => (
-                      <option key={classe.value} value={classe.label}>
+                      <option key={classe.value} value={classe.value}>
                         {classe.label}
                       </option>
                     ))}
@@ -1768,7 +1777,11 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                 {selectedClasseForConfig && (
                   <div className="space-y-4">
                     <h4 className="font-semibold text-lg">
-                      Frais pour la classe : {selectedClasseForConfig}
+                      Frais pour la classe :
+                      {
+                        classes.find((c) => c.value === selectedClasseForConfig)
+                          ?.label
+                      }
                     </h4>
 
                     {typesFrais.map((typeFrais) => (
@@ -1927,7 +1940,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                         onClick={async () => {
                           if (confirm("Supprimer ce type de frais?")) {
                             try {
-                              await supprimerPaiement(type.id);
+                              await supprimerTypeFraisDefinitif(type.id);
                             } catch (error) {
                               alert(
                                 `Erreur: ${
