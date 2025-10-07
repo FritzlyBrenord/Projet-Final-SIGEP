@@ -1033,25 +1033,6 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          Code Employé *
-                        </label>
-                        <input
-                          type="text"
-                          className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                          value={formData.code}
-                          onChange={(e) =>
-                            handleInputChange("code", e.target.value)
-                          }
-                          disabled={modalType === "edit"}
-                        />
-                      </div>
-
-                      <div>
-                        <label
-                          className={`block text-sm font-medium mb-2 ${
-                            isDarkMode ? "text-gray-300" : "text-gray-700"
-                          }`}
-                        >
                           Statut *
                         </label>
                         <select
