@@ -1,5 +1,6 @@
 import { supabase } from "@/Config/supabase";
 import { NextResponse } from "next/server";
+import { supabaseLogin } from "./SupabaseClient";
 
 export const DataExsite = async (table: string, column: string, value: any) => {
   try {
@@ -336,22 +337,23 @@ export const SignUp = async (email: string, password: string) => {
 
 export const SignIn = async (email: string, password: string) => {
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabaseLogin.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
-      // Retourner l'erreur avec ses détails
       return { success: false, error };
     }
 
-    if (data.session) {
-      document.cookie = `sb-access-token=${data.session.access_token}; path=/`;
-      document.cookie = `sb-refresh-token=${data.session.refresh_token}; path=/`;
+    // Optionnel : marque que la connexion vient du bouton (utile si besoin)
+    try {
+      sessionStorage.setItem("authOrigin", "login-button");
+    } catch (e) {
+      // ignore si blocked
     }
 
-    return { success: true };
+    return { success: true, user: data.user ?? null };
   } catch (err) {
     console.error("Erreur lors de la connexion:", err);
     return {
@@ -362,20 +364,23 @@ export const SignIn = async (email: string, password: string) => {
 };
 
 export const SignOut = async () => {
-  const { error } = await supabase.auth.signOut();
   try {
-    if (!error) {
-      return true;
-    } else {
-      return false;
-    }
+    const { error } = await supabaseLogin.auth.signOut();
+
+    // Nettoyage local
+    try {
+      sessionStorage.removeItem("authOrigin");
+    } catch (e) {}
+
+    return !error;
   } catch (err) {
-    console.error("Erreur lors de modification ", err);
+    console.error("Erreur lors de la déconnexion:", err);
+    return false;
   }
 };
 
 export const getUser = async () => {
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await supabaseLogin.auth.getUser();
 
   if (error) {
     console.error(

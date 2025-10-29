@@ -95,6 +95,24 @@ export const getUserSession = async (
 // Créer une nouvelle session
 export const createSession = async (email: string): Promise<string | null> => {
   try {
+    // Construire les URLs absolues
+    const baseUrl = window.location.origin;
+
+    // Supprimer l'ancienne session si existante
+    const deleteResponse = await fetch(
+      `${baseUrl}/api/sessions/delete?email=${encodeURIComponent(email)}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    if (!deleteResponse.ok) {
+      console.warn(
+        "⚠️ Impossible de supprimer l'ancienne session:",
+        deleteResponse.status
+      );
+    }
+
     const sessionToken = generateSessionToken();
     const deviceInfo = getDeviceInfo();
 
@@ -102,22 +120,46 @@ export const createSession = async (email: string): Promise<string | null> => {
       email,
       session_token: sessionToken,
       device_info: deviceInfo,
-      ip_address: "N/A", // Vous pouvez ajouter une API pour obtenir l'IP
+      ip_address: "N/A", // Vous pourriez récupérer la vraie IP côté API
       login_time: new Date().toISOString(),
       last_activity: new Date().toISOString(),
     };
 
-    const result = await InsertData("sessions_actives", sessionData);
+    const res = await fetch(`${baseUrl}/api/sessions/create`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(sessionData),
+    });
 
-    if (result === true) {
-      // Sauvegarder le token dans localStorage
-      localStorage.setItem("session_token", sessionToken);
-      return sessionToken;
+    console.log("📡 Status:", res.status);
+
+    if (!res.ok) {
+      console.error("❌ Erreur HTTP:", res.status, res.statusText);
+      return null;
     }
 
-    return null;
-  } catch (error) {
-    console.error("Erreur lors de la création de session:", error);
+    const text = await res.text();
+    console.log("📡 Réponse brute:", text);
+
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch (e) {
+      console.error("❌ Réponse non JSON:", text);
+      return null;
+    }
+
+    console.log("✅ Résultat API:", result);
+
+    if (result.success) {
+      localStorage.setItem("session_token", sessionToken);
+      return sessionToken;
+    } else {
+      console.error("❌ Échec de création:", result.message);
+      return null;
+    }
+  } catch (err) {
+    console.error("💥 Erreur lors de la création de session:", err);
     return null;
   }
 };

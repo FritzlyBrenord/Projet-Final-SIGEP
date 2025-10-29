@@ -257,30 +257,47 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     }
 
     // Conflit professeur à travers les salles (même jour + chevauchement)
+    // Conflit professeur à travers TOUTES les classes et salles
     if (teacherId || teacherName) {
-      for (const salle of classe.salles) {
-        for (const scheduleItem of salle.schedule) {
-          if (salle.id === salleId && scheduleItem.day === day) {
-            // déjà couvert ci-dessus pour la même salle
-          }
-          if (scheduleItem.day !== day) continue;
-          const sameTeacher =
-            (teacherId && scheduleItem.teacherId === teacherId) ||
-            (!teacherId &&
-              teacherName &&
-              scheduleItem.teacherName === teacherName);
-          if (!sameTeacher) continue;
-          const existingStart = timeToMinutes(scheduleItem.startTime);
-          const existingEnd = timeToMinutes(scheduleItem.endTime);
-          if (newStart < existingEnd && newEnd > existingStart) {
-            return {
-              hasConflict: true,
-              conflictMessage: `Conflit professeur: ${
-                scheduleItem.teacherName || "Professeur"
-              } est déjà planifié (${scheduleItem.startTime}-${
-                scheduleItem.endTime
-              }) dans ${salle.name}`,
-            };
+      for (const currentClasse of localSchoolYear.classes) {
+        for (const currentSalle of currentClasse.salles) {
+          for (const scheduleItem of currentSalle.schedule) {
+            // Ignorer le créneau qu'on est en train d'ajouter/modifier
+            if (
+              currentClasse.id === classeId &&
+              currentSalle.id === salleId &&
+              scheduleItem.day === day &&
+              scheduleItem.startTime === startTime &&
+              scheduleItem.endTime === endTime
+            ) {
+              continue;
+            }
+
+            // Vérifier si c'est le même professeur
+            const sameTeacher =
+              (teacherId && scheduleItem.teacherId === teacherId) ||
+              (!teacherId &&
+                teacherName &&
+                scheduleItem.teacherName === teacherName);
+
+            if (!sameTeacher) continue;
+
+            // Vérifier le même jour et chevauchement horaire
+            if (scheduleItem.day !== day) continue;
+
+            const existingStart = timeToMinutes(scheduleItem.startTime);
+            const existingEnd = timeToMinutes(scheduleItem.endTime);
+
+            if (newStart < existingEnd && newEnd > existingStart) {
+              return {
+                hasConflict: true,
+                conflictMessage: `Conflit professeur: ${
+                  scheduleItem.teacherName || "Professeur"
+                } est déjà programmé (${scheduleItem.startTime}-${
+                  scheduleItem.endTime
+                }) dans ${currentClasse.name} - ${currentSalle.name}`,
+              };
+            }
           }
         }
       }

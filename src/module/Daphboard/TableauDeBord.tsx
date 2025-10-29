@@ -395,7 +395,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                   isDarkMode ? "text-gray-400" : "text-gray-600"
                 }`}
               >
-                Année Scolaire 2024-2025 • Dernière mise à jour:{" "}
+                Année Scolaire • Dernière mise à jour:{" "}
                 {new Date().toLocaleDateString("fr-FR")}
               </p>
             </div>
@@ -876,11 +876,6 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                 );
               })}
             </div>
-          </div>
-          <div className="mt-6 text-center">
-            <button className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-medium shadow-lg text-sm sm:text-base">
-              Consulter l'Historique Complet
-            </button>
           </div>
         </div>
       </div>

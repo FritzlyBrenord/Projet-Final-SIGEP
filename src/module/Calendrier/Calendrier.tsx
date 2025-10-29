@@ -300,26 +300,40 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
   const schedulesUI = useMemo(() => {
     return horaires.map((h) => {
       const creneaux = creneauxHoraires.filter((c) => c.horaire_id === h.id);
-      const start = new Date(h.date_debut);
-      const end = new Date(h.date_fin);
+
+      // CORRECTION: Utiliser new Date() sans décalage de fuseau
+      const start = new Date(h.date_debut + "T00:00:00"); // Forcer le début de journée
+      const end = new Date(h.date_fin + "T23:59:59"); // Forcer la fin de journée
+
       const days: {
         date: Date;
         schedule: { startTime: string; endTime: string; subjects: string[] }[];
       }[] = [];
+
+      // CORRECTION: Boucle avec date fixe
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split("T")[0];
         const dow = d.getDay();
+
         const slots = creneaux
-          .filter(
-            (c) => c.date_specifique === dateStr || c.jour_semaine === dow
-          )
+          .filter((c) => {
+            if (c.date_specifique) {
+              return c.date_specifique === dateStr;
+            }
+            return c.jour_semaine === dow;
+          })
           .map((c) => ({
             startTime: c.heure_debut,
             endTime: c.heure_fin,
             subjects: c.matieres || [],
           }));
-        days.push({ date: new Date(d), schedule: slots });
+
+        days.push({
+          date: new Date(d), // Nouvelle instance pour éviter les références
+          schedule: slots,
+        });
       }
+
       return {
         id: h.id,
         name: h.nom,
@@ -393,26 +407,42 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
   };
 
   const proceedToScheduleDetails = () => {
-    if (
-      newSchedule.startDate &&
-      newSchedule.endDate &&
-      newSchedule.className &&
-      newSchedule.room &&
-      newSchedule.name
-    ) {
-      const start = new Date(newSchedule.startDate);
-      const end = new Date(newSchedule.endDate);
-      const days = [];
+    if (!newSchedule.startDate || !newSchedule.endDate) {
+      alert("❌ Les dates de début et de fin sont obligatoires");
+      return;
+    }
 
+    const start = new Date(newSchedule.startDate + "T00:00:00");
+    const end = new Date(newSchedule.endDate + "T23:59:59");
+
+    // Validation: date de fin après date de début
+    if (end < start) {
+      alert("❌ La date de fin doit être après la date de début");
+      return;
+    }
+
+    // Validation: pas plus de 30 jours
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays > 30) {
+      alert("❌ La période ne peut pas dépasser 30 jours");
+      return;
+    }
+
+    if (newSchedule.className && newSchedule.room && newSchedule.name) {
+      const days = [];
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
         days.push({
-          date: new Date(d),
+          date: new Date(d), // Nouvelle instance
           schedule: [],
         });
       }
 
       setScheduleDetails(days);
       setCurrentScheduleStep(1);
+    } else {
+      alert("❌ Veuillez remplir tous les champs obligatoires");
     }
   };
 
@@ -436,23 +466,42 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
   ) => {
     setScheduleDetails((prev) => {
       const updated = [...prev];
+      const currentSlot = updated[dayIndex].schedule[slotIndex];
+
       updated[dayIndex].schedule[slotIndex] = {
-        ...updated[dayIndex].schedule[slotIndex],
+        ...currentSlot,
         [field]: value,
       };
 
-      // Vérifier les conflits si on modifie les heures
+      const newSlot = updated[dayIndex].schedule[slotIndex];
+
+      // Vérifier les conflits seulement si les heures changent
       if (field === "startTime" || field === "endTime") {
-        const slot = updated[dayIndex].schedule[slotIndex];
-        const conflict = checkScheduleConflict(
-          newSchedule.className,
-          newSchedule.room,
-          updated[dayIndex].date,
-          slot.startTime,
-          slot.endTime,
-          editingSchedule?.id
+        // Validation: heure de fin après heure de début
+        if (newSlot.startTime >= newSlot.endTime) {
+          setConflictWarning(
+            "❌ L'heure de fin doit être après l'heure de début"
+          );
+          return updated;
+        }
+
+        // Vérifier conflit avec les autres créneaux du même jour
+        const otherSlots = updated[dayIndex].schedule.filter(
+          (_: any, idx: any) => idx !== slotIndex
         );
-        setConflictWarning(conflict || "");
+        const hasConflict = otherSlots.some(
+          (otherSlot: any) =>
+            newSlot.startTime < otherSlot.endTime &&
+            newSlot.endTime > otherSlot.startTime
+        );
+
+        if (hasConflict) {
+          setConflictWarning(
+            "🚨 Conflit horaire: ce créneau chevauche un autre créneau du même jour"
+          );
+        } else {
+          setConflictWarning("");
+        }
       }
 
       return updated;
@@ -502,13 +551,41 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
 
   const saveSchedule = async () => {
     try {
+      console.log("💾 Début sauvegarde horaire...");
+
       if (conflictWarning) {
-        alert("Impossible de sauvegarder: " + conflictWarning);
+        alert("🚨 Impossible de sauvegarder: " + conflictWarning);
         return;
       }
-      if (!currentYear?.id) return;
 
-      // Créer l'horaire et récupérer son id immédiatement
+      if (!currentYear?.id) {
+        alert("❌ Aucune année scolaire sélectionnée");
+        return;
+      }
+
+      // Validation des créneaux
+      const totalSlots = scheduleDetails.reduce(
+        (acc, day) => acc + day.schedule.length,
+        0
+      );
+      if (totalSlots === 0) {
+        alert("❌ Veuillez ajouter au moins un créneau horaire");
+        return;
+      }
+
+      // Vérifier que tous les créneaux ont des matières
+      const emptySlots = scheduleDetails.some((day) =>
+        day.schedule.some((slot: any) => slot.subjects.length === 0)
+      );
+
+      if (emptySlots) {
+        alert("❌ Tous les créneaux doivent avoir au moins une matière");
+        return;
+      }
+
+      console.log("📋 Création de l'horaire principal...");
+
+      // Créer l'horaire
       const created = await ajouterHoraireReturn({
         nom: newSchedule.name,
         classe: newSchedule.className,
@@ -518,10 +595,19 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
         annee_scolaire_id: currentYear.id,
       });
 
+      if (!created || !created.id) {
+        throw new Error("Échec de la création de l'horaire");
+      }
+
+      console.log("✅ Horaire créé, ID:", created.id);
+
+      // Ajouter les créneaux horaires
+      let slotsCreated = 0;
       for (const day of scheduleDetails) {
         const dateStr = day.date.toISOString().split("T")[0];
+
         for (const slot of day.schedule) {
-          if (slot.startTime && slot.endTime && (slot.subjects || []).length) {
+          if (slot.startTime && slot.endTime && slot.subjects.length > 0) {
             await ajouterCreneauHoraire({
               horaire_id: created.id,
               date_specifique: dateStr,
@@ -530,21 +616,29 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
               matieres: slot.subjects,
               annee_scolaire_id: currentYear.id,
             });
+            slotsCreated++;
           }
         }
       }
 
+      console.log(`✅ ${slotsCreated} créneaux ajoutés`);
+
+      // Recharger les données
       await rechargerDonnees();
 
-      // Fermer le modal après sauvegarde réussie
+      // Fermer le modal
       setShowScheduleModal(false);
       resetScheduleForm();
 
-      // Message de confirmation
-      alert("Horaire enregistré avec succès !");
+      // Message de succès clair
+      alert(
+        `✅ Horaire "${newSchedule.name}" enregistré avec succès !\n${slotsCreated} créneaux programmés.`
+      );
     } catch (error) {
-      console.error("Erreur lors de la sauvegarde de l'horaire:", error);
-      alert("Erreur lors de la sauvegarde de l'horaire. Veuillez réessayer.");
+      console.error("❌ Erreur sauvegarde horaire:", error);
+      alert(
+        "❌ Erreur lors de la sauvegarde de l'horaire. Veuillez réessayer."
+      );
     }
   };
 
@@ -1117,15 +1211,22 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
     return classMatch && roomMatch;
   });
 
+  // Fonction helper pour formater les dates de manière cohérente
   const formatDisplayDate = (date: Date) => {
+    // Utiliser toLocaleDateString avec options fixes
     return date.toLocaleDateString("fr-FR", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
+      timeZone: "UTC", // Éviter les décalages de fuseau
     });
   };
 
+  // Pour les inputs date, utiliser toujours le format YYYY-MM-DD
+  const formatDateForInput = (date: Date) => {
+    return date.toISOString().split("T")[0];
+  };
   const getEventTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       exam: "Examen",
@@ -1140,7 +1241,7 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
-        darkMode ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"
+        darkMode ? "bg-gray-900/50 text-white" : "bg-gray-50 text-gray-900"
       }`}
     >
       {/* Header */}

@@ -19,6 +19,9 @@ function NotificationContainer() {
 
   useEffect(() => {
     updateFunction = setNotifs;
+    // Synchroniser avec le tableau global au montage
+    setNotifs([...notifications]);
+
     return () => {
       updateFunction = null;
     };
@@ -79,36 +82,69 @@ function NotificationContainer() {
   );
 }
 
-// Initialiser le container
-if (typeof window !== "undefined") {
-  const container = document.createElement("div");
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  root.render(<NotificationContainer />);
+// Initialiser le container UNE SEULE FOIS
+let containerInitialized = false;
+
+if (typeof window !== "undefined" && !containerInitialized) {
+  containerInitialized = true;
+
+  // Vérifier si le container existe déjà
+  let container = document.getElementById("notification-container");
+
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "notification-container";
+    document.body.appendChild(container);
+
+    const root = createRoot(container);
+    root.render(<NotificationContainer />);
+  }
 }
 
-// LA SEULE FONCTION À UTILISER
+// FONCTION NOTIFY CORRIGÉE
 export const notify = (
   type: NotificationType = "info",
   message: string,
-  duration: number = 3000
+  duration: number = 5000 // Augmenté à 5s pour mieux voir
 ) => {
+  console.log("🔔 notify appelé:", type, message);
+
   const id = `notif-${Date.now()}-${Math.random()}`;
   const notification: NotificationData = { id, type, message };
 
+  // Ajouter à la liste globale
   notifications.push(notification);
+
+  // Limiter à 5 notifications maximum
   if (notifications.length > 5) {
     notifications = notifications.slice(-5);
   }
 
+  console.log("📋 Notifications après ajout:", notifications);
+
+  // Mettre à jour l'interface si le composant est monté
   if (updateFunction) {
+    console.log("🔄 Mise à jour de l'interface");
     updateFunction([...notifications]);
+  } else {
+    console.log("❌ updateFunction pas encore disponible");
+    // Fallback: afficher une alerte si le système de notifications n'est pas prêt
+    alert(`[${type.toUpperCase()}] ${message}`);
   }
 
+  // Auto-suppression après délai
   if (duration > 0) {
     setTimeout(() => {
       notifications = notifications.filter((n) => n.id !== id);
-      if (updateFunction) updateFunction([...notifications]);
+      if (updateFunction) {
+        updateFunction([...notifications]);
+      }
     }, duration);
   }
+};
+
+// Export pour les tests
+export const _testReset = () => {
+  notifications = [];
+  if (updateFunction) updateFunction([]);
 };

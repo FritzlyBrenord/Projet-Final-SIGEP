@@ -16,6 +16,8 @@ import {
   Building,
   GraduationCap,
   SearchIcon,
+  ArrowLeft,
+  X,
 } from "lucide-react";
 import ReenrollmentModal from "./Reinscription/Reinscription";
 import ExportModal from "./ExportModal";
@@ -41,6 +43,8 @@ interface Props {
   isDarkMode: boolean;
 }
 
+type ViewType = "list" | "form" | "reinscription";
+
 const ElevesPage = ({ isDarkMode }: Props) => {
   const {
     eleves,
@@ -56,6 +60,10 @@ const ElevesPage = ({ isDarkMode }: Props) => {
   const { addActivity } = useRecentActivities();
   const { currentYear } = useAnneeScolaire();
   const { currentSession } = useContextUtilisateur();
+
+  // ✅ NOUVEAU : État pour gérer la vue actuelle
+  const [currentView, setCurrentView] = useState<ViewType>("list");
+
   const [filteredStudents, setFilteredStudents] = useState<EleveAffiche[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterClass, setFilterClass] = useState("");
@@ -73,11 +81,9 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     null
   );
   const [showModal, setShowModal] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] = useState<EleveAffiche | null>(
     null
   );
-  const [showReinscriptionModal, setShowReinscriptionModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
 
   // États de chargement
@@ -323,7 +329,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
   // Obtenir les éléments de la page actuelle
   const paginatedStudents = useMemo(() => {
     if (itemsPerPage === -1) {
-      return filteredStudents; // Afficher tous
+      return filteredStudents;
     }
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
@@ -361,7 +367,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         ...prev,
         [name]: name === "moyenne_generale" ? parseFloat(value) || 0 : value,
       } as EleveFormData;
-      // Si la classe change, réinitialiser la salle
       if (name === "classe_id") {
         next.salle_id = "";
       }
@@ -401,7 +406,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
 
   // Validation du NIF
   const validateNIF = (nif: string): boolean => {
-    if (!nif) return true; // NIF est optionnel
+    if (!nif) return true;
     const cleanNIF = nif.replace(/\D/g, "");
     return cleanNIF.length === 10 && /^\d{10}$/.test(cleanNIF);
   };
@@ -458,7 +463,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       return;
     }
 
-    // Validation de la date de naissance
     if (!validateBirthDate(formData.date_naissance)) {
       alert(
         "L'élève doit avoir au moins 5 ans et la date de naissance ne peut pas être dans le futur"
@@ -466,7 +470,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       return;
     }
 
-    // Validation du NIF (optionnel)
     if (formData.nif_parents && !validateNIF(formData.nif_parents)) {
       alert("Le NIF doit contenir exactement 10 chiffres");
       return;
@@ -483,7 +486,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       setIsSubmitting(true);
 
       if (editingStudent) {
-        // Modification d'un élève existant
         await modifierEleve(editingStudent.id, payload);
         await addActivity({
           action: "modification",
@@ -492,18 +494,14 @@ const ElevesPage = ({ isDarkMode }: Props) => {
           details: `L'élève ${payload.nom} ${payload.prenom} a été modifié.`,
         });
         resetForm();
-        setShowForm(false);
       } else {
-        // Vérifier d'abord les doublons
         const doublons = await verifierDoublons(payload);
 
         if (doublons.length > 0) {
-          // Des doublons ont été détectés
           setDoublonsDetectes(doublons);
           setPendingEleveData(payload);
           setShowDoublonModal(true);
         } else {
-          // Aucun doublon, ajout direct
           await ajouterEleve(payload);
 
           await addActivity({
@@ -513,7 +511,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
             details: `L'élève ${payload.nom} ${payload.prenom} a été inscrit.`,
           });
           resetForm();
-          setShowForm(false);
         }
       }
     } catch (error) {
@@ -548,7 +545,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       observations: "",
     });
     setEditingStudent(null);
-    setShowForm(false);
+    setCurrentView("list"); // ✅ Retour à la liste
   };
 
   // Gestion des doublons
@@ -557,7 +554,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
 
     try {
       setIsSubmitting(true);
-      // Ajouter l'élève malgré les doublons
       await ajouterEleve(pendingEleveData as any);
       setShowDoublonModal(false);
       setDoublonsDetectes([]);
@@ -575,8 +571,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     setShowDoublonModal(false);
     setDoublonsDetectes([]);
     setPendingEleveData(null);
-    // L'élève a déjà été ajouté, on le supprime
-    // TODO: Implémenter la suppression de l'élève ajouté
   };
 
   // Actions sur les étudiants
@@ -584,7 +578,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     student: EleveAffiche,
     newStatus: "actif" | "inactif" | "suspendu"
   ) => {
-    // ✅ Confirmation avant changement
     const statusLabels = {
       actif: "actif",
       inactif: "inactif",
@@ -616,10 +609,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         student.inscription_id
       );
 
-      // Recharger explicitement les données
       await rechargerEleves();
 
-      // Notification de succès
       await addActivity({
         action: "modification",
         module: "Gestion Élèves",
@@ -627,7 +618,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         details: `Le statut de ${student.prenom} ${student.nom} a été changé de "${student.statut}" à "${newStatus}".`,
       });
 
-      // ✅ AJOUT : Alerte de succès
       alert(
         `Statut changé avec succès : ${student.prenom} ${student.nom} est maintenant "${statusLabels[newStatus]}"`
       );
@@ -645,6 +635,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       setLoadingStudentId(null);
     }
   };
+
   const deleteStudent = async (studentId: string) => {
     if (confirm("Êtes-vous sûr de vouloir supprimer cet élève ?")) {
       try {
@@ -693,7 +684,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       statut: student.statut,
       observations: student.observations_inscription || "",
     });
-    setShowForm(true);
+    setCurrentView("form"); // ✅ Afficher le formulaire
   };
 
   const getELeveParcours = () => {
@@ -712,6 +703,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       alert("Aucun élève avec ce code");
     }
   };
+
   // Statistiques
   const stats = {
     total: eleves.length,
@@ -768,6 +760,437 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     ? "bg-blue-700 hover:bg-blue-600 text-white"
     : "bg-blue-600 hover:bg-blue-700 text-white";
 
+  // ✅ RENDU CONDITIONNEL SELON LA VUE
+  if (currentView === "form") {
+    return (
+      <div className={`${baseClasses} p-6`}>
+        <div className="max-w-5xl mx-auto">
+          {/* ✅ En-tête avec bouton retour */}
+          <div className="mb-6 flex items-center gap-4">
+            <button
+              onClick={resetForm}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isDarkMode
+                  ? "bg-gray-700 hover:bg-gray-600 text-white"
+                  : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+              }`}
+            >
+              <ArrowLeft className="h-5 w-5" />
+              Retour à la liste
+            </button>
+            <h1 className="text-3xl font-bold">
+              {editingStudent ? "Modifier l'élève" : "Inscrire un nouvel élève"}
+            </h1>
+          </div>
+
+          {/* ✅ Formulaire */}
+          <div className={`${cardClasses} rounded-lg shadow-sm border p-6`}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Sexe *
+                </label>
+                <select
+                  name="sexe"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.sexe}
+                  onChange={handleInputChange}
+                >
+                  <option value="M">Masculin</option>
+                  <option value="F">Féminin</option>
+                </select>
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Nom *
+                </label>
+                <input
+                  type="text"
+                  name="nom"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.nom}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Prénom *
+                </label>
+                <input
+                  type="text"
+                  name="prenom"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.prenom}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Date de naissance *
+                </label>
+                <input
+                  type="date"
+                  name="date_naissance"
+                  required
+                  max={
+                    new Date(
+                      new Date().setFullYear(new Date().getFullYear() - 5)
+                    )
+                      .toISOString()
+                      .split("T")[0]
+                  }
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.date_naissance}
+                  onChange={(e) => {
+                    const selectedDate = e.target.value;
+                    if (selectedDate) {
+                      const age = calculateAge(selectedDate);
+                      if (age < 5) {
+                        alert("L'élève doit avoir au moins 5 ans");
+                        return;
+                      }
+                    }
+                    handleInputChange(e);
+                  }}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  L'élève doit avoir au moins 5 ans
+                </p>
+              </div>
+              <div className="md:col-span-2">
+                <LocationSelect
+                  value={{
+                    pays: formData.pays_naissance,
+                    region: formData.region_naissance,
+                    ville: formData.ville_naissance,
+                    section: formData.section_naissance,
+                  }}
+                  onChange={(location) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      pays_naissance: location.pays,
+                      region_naissance: location.region,
+                      ville_naissance: location.ville,
+                      section_naissance: location.section,
+                    }));
+                  }}
+                  isDarkMode={isDarkMode}
+                  required={true}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Adresse actuelle *
+                </label>
+                <input
+                  type="text"
+                  name="adresse_actuelle"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.adresse_actuelle}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Téléphone parents/tuteurs *
+                </label>
+                <input
+                  type="tel"
+                  name="telephone_parents"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.telephone_parents}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  NIF parent/tuteur
+                </label>
+                <input
+                  type="text"
+                  name="nif_parents"
+                  placeholder="Ex: 002-434-827-9 ou 3723277377"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.nif_parents}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, "");
+                    if (value.length <= 10) {
+                      if (value.length >= 3 && value.startsWith("0")) {
+                        if (value.length >= 6) {
+                          if (value.length >= 9) {
+                            value = `${value.slice(0, 3)}-${value.slice(
+                              3,
+                              6
+                            )}-${value.slice(6, 9)}-${value.slice(9)}`;
+                          } else {
+                            value = `${value.slice(0, 3)}-${value.slice(
+                              3,
+                              6
+                            )}-${value.slice(6)}`;
+                          }
+                        } else {
+                          value = `${value.slice(0, 3)}-${value.slice(3)}`;
+                        }
+                      }
+                      setFormData((prev) => ({
+                        ...prev,
+                        nif_parents: value,
+                      }));
+                    }
+                  }}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Adresse parent/tuteur *
+                </label>
+                <input
+                  type="text"
+                  name="adresse_parents"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.adresse_parents}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Classe *
+                </label>
+                <select
+                  name="classe_id"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.classe_id}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Sélectionner une classe</option>
+                  {classes.map((classe) => (
+                    <option key={classe.value} value={classe.value}>
+                      {classe.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Salle *
+                </label>
+                <select
+                  name="salle_id"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.salle_id}
+                  onChange={handleInputChange}
+                  disabled={!formData.classe_id}
+                >
+                  <option value="">Sélectionner une salle</option>
+                  {formData.classe_id && sallesByClass[formData.classe_id]
+                    ? sallesByClass[formData.classe_id].map((salle) => (
+                        <option key={salle.value} value={salle.value}>
+                          {salle.label}
+                        </option>
+                      ))
+                    : Object.values(sallesByClass)
+                        .flat()
+                        .map((salle) => (
+                          <option key={salle.value} value={salle.value}>
+                            {salle.label}
+                          </option>
+                        ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Moyenne générale *
+                </label>
+                <input
+                  type="number"
+                  name="moyenne_generale"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.moyenne_generale}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Établissement précédent *
+                </label>
+                <input
+                  type="text"
+                  name="etablissement_precedent"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.etablissement_precedent}
+                  onChange={handleInputChange}
+                />
+              </div>
+              {editingStudent && (
+                <div>
+                  <label
+                    className={`block text-sm font-medium mb-1 ${
+                      isDarkMode ? "text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    Statut *
+                  </label>
+                  <select
+                    name="statut"
+                    required
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                    value={formData.statut}
+                    onChange={handleInputChange}
+                  >
+                    <option value="actif">Actif</option>
+                    <option value="inactif">Inactif</option>
+                    <option value="suspendu">Suspendu</option>
+                  </select>
+                </div>
+              )}
+              <div className="md:col-span-2">
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Observations
+                </label>
+                <textarea
+                  name="observations"
+                  rows={3}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.observations}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-4 justify-end">
+              <button
+                type="button"
+                onClick={resetForm}
+                className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  isDarkMode
+                    ? "text-gray-300 bg-gray-700 hover:bg-gray-600"
+                    : "text-gray-700 bg-gray-200 hover:bg-gray-300"
+                }`}
+              >
+                <X className="h-4 w-4" />
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                className={`px-6 py-2 rounded-lg transition-colors ${buttonPrimaryClasses} disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Spinner size="sm" color="white" />
+                    {editingStudent ? "Modification..." : "Ajout..."}
+                  </>
+                ) : editingStudent ? (
+                  "Modifier"
+                ) : (
+                  "Ajouter"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === "reinscription") {
+    return (
+      <div className={`${baseClasses} p-6`}>
+        <div className="max-w-7xl mx-auto">
+          {/* ✅ En-tête avec bouton retour */}
+          <div className="mb-6 flex items-center gap-4">
+            <button
+              onClick={() => setCurrentView("list")}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                isDarkMode
+                  ? "bg-gray-700 hover:bg-gray-600 text-white"
+                  : "bg-gray-200 hover:bg-gray-300 text-gray-700"
+              }`}
+            >
+              <ArrowLeft className="h-5 w-5" />
+              Retour à la liste
+            </button>
+            <h1 className="text-3xl font-bold">Réinscription des Élèves</h1>
+          </div>
+
+          {/* ✅ Composant de réinscription */}
+          <ReenrollmentModal
+            isOpen={true}
+            onClose={() => setCurrentView("list")}
+            isDarkMode={isDarkMode}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ VUE LISTE (par défaut)
   return (
     <div className={`${baseClasses} p-6`}>
       <div className="max-w-7xl mx-auto">
@@ -848,14 +1271,14 @@ const ElevesPage = ({ isDarkMode }: Props) => {
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between mb-6">
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                onClick={() => setShowForm(true)}
+                onClick={() => setCurrentView("form")} // ✅ Changer la vue
                 className={`${buttonPrimaryClasses} px-4 py-2 rounded-lg flex items-center gap-2 transition-colors`}
               >
                 <Plus className="h-4 w-4" />
                 Inscription
               </button>
               <button
-                onClick={() => setShowReinscriptionModal(true)}
+                onClick={() => setCurrentView("reinscription")} // ✅ Changer la vue
                 className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
               >
                 <GraduationCap className="h-4 w-4" />
@@ -883,6 +1306,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
           {/* Filtres de base */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-4">
             <select
@@ -1097,8 +1521,6 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   </button>
                 </div>
               </div>
-
-              {/* Section de parcours */}
             </>
           )}
         </div>
@@ -1107,12 +1529,11 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         <div
           className={`${cardClasses} rounded-lg shadow-sm border overflow-hidden`}
         >
-          {/* ✅ CONTRÔLES DE PAGINATION - AU-DESSUS DU TABLEAU */}
+          {/* Contrôles de pagination - AU-DESSUS DU TABLEAU */}
           <div
             className={`${cardClasses} p-4 rounded-lg shadow-sm border mb-4`}
           >
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              {/* Informations et sélecteur */}
               <div className="flex items-center gap-4">
                 <div
                   className={`text-sm ${
@@ -1252,6 +1673,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
               )}
             </div>
           </div>
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}>
@@ -1410,7 +1832,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                           <button
                             onClick={() =>
                               changeStudentStatus(student, "suspendu")
-                            } // ✅ Objet complet
+                            }
                             disabled={
                               isChangingStatus &&
                               loadingStudentId === student.id
@@ -1429,7 +1851,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                           <button
                             onClick={() =>
                               changeStudentStatus(student, "actif")
-                            } // ✅ Objet complet
+                            }
                             disabled={
                               isChangingStatus &&
                               loadingStudentId === student.id
@@ -1465,7 +1887,8 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                 ))}
               </tbody>
             </table>
-            {/* ✅ CONTRÔLES DE PAGINATION - EN BAS DU TABLEAU */}
+
+            {/* Contrôles de pagination - EN BAS DU TABLEAU */}
             {itemsPerPage !== -1 && totalPages > 1 && (
               <div
                 className={`${cardClasses} p-4 rounded-lg shadow-sm border mt-4`}
@@ -1541,7 +1964,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         )}
       </div>
 
-      {/* Modal de détails */}
+      {/* Modal de détails - GARDE LE MODAL */}
       {showModal && selectedStudent && (
         <div className="fixed inset-0 bg-black/60 bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div
@@ -1801,409 +2224,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         </div>
       )}
 
-      {/* Formulaire d'ajout/modification */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/60  bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div
-            className={`${cardClasses} rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto`}
-          >
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold">
-                  {editingStudent
-                    ? "Modifier l'élève"
-                    : "Inscrit un nouvel élève"}
-                </h2>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className={`hover:text-red-500 transition-colors ${
-                    isDarkMode ? "text-gray-400" : "text-gray-600"
-                  }`}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Sexe *
-                  </label>
-                  <select
-                    name="sexe"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.sexe}
-                    onChange={handleInputChange}
-                  >
-                    <option value="M">Masculin</option>
-                    <option value="F">Féminin</option>
-                  </select>
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Nom *
-                  </label>
-                  <input
-                    type="text"
-                    name="nom"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.nom}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Prénom *
-                  </label>
-                  <input
-                    type="text"
-                    name="prenom"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.prenom}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Date de naissance *
-                  </label>
-                  <input
-                    type="date"
-                    name="date_naissance"
-                    required
-                    max={
-                      new Date(
-                        new Date().setFullYear(new Date().getFullYear() - 5)
-                      )
-                        .toISOString()
-                        .split("T")[0]
-                    }
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.date_naissance}
-                    onChange={(e) => {
-                      const selectedDate = e.target.value;
-                      if (selectedDate) {
-                        const age = calculateAge(selectedDate);
-                        if (age < 5) {
-                          alert("L'élève doit avoir au moins 5 ans");
-                          return;
-                        }
-                      }
-                      handleInputChange(e);
-                    }}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    L'élève doit avoir au moins 5 ans
-                  </p>
-                </div>
-                <div className="md:col-span-2">
-                  <LocationSelect
-                    value={{
-                      pays: formData.pays_naissance,
-                      region: formData.region_naissance,
-                      ville: formData.ville_naissance,
-                      section: formData.section_naissance,
-                    }}
-                    onChange={(location) => {
-                      setFormData((prev) => ({
-                        ...prev,
-                        pays_naissance: location.pays,
-                        region_naissance: location.region,
-                        ville_naissance: location.ville,
-                        section_naissance: location.section,
-                      }));
-                    }}
-                    isDarkMode={isDarkMode}
-                    required={true}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Adresse actuelle *
-                  </label>
-                  <input
-                    type="text"
-                    name="adresse_actuelle"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.adresse_actuelle}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Téléphone parents/tuteurs *
-                  </label>
-                  <input
-                    type="tel"
-                    name="telephone_parents"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.telephone_parents}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    NIF parent/tuteur
-                  </label>
-                  <input
-                    type="text"
-                    name="nif_parents"
-                    placeholder="Ex: 002-434-827-9 ou 3723277377"
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.nif_parents}
-                    onChange={(e) => {
-                      let value = e.target.value.replace(/\D/g, "");
-                      if (value.length <= 10) {
-                        // Formatage automatique si commence par 0
-                        if (value.length >= 3 && value.startsWith("0")) {
-                          if (value.length >= 6) {
-                            if (value.length >= 9) {
-                              value = `${value.slice(0, 3)}-${value.slice(
-                                3,
-                                6
-                              )}-${value.slice(6, 9)}-${value.slice(9)}`;
-                            } else {
-                              value = `${value.slice(0, 3)}-${value.slice(
-                                3,
-                                6
-                              )}-${value.slice(6)}`;
-                            }
-                          } else {
-                            value = `${value.slice(0, 3)}-${value.slice(3)}`;
-                          }
-                        }
-                        setFormData((prev) => ({
-                          ...prev,
-                          nif_parents: value,
-                        }));
-                      }
-                    }}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Adresse parent/tuteur *
-                  </label>
-                  <input
-                    type="text"
-                    name="adresse_parents"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.adresse_parents}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Classe *
-                  </label>
-                  <select
-                    name="classe_id"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.classe_id}
-                    onChange={handleInputChange}
-                  >
-                    <option value="">Sélectionner une classe</option>
-                    {classes.map((classe) => (
-                      <option key={classe.value} value={classe.value}>
-                        {classe.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Salle *
-                  </label>
-                  <select
-                    name="salle_id"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.salle_id}
-                    onChange={handleInputChange}
-                    disabled={!formData.classe_id}
-                  >
-                    <option value="">Sélectionner une salle</option>
-                    {formData.classe_id && sallesByClass[formData.classe_id]
-                      ? sallesByClass[formData.classe_id].map((salle) => (
-                          <option key={salle.value} value={salle.value}>
-                            {salle.label}
-                          </option>
-                        ))
-                      : Object.values(sallesByClass)
-                          .flat()
-                          .map((salle) => (
-                            <option key={salle.value} value={salle.value}>
-                              {salle.label}
-                            </option>
-                          ))}
-                  </select>
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Moyenne générale *
-                  </label>
-                  <input
-                    type="number"
-                    name="moyenne_generale"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.moyenne_generale}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                <div>
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Établissement précédent *
-                  </label>
-                  <input
-                    type="text"
-                    name="etablissement_precedent"
-                    required
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.etablissement_precedent}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                {editingStudent && (
-                  <div>
-                    <label
-                      className={`block text-sm font-medium mb-1 ${
-                        isDarkMode ? "text-gray-300" : "text-gray-700"
-                      }`}
-                    >
-                      Statut *
-                    </label>
-                    <select
-                      name="statut"
-                      required
-                      className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                      value={formData.statut}
-                      onChange={handleInputChange}
-                    >
-                      <option value="actif">Actif</option>
-                      <option value="inactif">Inactif</option>
-                      <option value="suspendu">Suspendu</option>
-                    </select>
-                  </div>
-                )}
-                <div className="md:col-span-2">
-                  <label
-                    className={`block text-sm font-medium mb-1 ${
-                      isDarkMode ? "text-gray-300" : "text-gray-700"
-                    }`}
-                  >
-                    Observations
-                  </label>
-                  <textarea
-                    name="observations"
-                    rows={3}
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                    value={formData.observations}
-                    onChange={handleInputChange}
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-4 justify-end">
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    isDarkMode
-                      ? "text-gray-300 bg-gray-700 hover:bg-gray-600"
-                      : "text-gray-700 bg-gray-200 hover:bg-gray-300"
-                  }`}
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className={`px-4 py-2 rounded-lg transition-colors ${buttonPrimaryClasses} disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Spinner size="sm" color="white" />
-                      {editingStudent ? "Modification..." : "Ajout..."}
-                    </>
-                  ) : editingStudent ? (
-                    "Modifier"
-                  ) : (
-                    "Ajouter"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <ReenrollmentModal
-        isOpen={showReinscriptionModal}
-        onClose={() => setShowReinscriptionModal(false)}
-        isDarkMode={isDarkMode}
-      />
-
+      {/* Modals existants - GARDER */}
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
@@ -2242,6 +2263,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         doublons={doublonsDetectes}
         isDarkMode={isDarkMode}
       />
+
       <ParcoursAcademiqueModal
         getParcoursAcademique={getParcoursAcademique}
         isOpen={isOpen}
@@ -2249,6 +2271,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
         isDarkMode={isDarkMode}
         eleveId={idEleve}
       />
+
       <StudentSearchModal
         isOpen={isOpen2}
         onClose={() => setIsOpen2(false)}

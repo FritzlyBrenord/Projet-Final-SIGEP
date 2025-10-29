@@ -120,13 +120,29 @@ const Dashboard: React.FC = () => {
   const [schoolYearsLoaded, setSchoolYearsLoaded] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [hasSeenWelcome, setHasSeenWelcome] = useState(false);
-  // Ajoutez ces états et références
+
+  // ✅ NOUVEAU : États pour la gestion mobile
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
   const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now());
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 heure en millisecondes
+  const INACTIVITY_TIMEOUT = 60 * 60 * 1000;
   const isOnline = useConnectionStatus();
 
   const [schoolYears, setSchoolYears] = useState<any[]>([]);
+
+  // ✅ Détection de la taille d'écran
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint
+    };
+
+    checkIfMobile();
+    window.addEventListener("resize", checkIfMobile);
+
+    return () => window.removeEventListener("resize", checkIfMobile);
+  }, []);
 
   useEffect(() => {
     const loadSchoolYears = async () => {
@@ -138,7 +154,6 @@ const Dashboard: React.FC = () => {
         setSchoolYears(years || []);
         setSchoolYearsLoaded(true);
 
-        // Marquer que le chargement initial est terminé
         if (isInitialLoad) {
           setIsInitialLoad(false);
         }
@@ -151,8 +166,8 @@ const Dashboard: React.FC = () => {
     };
 
     loadSchoolYears();
-  }, [isOnline, isInitialLoad]); // Recharger quand la connexion revient
-  // Fonction pour sauvegarder la page active
+  }, [isOnline, isInitialLoad]);
+
   const saveActivePage = (pageName: string) => {
     try {
       localStorage.setItem("activeMenu", pageName);
@@ -165,7 +180,6 @@ const Dashboard: React.FC = () => {
 
   const hasPermission = useCallback(
     (permission: string): boolean => {
-      // Super Admin a toutes les permissions
       if (isUserSuperAdmin) {
         return true;
       }
@@ -174,22 +188,20 @@ const Dashboard: React.FC = () => {
     [isUserSuperAdmin, userPermissions]
   );
 
-  // Fonction pour gérer le changement de menu (modifiée)
+  // ✅ Fonction modifiée pour fermer le menu mobile
   const handleMenuChange = (menuLabel: string) => {
     if (isUserSuperAdmin || hasPermission(menuLabel)) {
       console.log(`Changement de page : ${menuLabel}`);
-
-      // Changer la page
       setActiveMenu(menuLabel);
-
-      // Sauvegarder immédiatement
       saveActivePage(menuLabel);
 
-      // Le timer sera redémarré automatiquement par le useEffect
+      // Fermer le menu mobile après sélection
+      if (isMobile) {
+        setIsMobileMenuOpen(false);
+      }
     }
   };
 
-  // useEffect pour charger la page sauvegardée AU DÉMARRAGE UNIQUEMENT
   useEffect(() => {
     if (!loading && userPermissions.length > 0 && schoolYears.length > 0) {
       const savedMenu = localStorage.getItem("activeMenu");
@@ -198,33 +210,33 @@ const Dashboard: React.FC = () => {
       if (savedMenu && savedTime) {
         const timeDiff = Date.now() - parseInt(savedTime);
 
-        // Si moins d'1 heure, restaurer la page
         if (timeDiff < INACTIVITY_TIMEOUT) {
-          // Vérifier que l'utilisateur a toujours la permission
           if (hasPermission(savedMenu) || isUserSuperAdmin) {
             setActiveMenu(savedMenu);
             console.log(`✅ Page restaurée : ${savedMenu}`);
           } else {
-            // Pas de permission, aller au tableau de bord
             setActiveMenu("Tableau de Bord");
             saveActivePage("Tableau de Bord");
           }
         } else {
-          // Plus d'1 heure, retour au tableau de bord
           console.log("⏰ Session expirée (1h) - Retour au Tableau de Bord");
           setActiveMenu("Tableau de Bord");
           saveActivePage("Tableau de Bord");
         }
       } else {
-        // Pas de sauvegarde, aller au tableau de bord
         setActiveMenu("Tableau de Bord");
         saveActivePage("Tableau de Bord");
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]); // ← Seulement quand loading change !
+  }, [
+    INACTIVITY_TIMEOUT,
+    hasPermission,
+    isUserSuperAdmin,
+    loading,
+    schoolYears.length,
+    userPermissions.length,
+  ]);
 
-  // Nettoyer le timer au démontage
   useEffect(() => {
     return () => {
       if (inactivityTimerRef.current) {
@@ -233,15 +245,12 @@ const Dashboard: React.FC = () => {
     };
   }, []);
 
-  // Démarrer le timer quand l'utilisateur change de page
   useEffect(() => {
     if (!loading && activeMenu) {
-      // Nettoyer l'ancien timer
       if (inactivityTimerRef.current) {
         clearTimeout(inactivityTimerRef.current);
       }
 
-      // Démarrer un nouveau timer
       inactivityTimerRef.current = setTimeout(() => {
         console.log("⏱️ Timeout d'inactivité (1h) - Retour au Tableau de Bord");
         setActiveMenu("Tableau de Bord");
@@ -255,6 +264,7 @@ const Dashboard: React.FC = () => {
   const handlePhotoUpdate = (newPhotoUrl: string) => {
     setProfilePhoto(newPhotoUrl);
   };
+
   useEffect(() => {
     if (
       !loading &&
@@ -266,6 +276,7 @@ const Dashboard: React.FC = () => {
       setShowWelcome(false);
     }
   }, [loading, schoolYears, userPermissions, isUserSuperAdmin]);
+
   useEffect(() => {
     if (currentSession?.user?.id) {
       const savedPhoto = GetProfilPhoto(currentSession.user.id);
@@ -277,7 +288,7 @@ const Dashboard: React.FC = () => {
       }
     }
   }, [currentSession, GetProfilPhoto]);
-  // Données de l'utilisateur
+
   const currentUser: User = {
     name: isUserSuperAdmin
       ? "Compte Système"
@@ -294,7 +305,6 @@ const Dashboard: React.FC = () => {
     avatar: profilePhoto,
   };
 
-  // Tous les items du sidebar possibles
   const allSidebarItems: SidebarItem[] = [
     {
       id: "dashboard",
@@ -338,17 +348,14 @@ const Dashboard: React.FC = () => {
     },
   ];
 
-  // Charger les autorisations de l'utilisateur
   useEffect(() => {
     const loadUserPermissions = async () => {
       setLoading(true);
 
-      // Vérifier d'abord si c'est le Super Admin
       const checkSuperAdmin = isSuperAdmin(currentSession);
       setIsUserSuperAdmin(checkSuperAdmin);
 
       if (checkSuperAdmin) {
-        // Super Admin a TOUTES les permissions
         console.log("🔐 Super Admin détecté - Accès complet accordé");
         setUserPermissions([
           "Tableau de Bord",
@@ -369,7 +376,6 @@ const Dashboard: React.FC = () => {
         return;
       }
 
-      // Pour les utilisateurs normaux
       if (currentSession?.user?.id) {
         try {
           const permissions = await GetUtilisateurAutorisations(
@@ -398,11 +404,8 @@ const Dashboard: React.FC = () => {
     loadUserPermissions();
   }, [GetUtilisateurAutorisations, currentSession]);
 
-  // Vérifier si l'utilisateur a une autorisation spécifique
-
-  // Filtrer les items du sidebar en fonction des autorisations
   const sidebarItems = isUserSuperAdmin
-    ? allSidebarItems // Super Admin voit tout
+    ? allSidebarItems
     : allSidebarItems.filter((item) => hasPermission(item.label));
 
   useEffect(() => {
@@ -434,12 +437,10 @@ const Dashboard: React.FC = () => {
   };
 
   const renderMainContent = () => {
-    // Si aucune autorisation et pas Super Admin
     if (userPermissions.length === 0 && !isUserSuperAdmin) {
       return null;
     }
 
-    // Super Admin peut tout voir, sinon vérifier permission
     if (!isUserSuperAdmin && !hasPermission(activeMenu)) {
       return (
         <div className="flex items-center justify-center min-h-[60vh]">
@@ -468,7 +469,6 @@ const Dashboard: React.FC = () => {
       );
     }
 
-    // Afficher le composant correspondant
     switch (activeMenu) {
       case "Tableau de Bord":
         return <TableauDeBord isDarkMode={isDarkMode} />;
@@ -499,6 +499,7 @@ const Dashboard: React.FC = () => {
         return <TableauDeBord isDarkMode={isDarkMode} />;
     }
   };
+
   if (loading || schoolYearsLoading) {
     return (
       <div
@@ -519,7 +520,6 @@ const Dashboard: React.FC = () => {
         }`}
       >
         <div className="text-center px-6 max-w-md">
-          {/* Icône WiFi barré */}
           <div className="mb-6">
             <svg
               className={`mx-auto h-16 w-16 ${
@@ -538,7 +538,6 @@ const Dashboard: React.FC = () => {
             </svg>
           </div>
 
-          {/* Titre */}
           <h2
             className={`text-2xl font-semibold mb-3 ${
               isDarkMode ? "text-gray-100" : "text-gray-900"
@@ -547,7 +546,6 @@ const Dashboard: React.FC = () => {
             Pas de connexion internet
           </h2>
 
-          {/* Description */}
           <p
             className={`mb-6 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
           >
@@ -555,7 +553,6 @@ const Dashboard: React.FC = () => {
             réessayez.
           </p>
 
-          {/* Bouton réessayer */}
           <button
             onClick={() => window.location.reload()}
             className={`px-6 py-3 rounded-lg font-medium transition-colors ${
@@ -567,7 +564,6 @@ const Dashboard: React.FC = () => {
             Réessayer
           </button>
 
-          {/* Message d'aide optionnel */}
           <div className="flex gap-2">
             <p
               className={`mt-4 text-sm ${
@@ -584,7 +580,7 @@ const Dashboard: React.FC = () => {
       </div>
     );
   }
-  // Avant de rendre le contenu principal, vérifier :
+
   if (showWelcome) {
     return (
       <WelcomeScreen
@@ -605,7 +601,7 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <ProtectedRoute>
+    <>
       <div
         className={`overflow-hidden min-h-screen transition-all duration-300 ${
           isDarkMode
@@ -622,11 +618,13 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         )}
-        {/* Sidebar */}
+
+        {/* ✅ SIDEBAR DESKTOP - Caché sur mobile */}
         {userPermissions.length > 0 &&
           schoolYears &&
           schoolYears.length > 0 &&
-          !showWelcome && (
+          !showWelcome &&
+          !isMobile && (
             <aside
               className={`fixed left-0 top-0 z-40 h-screen transition-all duration-300 ${
                 sidebarCollapsed ? "w-20" : "w-80"
@@ -721,13 +719,111 @@ const Dashboard: React.FC = () => {
               </nav>
             </aside>
           )}
+
+        {/* ✅ SIDEBAR MOBILE - Overlay drawer */}
+        {isMobile && isMobileMenuOpen && (
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+
+            {/* Drawer */}
+            <aside
+              className={`fixed left-0 top-0 z-50 h-screen w-80 transition-transform duration-300 ${
+                isDarkMode
+                  ? "bg-gradient-to-b from-slate-800 via-slate-900 to-slate-800 border-gray-700/50 shadow-2xl"
+                  : "bg-gradient-to-b from-white via-gray-50 to-white border-gray-200/50 shadow-xl"
+              } border-r backdrop-blur-sm`}
+            >
+              {/* Header mobile */}
+              <div
+                className={`flex items-center justify-between p-6 border-b ${
+                  isDarkMode ? "border-gray-700/50" : "border-gray-200/50"
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Image src="/logo.png" alt="Logo" width={50} height={50} />
+                  <div>
+                    <h1
+                      className={`text-xl font-bold ${
+                        isDarkMode ? "text-white" : "text-gray-800"
+                      }`}
+                    >
+                      SIGEP
+                    </h1>
+                    <p
+                      className={`text-sm ${
+                        isDarkMode ? "text-gray-400" : "text-gray-600"
+                      }`}
+                    >
+                      {isUserSuperAdmin ? "Super Admin" : "Gestion Scolaire"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${
+                    isDarkMode
+                      ? "text-gray-300 hover:text-white hover:bg-gray-700/50"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+                  }`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Navigation mobile */}
+              <nav className="mt-6 px-4">
+                <ul className="space-y-3">
+                  {sidebarItems.map((item) => {
+                    const isActive = activeMenu === item.label;
+                    return (
+                      <li key={item.id}>
+                        <button
+                          className={`flex items-center w-full px-4 py-3 rounded-xl transition-all duration-300 text-left group relative overflow-hidden ${
+                            isActive
+                              ? isDarkMode
+                                ? "bg-gradient-to-r from-blue-600/90 to-amber-500/90 text-white shadow-lg transform scale-105 shadow-blue-500/25"
+                                : "bg-gradient-to-r from-blue-600 to-amber-500 text-white shadow-lg transform scale-105 shadow-blue-500/25"
+                              : isDarkMode
+                              ? "text-gray-300 hover:text-white hover:bg-gradient-to-r hover:from-gray-700/50 hover:to-gray-600/50 hover:transform hover:scale-102"
+                              : "text-gray-600 hover:text-gray-800 hover:bg-gradient-to-r hover:from-blue-50 hover:to-amber-50 hover:transform hover:scale-102"
+                          }`}
+                          onClick={() => handleMenuChange(item.label)}
+                        >
+                          <span
+                            className={`flex-shrink-0 transition-transform duration-200 ${
+                              isActive ? "scale-110" : "group-hover:scale-105"
+                            }`}
+                          >
+                            {item.icon}
+                          </span>
+                          <span className="ml-3 font-medium transition-all duration-300">
+                            {item.label}
+                          </span>
+                          {isActive && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-blue-400/20 to-amber-400/20 animate-pulse"></div>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </nav>
+            </aside>
+          </>
+        )}
+
         {/* Contenu principal */}
         <main
           className={`transition-all duration-300 ${
             userPermissions.length > 0 &&
             schoolYears &&
             schoolYears.length > 0 &&
-            !showWelcome
+            !showWelcome &&
+            !isMobile
               ? sidebarCollapsed
                 ? "ml-20"
                 : "ml-80"
@@ -745,6 +841,20 @@ const Dashboard: React.FC = () => {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
+                  {/* ✅ Bouton menu mobile */}
+                  {isMobile && (
+                    <button
+                      onClick={() => setIsMobileMenuOpen(true)}
+                      className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${
+                        isDarkMode
+                          ? "text-gray-300 hover:text-white hover:bg-gray-700/50"
+                          : "text-gray-500 hover:text-gray-700 hover:bg-gray-100/50"
+                      }`}
+                    >
+                      <Menu className="w-6 h-6" />
+                    </button>
+                  )}
+
                   {userPermissions.length > 0 ? (
                     <>
                       <h2 className="hidden sm:flex text-2xl font-bold bg-gradient-to-r from-blue-600 to-amber-500 bg-clip-text text-transparent">
@@ -976,6 +1086,7 @@ const Dashboard: React.FC = () => {
             )}
           </div>
         </main>
+
         <ProfilModal
           isOpen={showProfilModal}
           onClose={() => setShowProfilModal(false)}
@@ -984,7 +1095,7 @@ const Dashboard: React.FC = () => {
         />
       </div>
       <ConnectionNotification />
-    </ProtectedRoute>
+    </>
   );
 };
 
