@@ -42,7 +42,10 @@ import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 
 import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import Spinner from "@/utils/Spinner/Spinner";
-import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
+import {
+  SUPER_ADMIN_CREDENTIALS,
+  SUPER_ADMIN_EMPLOYER,
+} from "@/Config/SuperAdmin/SuperAdmin";
 import ProfilModal from "@/components/ProfilModal";
 import {
   ConnectionNotification,

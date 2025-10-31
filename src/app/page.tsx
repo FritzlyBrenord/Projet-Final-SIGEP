@@ -196,14 +196,20 @@ function LoginPageContent() {
     try {
       const email = formData.email.trim().toLowerCase();
 
-      // ===== SUPER ADMIN =====
+      // ===== SUPER ADMIN (COMPTE DE DÉPANNAGE) =====
+      // ⚠️ NE PAS MODIFIER CETTE SECTION - COMPTE D'URGENCE
       if (
         email === SUPER_ADMIN_CREDENTIALS.email.toLowerCase() &&
         formData.password === SUPER_ADMIN_CREDENTIALS.password
       ) {
-        console.log("🔐 Connexion Super Admin détectée");
+        console.log("🔐 🚨 CONNEXION SUPER ADMIN (COMPTE DE DÉPANNAGE) 🚨");
 
-        // Données de session Super Admin
+        // ✅ PAS DE VÉRIFICATION DE DOUBLE CONNEXION
+        // C'est un compte d'urgence, il peut se connecter partout
+        console.log(
+          "⚠️ Super Admin : Compte de dépannage - Pas de vérification de double connexion"
+        );
+
         const superAdminSessionData = {
           id: SUPER_ADMIN_CREDENTIALS.id,
           email: SUPER_ADMIN_CREDENTIALS.email,
@@ -212,28 +218,56 @@ function LoginPageContent() {
           session_token: `superadmin_${Date.now()}`,
         };
 
-        // ✅ COOKIE DE SESSION SUPER ADMIN (disparaît à la fermeture du navigateur)
+        // ✅ COOKIE DE SESSION SUPER ADMIN
         document.cookie = `superadmin_session=${JSON.stringify(
           superAdminSessionData
         )}; path=/; secure; samesite=strict`;
-        // ❌ PAS de max-age = cookie de session !
-
         localStorage.setItem(
           "superadmin_session",
-          JSON.stringify(superAdminSessionData)
+          JSON.stringify({
+            id: SUPER_ADMIN_CREDENTIALS.id,
+            email: SUPER_ADMIN_CREDENTIALS.email,
+            role: "Super Administrateur",
+            timestamp: new Date().toISOString(),
+          })
         );
+        console.log(
+          "✅ Cookie de session Super Admin créé (compte de dépannage)"
+        );
+
+        // ✅ OPTIONNEL : Marquer comme online pour traçabilité
+        // (Ne bloque pas la connexion si l'API échoue)
+        try {
+          await fetch("/api/presence/connect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: superAdminSessionData.id,
+              email: superAdminSessionData.email,
+              session_token: superAdminSessionData.session_token,
+            }),
+          });
+          console.log(
+            "🟢 Super Admin marqué comme ONLINE (traçabilité de dépannage)"
+          );
+        } catch (presenceError) {
+          // ⚠️ Si l'API échoue, ce n'est pas grave (c'est un compte de dépannage)
+          console.warn(
+            "⚠️ Impossible de tracer la présence Super Admin (normal si BD HS):",
+            presenceError
+          );
+        }
+
         setAttemptCount(0);
-
-        console.log("✅ Cookie de session Super Admin créé");
-
         const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
         router.replace(redirectPath);
 
         addActivity({
           action: "connexion",
           module: "Authentification",
-          title: "Connexion Super Admin",
-          details: "L'utilisateur Super Admin s'est connecté avec succès.",
+          title: "🚨 Connexion Super Admin (Dépannage)",
+          details:
+            "Compte de dépannage Super Admin connecté - Accès d'urgence au système.",
         });
 
         setIsLoading(false);
@@ -269,22 +303,69 @@ function LoginPageContent() {
         return;
       }
 
-      // ✅ CONNEXION RÉUSSIE - CRÉER COOKIE DE SESSION UTILISATEUR
+      // ✅ VÉRIFIER SI DÉJÀ CONNECTÉ (SEULEMENT POUR UTILISATEURS NORMAUX)
+      try {
+        const checkResponse = await fetch("/api/presence/check-active", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: result.user.email_connexion || result.user.email_connexion,
+            user_id: result.user.id,
+          }),
+        });
+
+        const checkData = await checkResponse.json();
+
+        if (checkData.isActive) {
+          console.log("⚠️ Utilisateur déjà connecté ailleurs !");
+
+          const session = checkData.session;
+          const connectedAt = new Date(session.connected_at).toLocaleString(
+            "fr-FR"
+          );
+
+          setLoginError(
+            `🚫 Ce compte est déjà connecté depuis ${connectedAt} (IP: ${session.ip_address}). Contactez l'administrateur pour forcer la déconnexion.`
+          );
+          setIsLoading(false);
+          return;
+        }
+      } catch (checkError) {
+        console.error("⚠️ Erreur vérification session:", checkError);
+        // Continue quand même si la vérification échoue
+      }
+
+      // Pas de session active, continuer normalement
       const userSessionData = {
         id: result.user.id,
-        email: result.user.email_connexion,
+        email: result.user.email_connexion || result.user,
         role: result.user.role || "Utilisateur",
         timestamp: new Date().toISOString(),
         session_token: `user_${Date.now()}`,
       };
 
-      // ✅ COOKIE DE SESSION UTILISATEUR NORMAL (disparaît à la fermeture du navigateur)
+      // ✅ COOKIE DE SESSION UTILISATEUR
       document.cookie = `user_session=${JSON.stringify(
         userSessionData
       )}; path=/; secure; samesite=strict`;
-      // ❌ PAS de max-age = cookie de session !
 
       console.log("✅ Cookie de session Utilisateur créé");
+
+      // ✅ MARQUER COMME ONLINE
+      try {
+        await fetch("/api/presence/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userSessionData.id,
+            email: userSessionData.email,
+            session_token: userSessionData.session_token,
+          }),
+        });
+        console.log("🟢 Utilisateur marqué comme ONLINE dans la BD");
+      } catch (presenceError) {
+        console.error("⚠️ Erreur presence API:", presenceError);
+      }
 
       setAttemptCount(0);
       const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
