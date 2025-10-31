@@ -16,7 +16,7 @@ import {
   X,
   LogOut,
 } from "lucide-react";
-import { useRouteProtection } from "@/components/ProtectedPage";
+import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 
 interface WelcomeScreenProps {
   userName?: string;
@@ -38,9 +38,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
   onStartConfiguration,
 }) => {
   const [showFAQ, setShowFAQ] = useState(false);
+  const { Logout } = useContextUtilisateur();
   const [openFAQIndex, setOpenFAQIndex] = useState<number | null>(null);
   const [showPermissionError, setShowPermissionError] = useState(false);
-  const { handleLogout, isLoggingOut } = useRouteProtection();
+  const [isLoading, setIsLoading] = useState(false);
   const faqData: FAQItem[] = [
     {
       question: "Comment créer une année scolaire ?",
@@ -78,7 +79,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
       icon: <HelpCircle className="w-5 h-5 text-yellow-500" />,
     },
   ];
-
+  const handleLogout = () => {
+    setIsLoading(true);
+    setTimeout(async () => {
+      await Logout();
+      setIsLoading(false);
+    }, 5000);
+  };
   const systemFeatures = [
     {
       icon: <GraduationCap className="w-6 h-6" />,
@@ -172,10 +179,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               : "hover:bg-gradient-to-r hover:from-red-50 hover:to-red-100"
           }`}
           onClick={handleLogout}
-          disabled={isLoggingOut}
+          disabled={isLoading}
         >
           <LogOut className="w-4 h-4 mr-3" />
-          {isLoggingOut ? "Déconnexion..." : "Se déconnecter"}
+          {isLoading ? "Déconnexion..." : "Se déconnecter"}
         </button>
 
         {/* Message d'erreur de permission */}

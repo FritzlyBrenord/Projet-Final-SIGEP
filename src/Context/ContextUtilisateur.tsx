@@ -44,14 +44,6 @@ interface SessionData {
   isAuthenticated: boolean;
   canAccess: boolean;
 }
-import {
-  isUserAlreadyConnected,
-  getUserSession,
-  createSession,
-  forceNewSession,
-  getDeviceInfo,
-  deleteCurrentSession,
-} from "@/components/SessionManager";
 
 interface ListeContextUtilisateurType {
   // Gestion des utilisateurs
@@ -590,36 +582,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
 
       // ===== ÉTAPE 1: Vérifier si l'utilisateur est déjà connecté =====
-      const alreadyConnected = await isUserAlreadyConnected(email);
 
-      if (alreadyConnected) {
-        const existingSession = await getUserSession(email);
-
-        // Afficher une confirmation
-        const forceLogin = window.confirm(
-          `⚠️ Attention !\n\n` +
-            `Ce compte est déjà connecté depuis :\n` +
-            `- Appareil : ${existingSession?.device_info || "Inconnu"}\n` +
-            `- Depuis : ${
-              existingSession?.login_time
-                ? new Date(existingSession.login_time).toLocaleString()
-                : "Inconnu"
-            }\n\n` +
-            `Voulez-vous forcer la déconnexion de l'autre session et vous connecter ici ?`
-        );
-
-        if (!forceLogin) {
-          return {
-            success: false,
-            message: "Connexion annulée. Une session est déjà active.",
-          };
-        }
-
-        // L'utilisateur veut forcer la connexion
-        console.log("🔄 Forçage de la nouvelle session...");
-      }
-
-      // ===== ÉTAPE 2: Tentative de connexion Supabase Auth =====
       const loginResult = await SignIn(email, password);
 
       if (!loginResult.success) {
@@ -682,27 +645,6 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         };
       }
 
-      // ===== ÉTAPE 4: Créer/Forcer la session =====
-      let sessionToken: string | null;
-
-      if (alreadyConnected) {
-        // Forcer une nouvelle session (supprimer l'ancienne)
-        sessionToken = await forceNewSession(email);
-      } else {
-        // Créer une nouvelle session
-        sessionToken = await createSession(email);
-      }
-
-      if (!sessionToken) {
-        await SignOut();
-        return {
-          success: false,
-          message: "Erreur lors de la création de la session",
-        };
-      }
-
-      console.log("✅ Session créée avec token:", sessionToken);
-
       // ===== ÉTAPE 5: Mettre à jour la dernière connexion =====
       await UpdateData("Utilisateur", user.id!, {
         derniere_connexion: new Date().toISOString(),
@@ -738,10 +680,78 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
 
   const Logout = async (): Promise<boolean> => {
     try {
-      // Supprimer la session de la table
-      await deleteCurrentSession();
+      // ✅ RÉCUPÉRER LES INFOS DE SESSION AVANT DE TOUT SUPPRIMER
+      let sessionEmail = null;
+      let sessionUserId = null;
 
-      // Déconnexion Supabase
+      // Récupérer depuis les cookies
+      const cookies = document.cookie.split(";");
+
+      const superAdminCookie = cookies.find((c) =>
+        c.trim().startsWith("superadmin_session=")
+      );
+      const userCookie = cookies.find((c) =>
+        c.trim().startsWith("user_session=")
+      );
+
+      if (superAdminCookie) {
+        try {
+          const value = superAdminCookie.split("=")[1];
+          const data = JSON.parse(decodeURIComponent(value));
+          sessionEmail = data.email;
+          sessionUserId = data.id;
+        } catch (e) {
+          console.error("Erreur parsing superadmin cookie:", e);
+        }
+      } else if (userCookie) {
+        try {
+          const value = userCookie.split("=")[1];
+          const data = JSON.parse(decodeURIComponent(value));
+          sessionEmail = data.email;
+          sessionUserId = data.id;
+        } catch (e) {
+          console.error("Erreur parsing user cookie:", e);
+        }
+      }
+
+      // ✅ MARQUER COMME OFFLINE DANS LA BASE DE DONNÉES
+      if (sessionEmail) {
+        try {
+          const response = await fetch("/api/presence/disconnect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: sessionEmail,
+              user_id: sessionUserId,
+            }),
+          });
+
+          if (response.ok) {
+            console.log("⚫ Marqué comme OFFLINE dans la BD");
+          } else {
+            console.error(
+              "⚠️ Erreur lors du marquage offline:",
+              response.status
+            );
+          }
+        } catch (presenceError) {
+          console.error("⚠️ Erreur API presence/disconnect:", presenceError);
+          // Continue quand même la déconnexion
+        }
+      }
+
+      // ✅ SUPPRIMER LES COOKIES DE SESSION
+      document.cookie =
+        "superadmin_session=; path=/; max-age=0; secure; samesite=strict";
+      document.cookie =
+        "user_session=; path=/; max-age=0; secure; samesite=strict";
+
+      // ✅ NETTOYER LOCALSTORAGE
+      localStorage.removeItem("superadmin_session");
+
+      console.log("🗑️ Cookies et localStorage nettoyés");
+
+      // ✅ DÉCONNEXION SUPABASE
       const success = await SignOut();
 
       if (success === true) {
@@ -752,14 +762,61 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           isAuthenticated: false,
           canAccess: false,
         });
+
+        console.log("✅ Déconnexion Supabase réussie");
+        console.log("✅ Déconnexion complète !");
         return true;
       }
+
+      console.log("❌ Échec de la déconnexion Supabase");
       return false;
     } catch (error) {
-      console.error("Erreur lors de la déconnexion:", error);
+      console.error("❌ Erreur lors de la déconnexion:", error);
+
+      // ✅ MÊME EN CAS D'ERREUR, SUPPRIMER LES COOKIES
+      document.cookie =
+        "superadmin_session=; path=/; max-age=0; secure; samesite=strict";
+      document.cookie =
+        "user_session=; path=/; max-age=0; secure; samesite=strict";
+      localStorage.removeItem("superadmin_session");
+
+      // ✅ TENTER DE MARQUER OFFLINE MÊME EN CAS D'ERREUR
+      try {
+        const cookies = document.cookie.split(";");
+        const superAdminCookie = cookies.find((c) =>
+          c.trim().startsWith("superadmin_session=")
+        );
+        const userCookie = cookies.find((c) =>
+          c.trim().startsWith("user_session=")
+        );
+
+        let email = null;
+
+        if (superAdminCookie) {
+          const data = JSON.parse(
+            decodeURIComponent(superAdminCookie.split("=")[1])
+          );
+          email = data.email;
+        } else if (userCookie) {
+          const data = JSON.parse(decodeURIComponent(userCookie.split("=")[1]));
+          email = data.email;
+        }
+
+        if (email) {
+          await fetch("/api/presence/disconnect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+        }
+      } catch (presenceError) {
+        console.error("⚠️ Impossible de marquer offline:", presenceError);
+      }
+
       return false;
     }
   };
+
   // Fonction pour rafraîchir la liste
   const RefreshUtilisateurs = async () => {
     await fetchUtilisateurs();

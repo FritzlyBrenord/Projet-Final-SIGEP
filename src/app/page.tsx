@@ -11,44 +11,35 @@ import {
   BookOpen,
   Shield,
   AlertTriangle,
+  Monitor,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import Uuid from "@/utils/UUid/Uuid";
-// Import du Super Admin
-import {
-  SUPER_ADMIN_CREDENTIALS,
-  SUPER_ADMIN_USER_PROFILE,
-} from "@/Config/SuperAdmin/SuperAdmin";
+import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
 import { useRecentActivities } from "@/Context/RecentActivitiesContext";
-import {
-  ConnectionNotification,
-  useConnectionStatus,
-} from "@/components/ConnectionNotification";
-import {
-  isUserAlreadyConnected,
-  getUserSession,
-  createSession,
-} from "@/components/SessionManager";
-import { deleteExpiredSessions } from "@/components/deleteExpiredSessions";
+
+import { useConnectionStatus } from "@/components/ConnectionNotification";
+
 interface LoginFormData {
   email: string;
   password: string;
 }
 
 interface SecurityAlert {
-  type: "warning" | "error" | "info";
+  type: "warning" | "error" | "info" | "success";
   message: string;
 }
 
-function SIGEPLoginPageContent() {
+function LoginPageContent() {
   const router = useRouter();
-  const { uuid, rafrechieUUID } = Uuid();
+  const { uuid } = Uuid();
   const { addActivity } = useRecentActivities();
   const searchParams = useSearchParams();
   const {
     Login,
     Logout,
-    currentSession,
     loading: contextLoading,
     error: contextError,
     BloquerUtilisateurParEmail,
@@ -70,16 +61,13 @@ function SIGEPLoginPageContent() {
   const [blockTimeRemaining, setBlockTimeRemaining] = useState<number>(0);
   const [isAccountBlocked, setIsAccountBlocked] = useState<boolean>(false);
 
-  // Gérer les alertes de sécurité basées sur les paramètres URL
+  const isOnline = useConnectionStatus();
+
+  // Gérer les alertes de sécurité
   useEffect(() => {
     const reason = searchParams.get("reason");
     if (reason) {
       const alerts: Record<string, SecurityAlert> = {
-        url_tampered: {
-          type: "error",
-          message:
-            "URL modifiée détectée. Veuillez vous reconnecter pour des raisons de sécurité.",
-        },
         session_expired: {
           type: "warning",
           message: "Votre session a expiré. Veuillez vous reconnecter.",
@@ -88,14 +76,14 @@ function SIGEPLoginPageContent() {
           type: "error",
           message: "Votre compte est bloqué. Contactez l'administrateur.",
         },
-        insufficient_permissions: {
-          type: "warning",
-          message:
-            "Accès non autorisé. Reconnectez-vous avec les bons privilèges.",
-        },
         security_error: {
           type: "error",
           message: "Erreur de sécurité détectée. Reconnexion requise.",
+        },
+
+        user_logout: {
+          type: "success",
+          message: "Vous avez été déconnecté avec succès.",
         },
       };
 
@@ -109,15 +97,28 @@ function SIGEPLoginPageContent() {
     }
   }, [searchParams]);
 
-  const isOnline = useConnectionStatus();
-  // Gestion du blocage temporaire après plusieurs tentatives
+  // Gestion du blocage temporaire
   useEffect(() => {
     if (attemptCount >= 5) {
       setIsBlocked(true);
       setBlockTimeRemaining(300); // 5 minutes
       BloquerUtilisateurParEmail(formData.email);
     }
-  }, [BloquerUtilisateurParEmail, attemptCount, formData.email]);
+  }, [attemptCount, formData.email, BloquerUtilisateurParEmail]);
+
+  // Compte à rebours du blocage
+  useEffect(() => {
+    if (isBlocked && blockTimeRemaining > 0) {
+      const timer = setTimeout(() => {
+        setBlockTimeRemaining((prev) => prev - 1);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    } else if (isBlocked && blockTimeRemaining === 0) {
+      setIsBlocked(false);
+      setAttemptCount(0);
+    }
+  }, [isBlocked, blockTimeRemaining]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -131,7 +132,7 @@ function SIGEPLoginPageContent() {
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" && !isBlocked && !isAccountBlocked) {
+    if (e.key === "Enter" && !isBlocked && !isAccountBlocked && isOnline) {
       handleSubmit();
     }
   };
@@ -159,21 +160,28 @@ function SIGEPLoginPageContent() {
 
     return true;
   };
-
-  // handleSubmit complet
   const handleSubmit = async () => {
+    if (!isOnline) {
+      setLoginError("❌ Connexion Internet requise pour se connecter");
+      return;
+    }
+
+    // Déconnexion préalable pour nettoyer toute session existante
     Logout();
 
     if (isBlocked) {
       setLoginError(
-        `Trop de tentatives. Réessayez dans ${Math.ceil(
+        `❌ Trop de tentatives. Réessayez dans ${Math.ceil(
           blockTimeRemaining / 60
         )} minute(s).`
       );
       return;
     }
 
-    if (isAccountBlocked) return;
+    if (isAccountBlocked) {
+      setLoginError("❌ Votre compte est bloqué. Contactez l'administrateur.");
+      return;
+    }
 
     if (!validateForm()) return;
 
@@ -183,9 +191,6 @@ function SIGEPLoginPageContent() {
     try {
       const email = formData.email.trim().toLowerCase();
 
-      // 1️⃣ Supprimer les sessions expirées avant vérification
-      await deleteExpiredSessions(email);
-
       // ===== SUPER ADMIN =====
       if (
         email === SUPER_ADMIN_CREDENTIALS.email.toLowerCase() &&
@@ -193,41 +198,70 @@ function SIGEPLoginPageContent() {
       ) {
         console.log("🔐 Connexion Super Admin détectée");
 
-        const alreadyConnected = await isUserAlreadyConnected(email);
-
-        if (alreadyConnected) {
-          setLoginError(
-            `⚠️ Une personne est déjà connectée sur ce compte. Contactez l'administrateur.`
-          );
-          setSecurityAlert({
-            type: "error",
-            message: "Connexion refusée - Session active existante",
+        // ✅ VÉRIFIER SI DÉJÀ CONNECTÉ
+        try {
+          const checkResponse = await fetch("/api/presence/check-active", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: SUPER_ADMIN_CREDENTIALS.email,
+            }),
           });
-          setIsLoading(false);
-          return;
+
+          const checkData = await checkResponse.json();
+
+          if (checkData.isActive) {
+            console.log("⚠️ Super Admin déjà connecté ailleurs !");
+
+            const session = checkData.session;
+            const connectedAt = new Date(session.connected_at).toLocaleString(
+              "fr-FR"
+            );
+
+            setLoginError(
+              `🚫 Ce compte est déjà connecté depuis ${connectedAt} (IP: ${session.ip_address}). Contactez l'administrateur pour forcer la déconnexion.`
+            );
+            setIsLoading(false);
+            return;
+          }
+        } catch (checkError) {
+          console.error("⚠️ Erreur vérification session:", checkError);
+          // Continue quand même si la vérification échoue
         }
 
-        const sessionToken = await createSession(email);
-        if (!sessionToken) {
-          setLoginError("Erreur lors de la création de session Super Admin");
-          setIsLoading(false);
-          return;
-        }
-
-        // Stockage session Super Admin
-        const sessionData = {
+        // Pas de session active, continuer normalement
+        const superAdminSessionData = {
           id: SUPER_ADMIN_CREDENTIALS.id,
           email: SUPER_ADMIN_CREDENTIALS.email,
           role: "Super Administrateur",
           timestamp: new Date().toISOString(),
+          session_token: `superadmin_${Date.now()}`,
         };
+
+        // ✅ COOKIE DE SESSION SUPER ADMIN
         document.cookie = `superadmin_session=${JSON.stringify(
-          sessionData
-        )}; path=/; max-age=${24 * 60 * 60}`;
-        localStorage.setItem("superadmin_session", JSON.stringify(sessionData));
+          superAdminSessionData
+        )}; path=/; secure; samesite=strict`;
+
+        console.log("✅ Cookie de session Super Admin créé");
+
+        // ✅ MARQUER COMME ONLINE
+        try {
+          await fetch("/api/presence/connect", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: superAdminSessionData.id,
+              email: superAdminSessionData.email,
+              session_token: superAdminSessionData.session_token,
+            }),
+          });
+          console.log("🟢 Super Admin marqué comme ONLINE dans la BD");
+        } catch (presenceError) {
+          console.error("⚠️ Erreur presence API:", presenceError);
+        }
 
         setAttemptCount(0);
-
         const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
         router.replace(redirectPath);
 
@@ -245,20 +279,6 @@ function SIGEPLoginPageContent() {
       // ===== UTILISATEUR NORMAL =====
       console.log("👤 Connexion utilisateur normal...");
 
-      const alreadyConnected = await isUserAlreadyConnected(email);
-
-      if (alreadyConnected) {
-        setLoginError(
-          `⚠️ Une personne est déjà connectée sur ce compte. Contactez l'administrateur.`
-        );
-        setSecurityAlert({
-          type: "error",
-          message: "Connexion refusée - Session active existante",
-        });
-        setIsLoading(false);
-        return;
-      }
-
       // Authentification Supabase
       const result = await Login(email, formData.password);
 
@@ -270,17 +290,83 @@ function SIGEPLoginPageContent() {
 
         if (messageBlocked) {
           setIsAccountBlocked(true);
-          setLoginError(result.message);
+          setLoginError(
+            "❌ Votre compte est bloqué. Contactez l'administrateur."
+          );
           setSecurityAlert({
             type: "error",
             message: "Votre compte est bloqué. Contactez l'administrateur.",
           });
         } else {
           setAttemptCount((prev) => prev + 1);
-          setLoginError(result.message || "Email ou mot de passe incorrect");
+          setLoginError(result.message || "❌ Email ou mot de passe incorrect");
         }
         setIsLoading(false);
         return;
+      }
+
+      // ✅ VÉRIFIER SI DÉJÀ CONNECTÉ
+      try {
+        const checkResponse = await fetch("/api/presence/check-active", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: result.user.email_connexion || result.user.email_connexion,
+            user_id: result.user.id,
+          }),
+        });
+
+        const checkData = await checkResponse.json();
+
+        if (checkData.isActive) {
+          console.log("⚠️ Utilisateur déjà connecté ailleurs !");
+
+          const session = checkData.session;
+          const connectedAt = new Date(session.connected_at).toLocaleString(
+            "fr-FR"
+          );
+
+          setLoginError(
+            `🚫 Ce compte est déjà connecté depuis ${connectedAt} (IP: ${session.ip_address}). Contactez l'administrateur pour forcer la déconnexion.`
+          );
+          setIsLoading(false);
+          return;
+        }
+      } catch (checkError) {
+        console.error("⚠️ Erreur vérification session:", checkError);
+        // Continue quand même si la vérification échoue
+      }
+
+      // Pas de session active, continuer normalement
+      const userSessionData = {
+        id: result.user.id,
+        email: result.user.email_connexion || result.user.email_connexion,
+        role: result.user.role || "Utilisateur",
+        timestamp: new Date().toISOString(),
+        session_token: `user_${Date.now()}`,
+      };
+
+      // ✅ COOKIE DE SESSION UTILISATEUR
+      document.cookie = `user_session=${JSON.stringify(
+        userSessionData
+      )}; path=/; secure; samesite=strict`;
+
+      console.log("✅ Cookie de session Utilisateur créé");
+
+      // ✅ MARQUER COMME ONLINE
+      try {
+        await fetch("/api/presence/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userSessionData.id,
+            email: userSessionData.email,
+            session_token: userSessionData.session_token,
+          }),
+        });
+        console.log("🟢 Utilisateur marqué comme ONLINE dans la BD");
+      } catch (presenceError) {
+        console.error("⚠️ Erreur presence API:", presenceError);
       }
 
       setAttemptCount(0);
@@ -291,12 +377,12 @@ function SIGEPLoginPageContent() {
         action: "connexion",
         module: "Authentification",
         title: "Connexion réussie",
-        details: `L'utilisateur s'est connecté avec succès.`,
+        details: `L'utilisateur ${email} s'est connecté avec succès.`,
       });
     } catch (error: any) {
       console.error("❌ Erreur lors de la connexion:", error);
       setAttemptCount((prev) => prev + 1);
-      setLoginError("Erreur de connexion. Veuillez réessayer.");
+      setLoginError("❌ Erreur de connexion. Veuillez réessayer.");
     } finally {
       setIsLoading(false);
     }
@@ -315,8 +401,11 @@ function SIGEPLoginPageContent() {
       case "warning":
         return "bg-yellow-100 border-yellow-400 text-yellow-800";
       case "info":
-      default:
         return "bg-blue-100 border-blue-400 text-blue-800";
+      case "success":
+        return "bg-green-100 border-green-400 text-green-800";
+      default:
+        return "bg-gray-100 border-gray-400 text-gray-800";
     }
   };
 
@@ -327,12 +416,15 @@ function SIGEPLoginPageContent() {
       case "warning":
         return <Shield className="w-5 h-5" />;
       case "info":
+        return <Monitor className="w-5 h-5" />;
+      case "success":
+        return <Shield className="w-5 h-5" />;
       default:
         return <Shield className="w-5 h-5" />;
     }
   };
 
-  const shouldDisableFields = isBlocked || isAccountBlocked;
+  const shouldDisableFields = isBlocked || isAccountBlocked || !isOnline;
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4">
@@ -343,18 +435,7 @@ function SIGEPLoginPageContent() {
           alt="École - Institution Mixte Faustin Premier"
           className="w-full h-full object-cover"
         />
-
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900/70 via-indigo-900/60 to-purple-900/70"></div>
-
-        <div
-          className="absolute inset-0 opacity-10"
-          style={{
-            backgroundImage: `radial-gradient(circle at 25% 25%, white 1px, transparent 1px),
-                           radial-gradient(circle at 75% 75%, white 1px, transparent 1px)`,
-            backgroundSize: "50px 50px",
-          }}
-        ></div>
-
         <div className="absolute inset-0 bg-black/20"></div>
       </div>
 
@@ -362,7 +443,6 @@ function SIGEPLoginPageContent() {
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -right-32 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
         <div className="absolute -bottom-40 -left-32 w-96 h-96 bg-white/5 rounded-full blur-3xl"></div>
-        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-blue-400/10 rounded-full blur-2xl"></div>
       </div>
 
       <div className="relative w-full max-w-md">
@@ -398,18 +478,37 @@ function SIGEPLoginPageContent() {
           </div>
         )}
 
+        {/* Alerte connexion Internet */}
+        {!isOnline && (
+          <div className="mb-6 p-4 bg-orange-100 border border-orange-400 text-orange-800 rounded-lg backdrop-blur-sm">
+            <div className="flex items-center">
+              <WifiOff className="w-5 h-5 mr-3" />
+              <div>
+                <p className="font-medium">Connexion Internet perdue</p>
+                <p className="text-sm mt-1">
+                  Vous êtes hors ligne. La connexion est impossible sans
+                  Internet.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Formulaire de connexion */}
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/30 p-8">
           <div className="flex items-center justify-center mb-6">
             <BookOpen className="w-6 h-6 text-blue-600 mr-2" />
-            <h3 className="text-xl font-semibold text-gray-800">Connexion</h3>
+            <h3 className="text-xl font-semibold text-gray-800">
+              Connexion Sécurisée
+            </h3>
           </div>
+
           {/* Indicateur de tentatives */}
           {attemptCount > 0 && !isAccountBlocked && isOnline && (
             <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                Tentatives de connexion: {attemptCount}/5
-                {attemptCount >= 3 && " ⚠️ Attention!"}
+                ⚠️ Tentatives de connexion: {attemptCount}/5
+                {attemptCount >= 3 && " - Attention!"}
               </p>
             </div>
           )}
@@ -421,13 +520,14 @@ function SIGEPLoginPageContent() {
                 <Shield className="w-5 h-5 text-red-600 mr-3" />
                 <div>
                   <p className="text-sm font-medium text-red-800">
-                    Compte bloqué définitivement <br /> Contactez
-                    l'administrateur
+                    🔒 Trop de tentatives. Réessayez dans{" "}
+                    {formatTime(blockTimeRemaining)}
                   </p>
                 </div>
               </div>
             </div>
           )}
+
           {/* Alerte compte bloqué */}
           {isAccountBlocked && (
             <div className="mb-6 p-4 bg-red-100 border-2 border-red-500 rounded-lg">
@@ -435,16 +535,17 @@ function SIGEPLoginPageContent() {
                 <AlertTriangle className="w-6 h-6 text-red-600 mr-3" />
                 <div>
                   <p className="text-sm font-bold text-red-900">
-                    Compte bloqué
+                    🚫 Compte bloqué
                   </p>
                   <p className="text-xs text-red-700 mt-1">
                     Votre compte a été bloqué par l'administrateur. Veuillez
-                    contacter le support technique pour plus d'informations.
+                    contacter le support technique.
                   </p>
                 </div>
               </div>
             </div>
           )}
+
           <div className="space-y-6">
             {/* Champ Email */}
             <div className="space-y-2">
@@ -523,14 +624,14 @@ function SIGEPLoginPageContent() {
             </div>
 
             {/* Message d'erreur */}
-            {(loginError || contextError) && !isAccountBlocked && isOnline && (
+            {(loginError || contextError) && isOnline && (
               <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                 <p className="text-sm">{loginError || contextError}</p>
               </div>
             )}
 
             {/* Liens d'aide */}
-            {!isAccountBlocked && (
+            {!isAccountBlocked && isOnline && (
               <div className="flex items-center justify-between text-sm">
                 <a
                   href="#"
@@ -538,6 +639,11 @@ function SIGEPLoginPageContent() {
                 >
                   Mot de passe oublié ?
                 </a>
+                <span
+                  className={`font-medium flex items-center ${
+                    isOnline ? "text-green-600" : "text-orange-600"
+                  }`}
+                ></span>
               </div>
             )}
 
@@ -547,7 +653,12 @@ function SIGEPLoginPageContent() {
               disabled={isLoading || shouldDisableFields}
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none shadow-lg disabled:from-gray-400 disabled:to-gray-500"
             >
-              {isLoading ? (
+              {!isOnline ? (
+                <div className="flex items-center justify-center">
+                  <WifiOff className="w-5 h-5 mr-2" />
+                  Pas de connexion Internet
+                </div>
+              ) : isLoading ? (
                 <div className="flex items-center justify-center">
                   <svg
                     className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
@@ -572,15 +683,11 @@ function SIGEPLoginPageContent() {
                   Connexion en cours...
                 </div>
               ) : isAccountBlocked ? (
-                "Compte bloqué"
+                "🚫 Compte bloqué"
               ) : isBlocked ? (
-                !isOnline ? (
-                  "Pas de connexion Internet"
-                ) : (
-                  "Bloqué définitivement"
-                )
+                `🔒 Bloqué (${formatTime(blockTimeRemaining)})`
               ) : (
-                "Se connecter"
+                "🔐 Se connecter"
               )}
             </button>
           </div>
@@ -589,24 +696,28 @@ function SIGEPLoginPageContent() {
         {/* Footer */}
         <div className="text-center mt-8 text-xs text-gray-300 drop-shadow-md">
           <p>© {new Date().getFullYear()} Institution Mixte Faustin Premier</p>
-          <p>Système SIGEP - Tous droits réservés</p>
+          <p className="mt-1">
+            Système SIGEP - Sécurité renforcée - Tous droits réservés
+          </p>
         </div>
       </div>
     </div>
   );
 }
 
-export default function SIGEPLoginPage() {
+export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-indigo-900">
+          <div className="text-center text-white">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+            <p>Chargement de la page de connexion...</p>
+          </div>
         </div>
       }
     >
-      <SIGEPLoginPageContent />
-      <ConnectionNotification />
+      <LoginPageContent />
     </Suspense>
   );
 }
