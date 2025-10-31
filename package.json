@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.2",
     "chart.js": "^4.5.0",
     "crypto-js": "^4.2.0",

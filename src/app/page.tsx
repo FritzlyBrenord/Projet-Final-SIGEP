@@ -80,7 +80,11 @@ function LoginPageContent() {
           type: "error",
           message: "Erreur de sécurité détectée. Reconnexion requise.",
         },
-
+        browser_closed: {
+          type: "info",
+          message:
+            "Vous avez été déconnecté suite à la fermeture du navigateur.",
+        },
         user_logout: {
           type: "success",
           message: "Vous avez été déconnecté avec succès.",
@@ -160,6 +164,7 @@ function LoginPageContent() {
 
     return true;
   };
+
   const handleSubmit = async () => {
     if (!isOnline) {
       setLoginError("❌ Connexion Internet requise pour se connecter");
@@ -198,38 +203,7 @@ function LoginPageContent() {
       ) {
         console.log("🔐 Connexion Super Admin détectée");
 
-        // ✅ VÉRIFIER SI DÉJÀ CONNECTÉ
-        try {
-          const checkResponse = await fetch("/api/presence/check-active", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: SUPER_ADMIN_CREDENTIALS.email,
-            }),
-          });
-
-          const checkData = await checkResponse.json();
-
-          if (checkData.isActive) {
-            console.log("⚠️ Super Admin déjà connecté ailleurs !");
-
-            const session = checkData.session;
-            const connectedAt = new Date(session.connected_at).toLocaleString(
-              "fr-FR"
-            );
-
-            setLoginError(
-              `🚫 Ce compte est déjà connecté depuis ${connectedAt} (IP: ${session.ip_address}). Contactez l'administrateur pour forcer la déconnexion.`
-            );
-            setIsLoading(false);
-            return;
-          }
-        } catch (checkError) {
-          console.error("⚠️ Erreur vérification session:", checkError);
-          // Continue quand même si la vérification échoue
-        }
-
-        // Pas de session active, continuer normalement
+        // Données de session Super Admin
         const superAdminSessionData = {
           id: SUPER_ADMIN_CREDENTIALS.id,
           email: SUPER_ADMIN_CREDENTIALS.email,
@@ -238,30 +212,20 @@ function LoginPageContent() {
           session_token: `superadmin_${Date.now()}`,
         };
 
-        // ✅ COOKIE DE SESSION SUPER ADMIN
+        // ✅ COOKIE DE SESSION SUPER ADMIN (disparaît à la fermeture du navigateur)
         document.cookie = `superadmin_session=${JSON.stringify(
           superAdminSessionData
         )}; path=/; secure; samesite=strict`;
+        // ❌ PAS de max-age = cookie de session !
+
+        localStorage.setItem(
+          "superadmin_session",
+          JSON.stringify(superAdminSessionData)
+        );
+        setAttemptCount(0);
 
         console.log("✅ Cookie de session Super Admin créé");
 
-        // ✅ MARQUER COMME ONLINE
-        try {
-          await fetch("/api/presence/connect", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              user_id: superAdminSessionData.id,
-              email: superAdminSessionData.email,
-              session_token: superAdminSessionData.session_token,
-            }),
-          });
-          console.log("🟢 Super Admin marqué comme ONLINE dans la BD");
-        } catch (presenceError) {
-          console.error("⚠️ Erreur presence API:", presenceError);
-        }
-
-        setAttemptCount(0);
         const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
         router.replace(redirectPath);
 
@@ -305,69 +269,22 @@ function LoginPageContent() {
         return;
       }
 
-      // ✅ VÉRIFIER SI DÉJÀ CONNECTÉ
-      try {
-        const checkResponse = await fetch("/api/presence/check-active", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: result.user.email_connexion || result.user.email_connexion,
-            user_id: result.user.id,
-          }),
-        });
-
-        const checkData = await checkResponse.json();
-
-        if (checkData.isActive) {
-          console.log("⚠️ Utilisateur déjà connecté ailleurs !");
-
-          const session = checkData.session;
-          const connectedAt = new Date(session.connected_at).toLocaleString(
-            "fr-FR"
-          );
-
-          setLoginError(
-            `🚫 Ce compte est déjà connecté depuis ${connectedAt} (IP: ${session.ip_address}). Contactez l'administrateur pour forcer la déconnexion.`
-          );
-          setIsLoading(false);
-          return;
-        }
-      } catch (checkError) {
-        console.error("⚠️ Erreur vérification session:", checkError);
-        // Continue quand même si la vérification échoue
-      }
-
-      // Pas de session active, continuer normalement
+      // ✅ CONNEXION RÉUSSIE - CRÉER COOKIE DE SESSION UTILISATEUR
       const userSessionData = {
         id: result.user.id,
-        email: result.user.email_connexion || result.user.email_connexion,
+        email: result.user.email_connexion,
         role: result.user.role || "Utilisateur",
         timestamp: new Date().toISOString(),
         session_token: `user_${Date.now()}`,
       };
 
-      // ✅ COOKIE DE SESSION UTILISATEUR
+      // ✅ COOKIE DE SESSION UTILISATEUR NORMAL (disparaît à la fermeture du navigateur)
       document.cookie = `user_session=${JSON.stringify(
         userSessionData
       )}; path=/; secure; samesite=strict`;
+      // ❌ PAS de max-age = cookie de session !
 
       console.log("✅ Cookie de session Utilisateur créé");
-
-      // ✅ MARQUER COMME ONLINE
-      try {
-        await fetch("/api/presence/connect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user_id: userSessionData.id,
-            email: userSessionData.email,
-            session_token: userSessionData.session_token,
-          }),
-        });
-        console.log("🟢 Utilisateur marqué comme ONLINE dans la BD");
-      } catch (presenceError) {
-        console.error("⚠️ Erreur presence API:", presenceError);
-      }
 
       setAttemptCount(0);
       const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
@@ -643,7 +560,14 @@ function LoginPageContent() {
                   className={`font-medium flex items-center ${
                     isOnline ? "text-green-600" : "text-orange-600"
                   }`}
-                ></span>
+                >
+                  {isOnline ? (
+                    <Wifi className="w-4 h-4 mr-1" />
+                  ) : (
+                    <WifiOff className="w-4 h-4 mr-1" />
+                  )}
+                  {isOnline ? "Internet OK" : "Hors ligne"}
+                </span>
               </div>
             )}
 
