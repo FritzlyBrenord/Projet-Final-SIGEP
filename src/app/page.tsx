@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, Suspense, useRef } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Eye,
   EyeOff,
@@ -62,6 +62,21 @@ function LoginPageContent() {
   const [isAccountBlocked, setIsAccountBlocked] = useState<boolean>(false);
 
   const isOnline = useConnectionStatus();
+  const pathname = usePathname();
+  const searchParamss = useSearchParams();
+  const hasExecuted = useRef(false);
+
+  useEffect(() => {
+    // Vérifie uniquement le pathname, ignore les paramètres GET
+    if (pathname === "/" && !hasExecuted.current) {
+      hasExecuted.current = true;
+
+      // Optionnel : récupérer le paramètre 'reason' si besoin
+      const reason = searchParams.get("reason");
+
+      Logout();
+    }
+  }, [Logout, pathname, searchParams]);
 
   // Gérer les alertes de sécurité
   useEffect(() => {
@@ -80,11 +95,7 @@ function LoginPageContent() {
           type: "error",
           message: "Erreur de sécurité détectée. Reconnexion requise.",
         },
-        browser_closed: {
-          type: "info",
-          message:
-            "Vous avez été déconnecté suite à la fermeture du navigateur.",
-        },
+
         user_logout: {
           type: "success",
           message: "Vous avez été déconnecté avec succès.",
@@ -198,16 +209,52 @@ function LoginPageContent() {
 
       // ===== SUPER ADMIN (COMPTE DE DÉPANNAGE) =====
       // ⚠️ NE PAS MODIFIER CETTE SECTION - COMPTE D'URGENCE
+      // ===== SUPER ADMIN (COMPTE DE DÉPANNAGE) =====
       if (
         email === SUPER_ADMIN_CREDENTIALS.email.toLowerCase() &&
         formData.password === SUPER_ADMIN_CREDENTIALS.password
       ) {
-        console.log("🔐 🚨 CONNEXION SUPER ADMIN (COMPTE DE DÉPANNAGE) 🚨");
+        console.log("🔐 🚨 TENTATIVE DE CONNEXION SUPER ADMIN 🚨");
 
-        // ✅ PAS DE VÉRIFICATION DE DOUBLE CONNEXION
-        // C'est un compte d'urgence, il peut se connecter partout
+        // ✅ VÉRIFIER VIA L'API SI LE SUPER ADMIN EST DÉJÀ CONNECTÉ
+        try {
+          const checkResponse = await fetch("/api/presence/check-active", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: SUPER_ADMIN_CREDENTIALS.email,
+              user_id: SUPER_ADMIN_CREDENTIALS.id,
+            }),
+          });
+
+          const checkData = await checkResponse.json();
+
+          if (checkData.isActive) {
+            console.log("⚠️ Super Admin déjà connecté ailleurs !");
+
+            const session = checkData.session;
+            const connectedAt = new Date(session.connected_at).toLocaleString(
+              "fr-FR"
+            );
+
+            setLoginError(
+              `🚫 Le compte Super Admin est déjà connecté depuis ${connectedAt} (IP: ${
+                session.ip_address || "inconnue"
+              }). Une seule session autorisée.`
+            );
+            setSecurityAlert({
+              type: "error",
+              message: "Super Admin déjà connecté sur un autre appareil",
+            });
+            setIsLoading(false);
+            return; // ⚠️ STOPPER LA CONNEXION
+          }
+        } catch (checkError) {
+          console.error("⚠️ Erreur vérification Super Admin:", checkError);
+        }
+
         console.log(
-          "⚠️ Super Admin : Compte de dépannage - Pas de vérification de double connexion"
+          "✅ Aucune session Super Admin active - Connexion autorisée"
         );
 
         const superAdminSessionData = {
@@ -215,28 +262,22 @@ function LoginPageContent() {
           email: SUPER_ADMIN_CREDENTIALS.email,
           role: "Super Administrateur",
           timestamp: new Date().toISOString(),
-          session_token: `superadmin_${Date.now()}`,
+          session_token: `superadmin_${Date.now()}_${Math.random()
+            .toString(36)
+            .substring(7)}`,
         };
 
-        // ✅ COOKIE DE SESSION SUPER ADMIN
+        // Créer cookies + localStorage (code existant OK)
         document.cookie = `superadmin_session=${JSON.stringify(
           superAdminSessionData
-        )}; path=/; secure; samesite=strict`;
+        )}; path=/; secure; samesite=strict; max-age=${24 * 60 * 60}`;
+
         localStorage.setItem(
           "superadmin_session",
-          JSON.stringify({
-            id: SUPER_ADMIN_CREDENTIALS.id,
-            email: SUPER_ADMIN_CREDENTIALS.email,
-            role: "Super Administrateur",
-            timestamp: new Date().toISOString(),
-          })
-        );
-        console.log(
-          "✅ Cookie de session Super Admin créé (compte de dépannage)"
+          JSON.stringify(superAdminSessionData)
         );
 
-        // ✅ OPTIONNEL : Marquer comme online pour traçabilité
-        // (Ne bloque pas la connexion si l'API échoue)
+        // ✅ ENREGISTRER DANS LA BASE DE DONNÉES
         try {
           await fetch("/api/presence/connect", {
             method: "POST",
@@ -245,19 +286,15 @@ function LoginPageContent() {
               user_id: superAdminSessionData.id,
               email: superAdminSessionData.email,
               session_token: superAdminSessionData.session_token,
+              is_super_admin: true, // ⚠️ IMPORTANT
             }),
           });
-          console.log(
-            "🟢 Super Admin marqué comme ONLINE (traçabilité de dépannage)"
-          );
+          console.log("🟢 Super Admin enregistré dans la BD");
         } catch (presenceError) {
-          // ⚠️ Si l'API échoue, ce n'est pas grave (c'est un compte de dépannage)
-          console.warn(
-            "⚠️ Impossible de tracer la présence Super Admin (normal si BD HS):",
-            presenceError
-          );
+          console.warn("⚠️ Erreur enregistrement Super Admin:", presenceError);
         }
 
+        // Redirection (code existant OK)
         setAttemptCount(0);
         const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
         router.replace(redirectPath);
@@ -265,9 +302,8 @@ function LoginPageContent() {
         addActivity({
           action: "connexion",
           module: "Authentification",
-          title: "🚨 Connexion Super Admin (Dépannage)",
-          details:
-            "Compte de dépannage Super Admin connecté - Accès d'urgence au système.",
+          title: "🚨 Connexion Super Admin",
+          details: "Super Admin connecté avec vérification de session unique.",
         });
 
         setIsLoading(false);
@@ -625,30 +661,6 @@ function LoginPageContent() {
             {(loginError || contextError) && isOnline && (
               <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
                 <p className="text-sm">{loginError || contextError}</p>
-              </div>
-            )}
-
-            {/* Liens d'aide */}
-            {!isAccountBlocked && isOnline && (
-              <div className="flex items-center justify-between text-sm">
-                <a
-                  href="#"
-                  className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                >
-                  Mot de passe oublié ?
-                </a>
-                <span
-                  className={`font-medium flex items-center ${
-                    isOnline ? "text-green-600" : "text-orange-600"
-                  }`}
-                >
-                  {isOnline ? (
-                    <Wifi className="w-4 h-4 mr-1" />
-                  ) : (
-                    <WifiOff className="w-4 h-4 mr-1" />
-                  )}
-                  {isOnline ? "Internet OK" : "Hors ligne"}
-                </span>
               </div>
             )}
 

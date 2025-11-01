@@ -57,6 +57,7 @@ import { useProfesseur } from "@/Context/ContextProfesseur";
 import { useEmployer } from "@/Context/ContextEmployer";
 import { SelectData } from "@/Config/SupabaseData";
 import ProtectedRoute from "@/components/ProtectedPage";
+import { redirect } from "next/navigation";
 
 interface User {
   name?: string;
@@ -197,13 +198,6 @@ const Dashboard: React.FC = () => {
     [isUserSuperAdmin, userPermissions]
   );
 
-  const handleLogout = () => {
-    setIsLoading(true);
-    setTimeout(async () => {
-      await Logout();
-      setIsLoading(false);
-    }, 5000);
-  };
   // ✅ Fonction modifiée pour fermer le menu mobile
   const handleMenuChange = (menuLabel: string) => {
     if (isUserSuperAdmin || hasPermission(menuLabel)) {
@@ -437,6 +431,15 @@ const Dashboard: React.FC = () => {
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
+  };
+  const handleLogout = () => {
+    const confirmation = confirm("Vous voulez vraiment vous deconnecter?");
+    if (confirmation) setIsLoading(true);
+    setTimeout(async () => {
+      await Logout();
+      redirect("/");
+      setIsLoading(false);
+    }, 1000);
   };
 
   const activeYear = currentYear ? { label: currentYear.year } : null;
