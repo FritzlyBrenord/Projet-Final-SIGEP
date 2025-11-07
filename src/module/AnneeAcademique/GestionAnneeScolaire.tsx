@@ -15,8 +15,11 @@ import {
   Filter,
   FileText,
   AlertTriangle,
+  ArrowLeft,
+  BookOpen,
 } from "lucide-react";
 import ConfigurationAnee from "./ConfigurationAnee";
+import GestionMatieresEmplois from "./module/GestionMatiere";
 
 import {
   useAnneeScolaire,
@@ -269,7 +272,7 @@ const ConfirmDeleteModal: React.FC<ConfirmDeleteModalProps> = ({
   );
 };
 
-// Fonctions d'impression fournies par l'utilisateur
+// Fonctions d'impression
 const handlePrintSalleSchedule = (salle: Salle, classeName: string) => {
   const clsForPrint = {
     id: salle.id,
@@ -326,8 +329,6 @@ const handlePrintSubjectsList = (salle: Salle) => {
   }
 };
 
-// Fonctions de génération HTML pour l'impression (à adapter selon votre implémentation)
-
 const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
   isDarkMode,
   isSuperAdmin,
@@ -341,6 +342,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
     deleteSchoolYear,
     clearLocalStorage,
   } = useAnneeScolaire();
+
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [selectedYearForEdit, setSelectedYearForEdit] =
@@ -351,6 +353,9 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
     message: string;
   } | null>(null);
   const [showDetails, setShowDetails] = useState<SchoolYear | null>(null);
+
+  // ✅ État pour gérer l'affichage du composant Matières
+  const [showGestionMatieres, setShowGestionMatieres] = useState(false);
 
   // États pour le modal de confirmation de suppression
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -461,11 +466,12 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
     setSelectedYearForEdit(schoolYear);
     setShowModal(true);
   };
+
   const handleViewDetails = (schoolYear: SchoolYear) => {
     setShowDetails(schoolYear);
   };
 
-  // Supprimer une année - nouvelle implémentation avec modal de confirmation
+  // Supprimer une année
   const handleDeleteYear = (yearId: string) => {
     const yearToDeleteData = schoolYears.find((y) => y.id === yearId);
     if (!yearToDeleteData) return;
@@ -475,7 +481,6 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
       return;
     }
 
-    // Ouvrir le modal de confirmation
     setYearToDelete(yearToDeleteData);
     setShowDeleteModal(true);
   };
@@ -564,6 +569,31 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
 
   const filteredData = getFilteredData();
 
+  // ✅ Si le composant Matières est affiché, le rendre à la place
+  if (showGestionMatieres) {
+    return (
+      <div className="relative">
+        {/* Bouton de retour */}
+        <div className="mb-4">
+          <button
+            onClick={() => setShowGestionMatieres(false)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+              isDarkMode
+                ? "bg-gray-700 text-white hover:bg-gray-600"
+                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            }`}
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span>Retour à la liste des années scolaires</span>
+          </button>
+        </div>
+
+        {/* Composant de gestion des matières et emplois */}
+        <GestionMatieresEmplois isDarkMode={isDarkMode} />
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -585,17 +615,32 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
           </p>
         </div>
         {(currentSession.role === "Administrateur" || isSuperAdmin) && (
-          <button
-            onClick={handleCreateNewYear}
-            className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-              isDarkMode
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-blue-500 text-white hover:bg-blue-600"
-            }`}
-          >
-            <Plus className="w-5 h-5" />
-            <span>Nouvelle année</span>
-          </button>
+          <div className="flex gap-4">
+            {/* ✅ Bouton Gestion Matières */}
+            <button
+              onClick={() => setShowGestionMatieres(true)}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                isDarkMode
+                  ? "bg-green-600 text-white hover:bg-green-700"
+                  : "bg-green-500 text-white hover:bg-green-600"
+              }`}
+            >
+              <BookOpen className="w-5 h-5" />
+              <span>Gestion Matières & Emploi du temps</span>
+            </button>
+
+            <button
+              onClick={handleCreateNewYear}
+              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                isDarkMode
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "bg-blue-500 text-white hover:bg-blue-600"
+              }`}
+            >
+              <Plus className="w-5 h-5" />
+              <span>Nouvelle année</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -670,20 +715,19 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
               >
                 <Eye className="w-4 h-4" />
               </button>
-              {currentSession.role === "Administrateur" ||
-                (isSuperAdmin && (
-                  <button
-                    onClick={() => handleEditYear(currentYear)}
-                    className={`px-4 py-2 rounded-lg border transition-colors ${
-                      isDarkMode
-                        ? "border-gray-600 text-gray-300 hover:bg-gray-700"
-                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                    }`}
-                    title="Modifier"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </button>
-                ))}
+              {(currentSession.role === "Administrateur" || isSuperAdmin) && (
+                <button
+                  onClick={() => handleEditYear(currentYear)}
+                  className={`px-4 py-2 rounded-lg border transition-colors ${
+                    isDarkMode
+                      ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                  title="Modifier"
+                >
+                  <Edit className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -854,6 +898,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+
                         {(currentSession.role === "Administrateur" ||
                           isSuperAdmin) && (
                           <button
@@ -954,8 +999,9 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <div className="p-4 space-y-4">
-              {/* Section emplois du temps améliorée */}
+              {/* Section emplois du temps */}
               <div
                 className={`border rounded-lg p-3 ${
                   isDarkMode ? "border-gray-700" : "border-gray-200"
@@ -967,7 +1013,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                       isDarkMode ? "text-white" : "text-gray-900"
                     }`}
                   >
-                    Emplois du temps par classe{" "}
+                    Emplois du temps par classe
                   </h4>
                 </div>
 
@@ -1068,6 +1114,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                           </span>
                         </div>
                       </div>
+
                       {expandedClasses[classe.id] && (
                         <div className="p-3">
                           {classe.salles.map((salle) => (
@@ -1120,6 +1167,7 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
                                   </button>
                                 </div>
                               </div>
+
                               {expandedSalles[salle.id] && (
                                 <div className="grid grid-cols-5 gap-1 text-xs mt-1">
                                   {[

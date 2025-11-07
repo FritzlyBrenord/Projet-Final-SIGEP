@@ -21,6 +21,7 @@ import { SUPER_ADMIN_CREDENTIALS } from "@/Config/SuperAdmin/SuperAdmin";
 import { useRecentActivities } from "@/Context/RecentActivitiesContext";
 
 import { useConnectionStatus } from "@/components/ConnectionNotification";
+import { createSuperAdminJWT } from "@/components/jwt";
 
 interface LoginFormData {
   email: string;
@@ -257,16 +258,20 @@ function LoginPageContent() {
           "✅ Aucune session Super Admin active - Connexion autorisée"
         );
 
+        const superAdminJWT = await createSuperAdminJWT({
+          id: SUPER_ADMIN_CREDENTIALS.id,
+          email: SUPER_ADMIN_CREDENTIALS.email,
+          role: "Super Administrateur",
+          timestamp: new Date().toISOString(),
+        });
         const superAdminSessionData = {
           id: SUPER_ADMIN_CREDENTIALS.id,
           email: SUPER_ADMIN_CREDENTIALS.email,
           role: "Super Administrateur",
           timestamp: new Date().toISOString(),
-          session_token: `superadmin_${Date.now()}_${Math.random()
-            .toString(36)
-            .substring(7)}`,
+          session_token: superAdminJWT, // Utiliser le JWT au lieu d'un token simple
+          lastActivity: Date.now(),
         };
-
         // Créer cookies + localStorage (code existant OK)
         document.cookie = `superadmin_session=${JSON.stringify(
           superAdminSessionData
@@ -276,6 +281,11 @@ function LoginPageContent() {
           "superadmin_session",
           JSON.stringify(superAdminSessionData)
         );
+
+        // Créer le cookie
+        document.cookie = `superadmin_session=${JSON.stringify(
+          superAdminSessionData
+        )}; path=/; secure; samesite=strict; max-age=${24 * 60 * 60}`;
 
         // ✅ ENREGISTRER DANS LA BASE DE DONNÉES
         try {

@@ -141,6 +141,7 @@ const Dashboard: React.FC = () => {
   const isOnline = useConnectionStatus();
 
   const [schoolYears, setSchoolYears] = useState<any[]>([]);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // ✅ Détection de la taille d'écran
   useEffect(() => {
@@ -432,14 +433,15 @@ const Dashboard: React.FC = () => {
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
   };
-  const handleLogout = () => {
-    const confirmation = confirm("Vous voulez vraiment vous deconnecter?");
-    if (confirmation) setIsLoading(true);
-    setTimeout(async () => {
-      await Logout();
-      redirect("/");
-      setIsLoading(false);
-    }, 1000);
+
+  const cancelLogout = () => {
+    setShowLogoutModal(false);
+  };
+
+  const confirmLogout = async () => {
+    setShowLogoutModal(false);
+    await Logout();
+    redirect("/");
   };
 
   const activeYear = currentYear ? { label: currentYear.year } : null;
@@ -1038,7 +1040,7 @@ const Dashboard: React.FC = () => {
                                 ? "hover:bg-gradient-to-r hover:from-red-900/30 hover:to-red-800/30"
                                 : "hover:bg-gradient-to-r hover:from-red-50 hover:to-red-100"
                             }`}
-                            onClick={handleLogout}
+                            onClick={() => setShowLogoutModal(true)}
                             disabled={isLoading}
                           >
                             <LogOut className="w-4 h-4 mr-3" />
@@ -1099,7 +1101,7 @@ const Dashboard: React.FC = () => {
                       </p>
                     </div>
                     <button
-                      onClick={handleLogout}
+                      onClick={() => setShowLogoutModal(true)}
                       disabled={isLoading}
                       className="px-6 py-3 bg-gradient-to-r from-red-600 to-red-700 text-white rounded-lg font-semibold hover:from-red-700 hover:to-red-800 transition-all disabled:opacity-50"
                     >
@@ -1121,6 +1123,69 @@ const Dashboard: React.FC = () => {
           />
         </div>
         <ConnectionNotification />
+        {showLogoutModal && (
+          <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div
+              className={`p-6 rounded-xl shadow-2xl max-w-sm w-full ${
+                isDarkMode ? "bg-gray-800 text-white" : "bg-white text-gray-900"
+              }`}
+            >
+              {/* Icône d'alerte */}
+              <div className="flex justify-center mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg
+                    className="w-6 h-6 text-red-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                    />
+                  </svg>
+                </div>
+              </div>
+
+              <h3 className="text-xl font-bold text-center mb-2">
+                Déconnexion
+              </h3>
+              <p className="text-center mb-6 text-gray-600 dark:text-gray-300">
+                Êtes-vous sûr de vouloir vous déconnecter ?
+              </p>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={cancelLogout}
+                  className={`flex-1 py-3 rounded-lg font-medium border ${
+                    isDarkMode
+                      ? "bg-gray-700 border-gray-600 hover:bg-gray-600 text-white"
+                      : "bg-white border-gray-300 hover:bg-gray-50 text-gray-800"
+                  } transition-colors`}
+                  disabled={isLoading}
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={confirmLogout}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center">
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                      Déconnexion...
+                    </div>
+                  ) : (
+                    "Se déconnecter"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </ProtectedRoute>
     </>
   );

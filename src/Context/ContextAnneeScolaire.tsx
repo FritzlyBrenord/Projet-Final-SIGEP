@@ -15,7 +15,9 @@ import {
   DeleteData,
   DataExsite,
   DeleteDataMultiple,
+  InsertDataReturn,
 } from "@/Config/SupabaseData";
+import { notify } from "@/components/Notification";
 
 // Types basés sur votre code existant
 export interface Subject {
@@ -150,14 +152,19 @@ interface AnneeScolaireContextType {
   error: string | null;
 
   // Actions Années Scolaires
+
   loadSchoolYears: () => Promise<void>;
-  createSchoolYear: (schoolYear: Omit<SchoolYear, "id">) => Promise<boolean>;
+  setCurrentYear: (year: SchoolYear | null) => void;
+
+  createSchoolYear: (
+    schoolYear: Omit<SchoolYear, "id">
+  ) => Promise<string | null>; // ← Retourne ID
   updateSchoolYear: (
     id: string,
-    schoolYear: Partial<SchoolYear>
+    updates: Partial<Omit<SchoolYear, "id">>
   ) => Promise<boolean>;
+
   deleteSchoolYear: (id: string) => Promise<boolean>;
-  setCurrentYear: (schoolYear: SchoolYear) => void;
 
   // Actions Classes
   loadClasses: (anneeId: string) => Promise<Classe[]>;
@@ -176,6 +183,11 @@ interface AnneeScolaireContextType {
   createMatiere: (matiere: Omit<MatiereDB, "id">) => Promise<boolean>;
   updateMatiere: (id: string, matiere: Partial<MatiereDB>) => Promise<boolean>;
   deleteMatiere: (id: string) => Promise<boolean>;
+
+  //id
+  getClassNameById: (classId: string) => string;
+  getSubjectNameById: (subjectId: string) => string;
+  getRoomNameById: (roomId: string) => string;
 
   // Actions Emplois du Temps
   loadEmploisDuTemps: (salleId: string) => Promise<ScheduleItem[]>;
@@ -359,22 +371,30 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
                 );
 
                 // Charger les emplois du temps pour cette salle
+                // Charger les emplois du temps pour cette salle
+                // Charger les emplois du temps pour cette salle
                 const emploisData = await SelectData("emplois_du_temps");
                 const emploisFiltered =
                   emploisData?.filter(
                     (e: EmploiDuTempsDB) => e.salle_id === salleDB.id
                   ) || [];
 
+                // ✅ FONCTION POUR NORMALISER LES HEURES
+                const normalizeTime = (time: string) => {
+                  return time.substring(0, 5); // "07:00:00" -> "07:00"
+                };
+
                 const schedule: ScheduleItem[] = emploisFiltered.map(
                   (emploiDB: EmploiDuTempsDB) => ({
                     id: emploiDB.id,
                     day: emploiDB.jour,
-                    startTime: emploiDB.heure_debut,
-                    endTime: emploiDB.heure_fin,
+                    startTime: normalizeTime(emploiDB.heure_debut),
+                    endTime: normalizeTime(emploiDB.heure_fin),
                     subject:
                       subjects.find((s) => s.id === emploiDB.matiere_id)
                         ?.name || emploiDB.matiere_id,
-                    teacherName: emploiDB.professeur,
+                    teacherName: emploiDB.professeur || "Non assigné", // ✅ NOM DIRECT
+                    teacherId: emploiDB.professeur,
                   })
                 );
 
@@ -427,79 +447,102 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
   const loadSchoolYears = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await SelectData("annees_scolaires");
-      if (data) {
-        const schoolYearsConverted = await Promise.all(
-          data.map((anneeDB: AnneeScolaireDB) => convertToSchoolYear(anneeDB))
-        );
-        setSchoolYears(schoolYearsConverted);
+      console.log("🔄 Chargement des années scolaires...");
 
-        // Vérifier s'il y a une année courante dans localStorage
-        const savedYear = localStorage.getItem("currentSchoolYear");
-        if (savedYear) {
-          try {
-            const parsedYear = JSON.parse(savedYear);
-            // Vérifier si l'année sauvegardée existe encore dans la base de données
-            const yearExists = schoolYearsConverted.find(
-              (y) => y.id === parsedYear.id
-            );
-            if (yearExists) {
-              setCurrentYearState(parsedYear);
-              console.log(
-                `Année scolaire ${parsedYear.year} restaurée depuis localStorage`
-              );
-            } else {
-              // Si l'année n'existe plus, utiliser l'année active de la base de données
-              const anneeActive = data.find((a: AnneeScolaireDB) => a.active);
-              if (anneeActive) {
-                const currentYearConverted = await convertToSchoolYear(
-                  anneeActive
-                );
-                setCurrentYearState(currentYearConverted);
-                // Mettre à jour le localStorage
-                localStorage.setItem(
-                  "currentSchoolYear",
-                  JSON.stringify(currentYearConverted)
-                );
-                console.log(
-                  `Année scolaire ${currentYearConverted.year} mise à jour dans localStorage`
-                );
-              }
-            }
-          } catch (error) {
-            console.error(
-              "Erreur lors de la validation de l'année sauvegardée:",
-              error
-            );
-            localStorage.removeItem("currentSchoolYear");
-          }
+      const data = await SelectData("annees_scolaires");
+
+      if (!data || data.length === 0) {
+        console.log("⚠️ Aucune année scolaire trouvée");
+        setSchoolYears([]);
+        setCurrentYearState(null);
+        localStorage.removeItem("currentSchoolYear");
+        return;
+      }
+
+      console.log(`✅ ${data.length} année(s) chargée(s)`);
+
+      // Convertir toutes les années
+      const schoolYearsConverted = await Promise.all(
+        data.map((anneeDB: AnneeScolaireDB) => convertToSchoolYear(anneeDB))
+      );
+
+      // Trier par année (plus récente en premier)
+      schoolYearsConverted.sort((a, b) => b.year.localeCompare(a.year));
+
+      setSchoolYears(schoolYearsConverted);
+
+      // ===== GESTION DE L'ANNÉE COURANTE =====
+
+      // 1. Essayer de récupérer l'année sauvegardée dans localStorage
+      const savedYearId = localStorage.getItem("currentSchoolYearId");
+
+      let yearToSet: SchoolYear | null = null;
+
+      if (savedYearId) {
+        // Vérifier si l'année sauvegardée existe toujours
+        yearToSet =
+          schoolYearsConverted.find((y) => y.id === savedYearId) || null;
+
+        if (yearToSet) {
+          console.log(
+            `✅ Année restaurée depuis localStorage: ${yearToSet.year}`
+          );
         } else {
-          // Définir l'année active comme année courante si pas de sauvegarde localStorage
-          const anneeActive = data.find((a: AnneeScolaireDB) => a.active);
-          if (anneeActive) {
-            const currentYearConverted = await convertToSchoolYear(anneeActive);
-            setCurrentYearState(currentYearConverted);
-            // Sauvegarder dans localStorage
-            localStorage.setItem(
-              "currentSchoolYear",
-              JSON.stringify(currentYearConverted)
-            );
-            console.log(
-              `Année scolaire ${currentYearConverted.year} sauvegardée dans localStorage`
-            );
+          console.log(
+            "⚠️ Année sauvegardée introuvable, recherche d'une année active..."
+          );
+          localStorage.removeItem("currentSchoolYearId");
+        }
+      }
+
+      // 2. Si pas d'année sauvegardée ou introuvable, chercher l'année active
+      if (!yearToSet) {
+        const anneeActive = data.find((a: AnneeScolaireDB) => a.active);
+
+        if (anneeActive) {
+          yearToSet =
+            schoolYearsConverted.find((y) => y.id === anneeActive.id) || null;
+
+          if (yearToSet) {
+            console.log(`✅ Année active trouvée: ${yearToSet.year}`);
           }
         }
       }
+
+      // 3. Si toujours pas d'année, prendre la plus récente
+      if (!yearToSet && schoolYearsConverted.length > 0) {
+        yearToSet = schoolYearsConverted[0];
+        console.log(
+          `✅ Utilisation de l'année la plus récente: ${yearToSet.year}`
+        );
+      }
+
+      // 4. Définir l'année courante et sauvegarder
+      if (yearToSet) {
+        setCurrentYearState(yearToSet);
+        localStorage.setItem("currentSchoolYearId", yearToSet.id);
+        console.log(
+          `💾 Année courante définie: ${yearToSet.year} (ID: ${yearToSet.id})`
+        );
+      } else {
+        console.log("⚠️ Aucune année courante définie");
+        setCurrentYearState(null);
+        localStorage.removeItem("currentSchoolYearId");
+      }
     } catch (err) {
+      console.error("❌ Erreur lors du chargement des années scolaires:", err);
       handleError("Erreur lors du chargement des années scolaires");
+      setSchoolYears([]);
+      setCurrentYearState(null);
     } finally {
       setLoading(false);
     }
-  }, [convertToSchoolYear]);
+  }, [convertToSchoolYear, setCurrentYearState]);
 
   const createSchoolYear = async (
     schoolYear: Omit<SchoolYear, "id">
-  ): Promise<boolean> => {
+  ): Promise<string | null> => {
+    // ✅ Retourner l'ID créé
     try {
       setLoading(true);
 
@@ -509,36 +552,78 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         "nom",
         schoolYear.year
       );
+
       if (exists) {
         handleError("Cette année scolaire existe déjà");
-        return false;
+        notify("error", "Cette année scolaire existe déjà");
+        return null;
       }
 
-      // Convertir vers le format DB
-      const anneeDB: Omit<AnneeScolaireDB, "id"> = {
-        nom: schoolYear.year,
-        description: schoolYear.description,
-        date_debut: `${schoolYear.year.split("-")[0]}-09-01`,
-        date_fin: `${schoolYear.year.split("-")[1]}-06-30`,
-        active: true,
-      };
+      // Extraire les années et valider
+      const [startYear, endYear] = schoolYear.year.split("-").map(Number);
 
-      const result = await InsertData("annees_scolaires", anneeDB);
-      if (result === true) {
-        await loadSchoolYears();
-        return true;
-      } else {
-        handleError("Erreur lors de la création de l'année scolaire");
-        return false;
+      if (!startYear || !endYear || endYear !== startYear + 1) {
+        handleError(
+          "Format d'année invalide. Utilisez YYYY-YYYY (ex: 2024-2025)"
+        );
+        notify("error", "Format d'année invalide");
+        return null;
       }
+
+      // ✅ Convertir vers le format DB
+      const anneeDB: Omit<AnneeScolaireDB, "id" | "created_at" | "updated_at"> =
+        {
+          nom: schoolYear.year, // "2024-2025"
+          description: schoolYear.description || "",
+          date_debut: `${startYear}-09-01`, // Début septembre
+          date_fin: `${endYear}-07-31`, // Fin juillet année suivante
+          active: true, // Toujours active à la création
+        };
+
+      console.log("📤 Création année scolaire:", anneeDB);
+
+      // ✅ Utiliser InsertDataReturn pour récupérer l'ID
+      const { success, rows, error } = await InsertDataReturn(
+        "annees_scolaires",
+        anneeDB
+      );
+
+      console.log("📥 Résultat insertion:", { success, rows, error });
+
+      if (!success || !rows || rows.length === 0) {
+        const errorMessage =
+          error?.message || "Erreur lors de la création de l'année scolaire";
+        console.error("❌ Erreur création:", error);
+        handleError(errorMessage);
+        notify("error", errorMessage);
+        return null;
+      }
+
+      const createdId = rows[0].id as string;
+      console.log("✅ Année créée avec ID:", createdId);
+
+      // Recharger les années scolaires
+      await loadSchoolYears();
+
+      notify(
+        "success",
+        `Année scolaire ${schoolYear.year} créée avec succès !`
+      );
+
+      return createdId; // ✅ Retourner l'ID
     } catch (err) {
-      handleError("Erreur lors de la création de l'année scolaire");
-      return false;
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la création de l'année scolaire";
+      console.error("❌ Exception création année:", err);
+      handleError(errorMessage);
+      notify("error", errorMessage);
+      return null;
     } finally {
       setLoading(false);
     }
   };
-
   const updateSchoolYear = async (
     id: string,
     schoolYear: Partial<SchoolYear>
@@ -546,21 +631,88 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setLoading(true);
 
-      const updateData: Partial<AnneeScolaireDB> = {};
-      if (schoolYear.year) updateData.nom = schoolYear.year;
-      if (schoolYear.description)
+      const updateData: Partial<
+        Omit<AnneeScolaireDB, "id" | "created_at" | "updated_at">
+      > = {};
+
+      // ✅ Si on change l'année, vérifier l'unicité et recalculer les dates
+      if (schoolYear.year) {
+        // Vérifier que le format est correct
+        const yearPattern = /^\d{4}-\d{4}$/;
+        if (!yearPattern.test(schoolYear.year)) {
+          handleError(
+            "Format d'année invalide. Utilisez YYYY-YYYY (ex: 2024-2025)"
+          );
+          notify("error", "Format d'année invalide");
+          return false;
+        }
+
+        const [startYear, endYear] = schoolYear.year.split("-").map(Number);
+        if (endYear !== startYear + 1) {
+          handleError(
+            `L'année suivante doit être ${startYear + 1}, pas ${endYear}`
+          );
+          notify("error", "Format d'année invalide");
+          return false;
+        }
+
+        // Vérifier l'unicité
+        const allAnnees = await SelectData("annees_scolaires");
+        const exists = allAnnees?.find(
+          (a: AnneeScolaireDB) => a.nom === schoolYear.year && a.id !== id
+        );
+
+        if (exists) {
+          handleError("Cette année scolaire existe déjà");
+          notify("error", "Cette année scolaire existe déjà");
+          return false;
+        }
+
+        // Mapper le nom et recalculer les dates
+        updateData.nom = schoolYear.year;
+        updateData.date_debut = `${startYear}-09-01`;
+        updateData.date_fin = `${endYear}-07-31`;
+      }
+
+      // ✅ Mapper la description
+      if (schoolYear.description !== undefined) {
         updateData.description = schoolYear.description;
+      }
+
+      // ✅ Mapper created → active
+      if (schoolYear.created !== undefined) {
+        updateData.active = schoolYear.created;
+      }
+
+      // Vérifier qu'il y a quelque chose à mettre à jour
+      if (Object.keys(updateData).length === 0) {
+        console.log("⚠️ Aucune donnée à mettre à jour");
+        return true;
+      }
+
+      console.log("📤 Mise à jour année scolaire:", { id, updateData });
 
       const result = await UpdateData("annees_scolaires", id, updateData);
+
       if (result) {
+        console.log("✅ Année mise à jour avec succès");
         await loadSchoolYears();
+        notify("success", "Année scolaire mise à jour avec succès !");
         return true;
       } else {
+        console.error("❌ Échec de la mise à jour");
         handleError("Erreur lors de la modification de l'année scolaire");
+        notify("error", "Erreur lors de la modification de l'année scolaire");
         return false;
       }
     } catch (err) {
-      handleError("Erreur lors de la modification de l'année scolaire");
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Erreur lors de la modification de l'année scolaire";
+      console.error("❌ Exception mise à jour année:", err);
+      handleError(errorMessage);
+      notify("error", errorMessage);
       return false;
     } finally {
       setLoading(false);
@@ -586,23 +738,18 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  const setCurrentYear = async (schoolYear: SchoolYear) => {
-    try {
-      setCurrentYearState(schoolYear);
+  const setCurrentYear = useCallback((year: SchoolYear | null) => {
+    setCurrentYearState(year);
 
-      // Stocker dans localStorage avec gestion d'erreurs
-      localStorage.setItem("currentSchoolYear", JSON.stringify(schoolYear));
-      console.log(
-        `Année scolaire ${schoolYear.year} sauvegardée dans localStorage`
-      );
-
-      // Mettre à jour l'année active dans la base de données
-      await updateActiveYearInDatabase(schoolYear.id);
-    } catch (error) {
-      console.error("Erreur lors de la sauvegarde de l'année scolaire:", error);
-      handleError("Erreur lors de la sauvegarde de l'année scolaire");
+    if (year) {
+      // Sauvegarder seulement l'ID (plus léger que l'objet complet)
+      localStorage.setItem("currentSchoolYearId", year.id);
+      console.log(`💾 Année courante changée: ${year.year} (ID: ${year.id})`);
+    } else {
+      localStorage.removeItem("currentSchoolYearId");
+      console.log("🗑️ Année courante supprimée du localStorage");
     }
-  };
+  }, []);
 
   // Fonction pour mettre à jour l'année active dans la base de données
   const updateActiveYearInDatabase = async (yearId: string) => {
@@ -714,7 +861,41 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
       return [];
     }
   };
+  // === FONCTIONS POUR RÉCUPÉRER LES NOMS PAR ID ===
+  const getClassNameById = useCallback(
+    (classId: string): string => {
+      if (!currentYear) return "Classe non trouvée";
+      const classe = currentYear.classes.find((c) => c.id === classId);
+      return classe ? classe.name : "Classe non trouvée";
+    },
+    [currentYear]
+  );
 
+  const getSubjectNameById = useCallback(
+    (subjectId: string): string => {
+      if (!currentYear) return "Matière non trouvée";
+      for (const classe of currentYear.classes) {
+        for (const salle of classe.salles) {
+          const subject = salle.subjects.find((s) => s.id === subjectId);
+          if (subject) return subject.name;
+        }
+      }
+      return "Matière non trouvée";
+    },
+    [currentYear]
+  );
+
+  const getRoomNameById = useCallback(
+    (roomId: string): string => {
+      if (!currentYear) return "Salle non trouvée";
+      for (const classe of currentYear.classes) {
+        const salle = classe.salles.find((s) => s.id === roomId);
+        if (salle) return salle.name;
+      }
+      return "Salle non trouvée";
+    },
+    [currentYear]
+  );
   const createSalle = async (salle: Omit<SalleDB, "id">): Promise<boolean> => {
     try {
       const result = await InsertData("salles", salle);
@@ -814,19 +995,34 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
       const emploisFiltered =
         data?.filter((e: EmploiDuTempsDB) => e.salle_id === salleId) || [];
 
+      // Charger les matières pour résoudre les noms
+      const matieres = await loadMatieres(salleId);
+
+      // ✅ FONCTION POUR NORMALISER LES HEURES
+      const normalizeTime = (time: string) => {
+        return time.substring(0, 5); // "07:00:00" -> "07:00"
+      };
+
       const schedule: ScheduleItem[] = emploisFiltered.map(
-        (emploiDB: EmploiDuTempsDB) => ({
-          id: emploiDB.id,
-          day: emploiDB.jour,
-          startTime: emploiDB.heure_debut,
-          endTime: emploiDB.heure_fin,
-          subject: emploiDB.matiere_id, // À remplacer par le nom de la matière si nécessaire
-          teacherName: emploiDB.professeur,
-        })
+        (emploiDB: EmploiDuTempsDB) => {
+          const matiere = matieres.find((m) => m.id === emploiDB.matiere_id);
+
+          return {
+            id: emploiDB.id,
+            day: emploiDB.jour,
+            startTime: normalizeTime(emploiDB.heure_debut),
+            endTime: normalizeTime(emploiDB.heure_fin),
+            subject: matiere?.name || "Matière inconnue",
+            teacherName: emploiDB.professeur || "Non assigné", // ✅ DIRECTEMENT LE NOM
+            teacherId: emploiDB.professeur, // Pour compatibilité
+          };
+        }
       );
 
+      console.log("✅ Emplois du temps chargés:", schedule);
       return schedule;
     } catch (err) {
+      console.error("❌ Erreur chargement emplois du temps:", err);
       handleError("Erreur lors du chargement des emplois du temps");
       return [];
     }
@@ -922,10 +1118,11 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
 
         // Actions Années Scolaires
         loadSchoolYears,
+        setCurrentYear,
+
         createSchoolYear,
         updateSchoolYear,
         deleteSchoolYear,
-        setCurrentYear,
 
         // Actions Classes
         loadClasses,
@@ -950,7 +1147,10 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         createEmploiDuTemps,
         updateEmploiDuTemps,
         deleteEmploiDuTemps,
-
+        //class ,salle, matiere
+        getClassNameById,
+        getSubjectNameById,
+        getRoomNameById,
         // Utilitaires
         convertToSchoolYear,
         validateYear,

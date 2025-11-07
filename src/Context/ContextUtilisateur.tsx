@@ -25,28 +25,26 @@ interface UserProfile {
   id?: string;
   email_connexion: string;
   password_connexion: string;
-  role: "Super Administrateur" | "Administrateur" | "Utilisateur";
+  role: "Administrateur" | "Registraire" | "Pedagogie" | "Econome" | "RRH";
   employer_id: string;
   isbloquer?: boolean;
   derniere_connexion?: string;
   created_at?: string;
   updated_at?: string;
   autorisations?: string[];
-  // Données de l'employé associé
   employer?: Employer;
 }
 
 // Interface pour la session
 interface SessionData {
   user: any | null;
-  role: "Super Administrateur" | "Administrateur" | "Utilisateur";
+  role: "Administrateur" | "Registraire" | "Pedagogie" | "Econome" | "RRH";
   employer: Employer | null;
   isAuthenticated: boolean;
   canAccess: boolean;
 }
 
 interface ListeContextUtilisateurType {
-  // Gestion des utilisateurs
   listeUtilisateurs: UserProfile[];
   AddUtilisateur: (utilisateur: Omit<UserProfile, "id">) => Promise<boolean>;
   UpdateUtilisateur: (
@@ -58,31 +56,21 @@ interface ListeContextUtilisateurType {
   DebloquerUtilisateur: (id: string) => Promise<boolean>;
   DeleteUtilisateur: (id: string) => Promise<boolean>;
   RefreshUtilisateurs: () => Promise<void>;
-
-  // Gestion des autorisations
   GetUtilisateurAutorisations: (id: string) => Promise<string[] | null>;
   UpdateUtilisateurAutorisations: (
     id: string,
     autorisations: string[]
   ) => Promise<boolean>;
-
-  //profil
   SaveProfilPhoto: (userId: string, photoBase64: string) => void;
   GetProfilPhoto: (userId: string) => string | null;
   RemoveProfilPhoto: (userId: string) => void;
-
-  // Authentification
   Login: (
     email: string,
     password: string
   ) => Promise<{ success: boolean; message: string; user?: UserProfile }>;
   Logout: () => Promise<boolean>;
-
-  // Session
   currentSession: SessionData;
   GetUserByEmail: (email: string) => Promise<UserProfile | null>;
-
-  // États
   loading: boolean;
   error: string | null;
 }
@@ -100,17 +88,15 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
   const [currentSession, setCurrentSession] = useState<SessionData>({
     user: null,
     employer: null,
-    role: "Utilisateur",
+    role: "Registraire",
     isAuthenticated: false,
     canAccess: false,
   });
 
-  // Fonction utilitaire pour vérifier la validité de l'utilisateur authentifié
   const isValidAuthUser = (authUser: any): boolean => {
     return authUser && authUser.user && typeof authUser.user.email === "string";
   };
 
-  // Fonction pour récupérer les utilisateurs avec leurs données d'employés
   const fetchUtilisateurs = async () => {
     setLoading(true);
     setError(null);
@@ -120,7 +106,6 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       const employers = await SelectData("employes");
 
       if (utilisateurs && employers) {
-        // Associer les données d'employés aux utilisateurs
         const utilisateursAvecEmployers = utilisateurs.map((user: any) => ({
           ...user,
           autorisations: user.autorisation || [],
@@ -140,7 +125,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  // Fonction pour ajouter un utilisateur
+  // 🎯 Ajouter un utilisateur avec autorisations automatiques
   const AddUtilisateur = async (
     nouvelUtilisateur: Omit<UserProfile, "id">
   ): Promise<boolean> => {
@@ -152,93 +137,82 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
 
       console.log("1️⃣ Données reçues:", nouvelUtilisateur);
 
-      // ===== ÉTAPE 1: Vérifier si l'email existe déjà =====
       const emailExists = await DataExsite(
         "Utilisateur",
         "email_connexion",
         nouvelUtilisateur.email_connexion
       );
 
-      console.log("2️⃣ Email existe dans table Utilisateur?", emailExists);
+      console.log("2️⃣ Email existe?", emailExists);
 
       if (emailExists === true) {
         setError("Un utilisateur avec cet email existe déjà");
         return false;
       }
 
-      // ===== ÉTAPE 2: Créer l'utilisateur dans l'authentification =====
       console.log("3️⃣ Création auth...");
       authUserId = await CreerUtilisateur(
         nouvelUtilisateur.email_connexion,
         nouvelUtilisateur.password_connexion
       );
 
-      console.log("4️⃣ Auth User ID reçu:", authUserId);
+      console.log("4️⃣ Auth User ID:", authUserId);
 
       if (!authUserId) {
         setError("Erreur lors de la création de l'authentification");
         return false;
       }
 
-      // ===== ÉTAPE 3: VÉRIFIER que l'utilisateur auth existe vraiment =====
-      console.log("5️⃣ Vérification de l'utilisateur auth...");
+      console.log("5️⃣ Vérification auth...");
       const authUserVerified = await VerifierUtilisateurAuth(authUserId);
 
       if (!authUserVerified) {
-        console.error("❌ L'utilisateur auth n'a pas été créé correctement");
-        setError("Échec de la vérification de l'utilisateur dans auth.users");
+        console.error("❌ Auth non vérifiée");
+        setError("Échec de la vérification de l'utilisateur");
         return false;
       }
 
-      console.log("✅ Utilisateur auth vérifié:", authUserVerified);
+      console.log("✅ Utilisateur auth vérifié");
 
-      // ===== ÉTAPE 4: Insérer dans la table Utilisateur =====
+      // 🎯 Insérer avec autorisations automatiques
       const dataToInsert: any = {
-        id: authUserId, // 👈 Utiliser l'UUID de auth.users
+        id: authUserId,
         email_connexion: nouvelUtilisateur.email_connexion,
         role: nouvelUtilisateur.role,
         employer_id: nouvelUtilisateur.employer_id,
         isbloquer: false,
+        autorisation: nouvelUtilisateur.autorisations || [], // 🎯 Autorisations
         created_at: new Date().toISOString(),
       };
 
-      console.log("6️⃣ Données à insérer dans table:", dataToInsert);
+      console.log("6️⃣ Insertion:", dataToInsert);
 
       const result = await InsertDataReturn("Utilisateur", dataToInsert);
 
-      console.log("7️⃣ Résultat insertion:", result);
+      console.log("7️⃣ Résultat:", result);
 
       if (result?.success === true && result.rows) {
-        console.log("✅ Utilisateur créé avec succès dans les deux tables!");
+        console.log("✅ Utilisateur créé avec autorisations!");
         await fetchUtilisateurs();
         return true;
       } else {
-        console.error("❌ Échec insertion dans table Utilisateur:", result);
-        setError(
-          `Erreur d'insertion: ${JSON.stringify(result?.error || "Inconnu")}`
-        );
+        console.error("❌ Échec insertion:", result);
+        setError(`Erreur d'insertion: ${JSON.stringify(result?.error)}`);
 
-        // ===== ROLLBACK: Supprimer l'utilisateur auth =====
-        console.log("🔄 Rollback: suppression de l'utilisateur auth...");
+        console.log("🔄 Rollback auth...");
         await DeleteUserAdmin(authUserId);
-        console.log("🔄 Utilisateur auth supprimé");
-
         return false;
       }
     } catch (error: any) {
       console.error("❌ Exception:", error);
-      setError(error.message || "Erreur lors de l'ajout de l'utilisateur");
+      setError(error.message || "Erreur lors de l'ajout");
 
-      // ===== ROLLBACK en cas d'exception =====
       if (authUserId) {
-        console.log(
-          "🔄 Rollback: suppression de l'utilisateur auth suite à exception..."
-        );
         try {
           await DeleteUserAdmin(authUserId);
-          console.log("🔄 Utilisateur auth supprimé");
+          console.log("🔄 Rollback effectué");
         } catch (rollbackError) {
-          console.error("❌ Erreur lors du rollback:", rollbackError);
+          console.error("❌ Erreur rollback:", rollbackError);
         }
       }
 
@@ -247,6 +221,8 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       setLoading(false);
     }
   };
+
+  // 🎯 Mettre à jour avec autorisations automatiques
   const UpdateUtilisateur = async (
     id: string,
     updatedUtilisateur: Partial<UserProfile>
@@ -263,7 +239,6 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         return false;
       }
 
-      // Modifier l'email dans auth
       if (
         updatedUtilisateur.email_connexion &&
         updatedUtilisateur.email_connexion !== currentUser.email_connexion
@@ -273,12 +248,11 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           id
         );
         if (!emailUpdateResult?.succes) {
-          setError("Erreur lors de la modification de l'email");
+          setError("Erreur modification email");
           return false;
         }
       }
 
-      // Modifier le password dans auth UNIQUEMENT
       if (updatedUtilisateur.password_connexion) {
         const passwordUpdateResult = await UpdatePasswordAdmin(
           updatedUtilisateur.password_connexion,
@@ -286,14 +260,12 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         );
         if (!passwordUpdateResult?.succes) {
           setError(
-            passwordUpdateResult?.error ||
-              "Erreur lors de la modification du mot de passe"
+            passwordUpdateResult?.error || "Erreur modification mot de passe"
           );
           return false;
         }
       }
 
-      // Préparer les données pour la table (SANS le password)
       const dataToUpdate: any = {
         updated_at: new Date().toISOString(),
       };
@@ -302,21 +274,23 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         dataToUpdate.email_connexion = updatedUtilisateur.email_connexion;
       }
 
-      // ❌ NE PAS stocker password_connexion en clair !
-      // Le password est géré par Supabase Auth uniquement
-
       if (updatedUtilisateur.role !== undefined) {
         dataToUpdate.role = updatedUtilisateur.role;
       }
+
       if (updatedUtilisateur.employer_id !== undefined) {
         dataToUpdate.employer_id = updatedUtilisateur.employer_id;
       }
+
       if (updatedUtilisateur.isbloquer !== undefined) {
         dataToUpdate.isbloquer = updatedUtilisateur.isbloquer;
       }
+
       if (updatedUtilisateur.derniere_connexion !== undefined) {
         dataToUpdate.derniere_connexion = updatedUtilisateur.derniere_connexion;
       }
+
+      // 🎯 Autorisations automatiques
       if (updatedUtilisateur.autorisations !== undefined) {
         dataToUpdate.autorisation = updatedUtilisateur.autorisations;
       }
@@ -327,37 +301,30 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         await fetchUtilisateurs();
         return true;
       } else {
-        setError("Erreur lors de la mise à jour");
+        setError("Erreur mise à jour");
         return false;
       }
     } catch (error: any) {
-      setError(error.message || "Erreur lors de la mise à jour");
+      setError(error.message || "Erreur mise à jour");
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Fonction pour récupérer les autorisations d'un utilisateur
   const GetUtilisateurAutorisations = async (
     id: string
   ): Promise<string[] | null> => {
     try {
       const utilisateurs = await SelectData("Utilisateur");
       const user = utilisateurs?.find((u: any) => u.id === id);
-
-      if (user) {
-        return user.autorisation || [];
-      }
-
-      return null;
+      return user ? user.autorisation || [] : null;
     } catch (error) {
-      console.error("Erreur lors de la récupération des autorisations:", error);
+      console.error("Erreur autorisations:", error);
       return null;
     }
   };
 
-  // Fonction pour mettre à jour les autorisations d'un utilisateur
   const UpdateUtilisateurAutorisations = async (
     id: string,
     autorisations: string[]
@@ -374,13 +341,11 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         await fetchUtilisateurs();
         return true;
       } else {
-        setError("Erreur lors de la mise à jour des autorisations");
+        setError("Erreur mise à jour autorisations");
         return false;
       }
     } catch (error: any) {
-      setError(
-        error.message || "Erreur lors de la mise à jour des autorisations"
-      );
+      setError(error.message || "Erreur autorisations");
       return false;
     } finally {
       setLoading(false);
@@ -392,14 +357,12 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       setError(null);
 
-      // Bannir dans l'authentification
       const authBanResult = await BanUserAdmin(id);
       if (!authBanResult?.succes) {
-        setError("Erreur lors du blocage dans l'authentification");
+        setError("Erreur blocage auth");
         return false;
       }
 
-      // Mettre à jour dans la table
       const success = await UpdateData("Utilisateur", id, {
         isbloquer: true,
         updated_at: new Date().toISOString(),
@@ -411,7 +374,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       }
       return false;
     } catch (error: any) {
-      setError(error.message || "Erreur lors du blocage");
+      setError(error.message || "Erreur blocage");
       return false;
     } finally {
       setLoading(false);
@@ -423,14 +386,12 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       setError(null);
 
-      // Débannir dans l'authentification
       const authUnbanResult = await UnbanUserAdmin(id);
       if (!authUnbanResult?.succes) {
-        setError("Erreur lors du déblocage dans l'authentification");
+        setError("Erreur déblocage auth");
         return false;
       }
 
-      // Mettre à jour dans la table
       const success = await UpdateData("Utilisateur", id, {
         isbloquer: false,
         updated_at: new Date().toISOString(),
@@ -442,14 +403,13 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       }
       return false;
     } catch (error: any) {
-      setError(error.message || "Erreur lors du déblocage");
+      setError(error.message || "Erreur déblocage");
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Bloquer un utilisateur par email
   const BloquerUtilisateurParEmail = async (
     email: string
   ): Promise<boolean> => {
@@ -457,9 +417,8 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       setLoading(true);
       setError(null);
 
-      console.log("🔒 Tentative de blocage pour email:", email);
+      console.log("🔒 Blocage pour email:", email);
 
-      // 1. Trouver l'utilisateur par email
       const utilisateurs = await SelectData("Utilisateur");
       const user = utilisateurs?.find(
         (u: any) => u.email_connexion?.toLowerCase() === email.toLowerCase()
@@ -467,83 +426,77 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
 
       if (!user) {
         console.error("❌ Utilisateur introuvable:", email);
-        setError("Utilisateur introuvable avec cet email");
+        setError("Utilisateur introuvable");
         return false;
       }
 
       console.log("✅ Utilisateur trouvé:", user.id);
 
-      // 2. Bannir dans l'authentification
       const authBanResult = await BanUserAdmin(user.id);
       if (!authBanResult?.succes) {
-        console.error("❌ Erreur lors du blocage auth");
-        setError("Erreur lors du blocage dans l'authentification");
+        console.error("❌ Erreur blocage auth");
+        setError("Erreur blocage auth");
         return false;
       }
 
-      console.log("✅ Utilisateur banni dans auth");
+      console.log("✅ Banni dans auth");
 
-      // 3. Mettre à jour dans la table
       const success = await UpdateData("Utilisateur", user.id, {
         isbloquer: true,
         updated_at: new Date().toISOString(),
       });
 
       if (success === true) {
-        console.log("✅ Utilisateur bloqué dans la table");
+        console.log("✅ Bloqué dans table");
         await fetchUtilisateurs();
         return true;
       }
 
-      console.error("❌ Échec mise à jour table");
+      console.error("❌ Échec table");
       return false;
     } catch (error: any) {
-      console.error("❌ Erreur lors du blocage par email:", error);
-      setError(error.message || "Erreur lors du blocage");
+      console.error("❌ Erreur blocage email:", error);
+      setError(error.message || "Erreur blocage");
       return false;
     } finally {
       setLoading(false);
     }
   };
-  // Fonction pour supprimer un utilisateur
+
   const DeleteUtilisateur = async (id: string): Promise<boolean> => {
     try {
       setLoading(true);
       setError(null);
 
-      // 1. Supprimer de l'authentification Supabase
       const authDeleteResult = await DeleteUserAdmin(id);
       if (!authDeleteResult?.succes) {
-        setError("Erreur lors de la suppression de l'authentification");
+        setError("Erreur suppression auth");
         return false;
       }
 
-      // 2. Supprimer de la table Utilisateur
       const success = await DeleteData("Utilisateur", id);
 
       if (success === true) {
         await fetchUtilisateurs();
         return true;
       } else {
-        setError("Erreur lors de la suppression de l'utilisateur");
+        setError("Erreur suppression");
         return false;
       }
     } catch (error: any) {
-      setError(error.message || "Erreur lors de la suppression");
+      setError(error.message || "Erreur suppression");
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Fonction pour récupérer un utilisateur par email
   const GetUserByEmail = async (email: any): Promise<UserProfile | null> => {
     try {
       const utilisateurs = await SelectData("Utilisateur");
       const user = utilisateurs?.find((u: any) => u.email_connexion === email);
 
       if (user) {
-        // Récupérer les données de l'employé
         const employers = await SelectData("employes");
         const employer = employers?.find(
           (e: Employer) => e.id === user.employer_id && !e.deleted
@@ -558,10 +511,11 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
 
       return null;
     } catch (error) {
-      console.error("Erreur lors de la récupération de l'utilisateur:", error);
+      console.error("Erreur GetUserByEmail:", error);
       return null;
     }
   };
+
   const SaveProfilPhoto = (userId: string, photoBase64: string): void => {
     localStorage.setItem(`profil_photo_${userId}`, photoBase64);
   };
@@ -581,18 +535,15 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
     try {
       setLoading(true);
 
-      // ===== ÉTAPE 1: Vérifier si l'utilisateur est déjà connecté =====
-
       const loginResult = await SignIn(email, password);
 
       if (!loginResult.success) {
         const error = loginResult.error;
 
-        // Gérer les erreurs (votre code existant)
         if (error?.message?.includes("Email not confirmed")) {
           return {
             success: false,
-            message: "Veuillez confirmer votre email avant de vous connecter",
+            message: "Veuillez confirmer votre email",
           };
         }
 
@@ -602,7 +553,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         ) {
           return {
             success: false,
-            message: "Votre compte est bloqué. Contactez l'administrateur.",
+            message: "Compte bloqué. Contactez l'administrateur.",
           };
         }
 
@@ -615,17 +566,16 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
 
         return {
           success: false,
-          message: error?.message || "Erreur lors de la connexion",
+          message: error?.message || "Erreur connexion",
         };
       }
 
-      // ===== ÉTAPE 3: Récupérer les données utilisateur =====
       const user = await GetUserByEmail(email);
       if (!user) {
         await SignOut();
         return {
           success: false,
-          message: "Utilisateur non trouvé dans le système",
+          message: "Utilisateur non trouvé",
         };
       }
 
@@ -633,7 +583,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         await SignOut();
         return {
           success: false,
-          message: "Votre compte est bloqué. Contactez l'administrateur.",
+          message: "Compte bloqué. Contactez l'administrateur.",
         };
       }
 
@@ -641,16 +591,14 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         await SignOut();
         return {
           success: false,
-          message: "Employé associé non trouvé ou supprimé",
+          message: "Employé associé non trouvé",
         };
       }
 
-      // ===== ÉTAPE 5: Mettre à jour la dernière connexion =====
       await UpdateData("Utilisateur", user.id!, {
         derniere_connexion: new Date().toISOString(),
       });
 
-      // ===== ÉTAPE 6: Mettre à jour la session du context =====
       const authUser = await getUser();
       if (isValidAuthUser(authUser)) {
         setCurrentSession({
@@ -665,13 +613,13 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
       } else {
         return {
           success: false,
-          message: "Erreur lors de la récupération des données utilisateur",
+          message: "Erreur récupération données",
         };
       }
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || "Erreur lors de la connexion",
+        message: error.message || "Erreur connexion",
       };
     } finally {
       setLoading(false);
@@ -680,11 +628,9 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
 
   const Logout = async (): Promise<boolean> => {
     try {
-      // ✅ RÉCUPÉRER LES INFOS DE SESSION AVANT DE TOUT SUPPRIMER
       let sessionEmail = null;
       let sessionUserId = null;
 
-      // Récupérer depuis les cookies
       const cookies = document.cookie.split(";");
 
       const superAdminCookie = cookies.find((c) =>
@@ -714,7 +660,6 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
-      // ✅ MARQUER COMME OFFLINE DANS LA BASE DE DONNÉES
       if (sessionEmail) {
         try {
           const response = await fetch("/api/presence/disconnect", {
@@ -727,102 +672,52 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           });
 
           if (response.ok) {
-            console.log("⚫ Marqué comme OFFLINE dans la BD");
-          } else {
-            console.error(
-              "⚠️ Erreur lors du marquage offline:",
-              response.status
-            );
+            console.log("⚫ Marqué OFFLINE");
           }
         } catch (presenceError) {
-          console.error("⚠️ Erreur API presence/disconnect:", presenceError);
-          // Continue quand même la déconnexion
+          console.error("⚠️ Erreur presence:", presenceError);
         }
       }
 
-      // ✅ SUPPRIMER LES COOKIES DE SESSION
       document.cookie =
         "superadmin_session=; path=/; max-age=0; secure; samesite=strict";
       document.cookie =
         "user_session=; path=/; max-age=0; secure; samesite=strict";
-
-      // ✅ NETTOYER LOCALSTORAGE
       localStorage.removeItem("superadmin_session");
 
-      console.log("🗑️ Cookies et localStorage nettoyés");
-
-      // ✅ DÉCONNEXION SUPABASE
       const success = await SignOut();
 
       if (success === true) {
         setCurrentSession({
           user: null,
           employer: null,
-          role: "Utilisateur",
+          role: "Registraire",
           isAuthenticated: false,
           canAccess: false,
         });
 
-        console.log("✅ Déconnexion Supabase réussie");
-        console.log("✅ Déconnexion complète !");
+        console.log("✅ Déconnexion complète");
         return true;
       }
 
-      console.log("❌ Échec de la déconnexion Supabase");
       return false;
     } catch (error) {
-      console.error("❌ Erreur lors de la déconnexion:", error);
+      console.error("❌ Erreur déconnexion:", error);
 
-      // ✅ MÊME EN CAS D'ERREUR, SUPPRIMER LES COOKIES
       document.cookie =
         "superadmin_session=; path=/; max-age=0; secure; samesite=strict";
       document.cookie =
         "user_session=; path=/; max-age=0; secure; samesite=strict";
       localStorage.removeItem("superadmin_session");
 
-      // ✅ TENTER DE MARQUER OFFLINE MÊME EN CAS D'ERREUR
-      try {
-        const cookies = document.cookie.split(";");
-        const superAdminCookie = cookies.find((c) =>
-          c.trim().startsWith("superadmin_session=")
-        );
-        const userCookie = cookies.find((c) =>
-          c.trim().startsWith("user_session=")
-        );
-
-        let email = null;
-
-        if (superAdminCookie) {
-          const data = JSON.parse(
-            decodeURIComponent(superAdminCookie.split("=")[1])
-          );
-          email = data.email;
-        } else if (userCookie) {
-          const data = JSON.parse(decodeURIComponent(userCookie.split("=")[1]));
-          email = data.email;
-        }
-
-        if (email) {
-          await fetch("/api/presence/disconnect", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
-        }
-      } catch (presenceError) {
-        console.error("⚠️ Impossible de marquer offline:", presenceError);
-      }
-
       return false;
     }
   };
 
-  // Fonction pour rafraîchir la liste
   const RefreshUtilisateurs = async () => {
     await fetchUtilisateurs();
   };
 
-  // Vérifier la session au chargement
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -840,7 +735,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           }
         }
       } catch (error) {
-        console.error("Erreur lors de la vérification de session:", error);
+        console.error("Erreur vérification session:", error);
       }
     };
 

@@ -61,6 +61,7 @@ const Roles = ({ isDarkMode }: Props) => {
       icon: <CalendarIcon className="w-5 h-5" />,
       description: "Gestion des années scolaires",
     },
+
     {
       id: "Élèves",
       label: "Élèves",

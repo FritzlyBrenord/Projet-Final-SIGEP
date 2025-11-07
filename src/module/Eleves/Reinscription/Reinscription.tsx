@@ -22,6 +22,7 @@ import {
   ReinscriptionData,
 } from "@/types/EleveTypeV2";
 import { DecisionFinAnnee } from "@/types/DecisionFinAnneeType";
+import AffichageCapaciteSalle from "../AffichageCapaciteSalle";
 
 interface ReenrollmentModalProps {
   isOpen: boolean;
@@ -1158,6 +1159,10 @@ const ReenrollmentModal: React.FC<ReenrollmentModalProps> = ({
             <h3 className="text-lg font-semibold mb-4">
               Réinscription vers {currentYear?.year}
             </h3>
+            <AffichageCapaciteSalle
+              salleId={selectedNewSalle}
+              anneeScolaireId={currentYear ? currentYear.id : ""}
+            />
 
             {/* Sélection de la nouvelle classe */}
             <div className="grid grid-cols-2 gap-4 mb-6">

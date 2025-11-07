@@ -38,6 +38,8 @@ import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import LocationSelect from "./LocationSelectionner";
 import ParcoursAcademiqueModal from "./ParcoursAcademiqueModal";
 import StudentSearchModal from "./modalRecherche";
+import { SelectData } from "@/Config/SupabaseData";
+import AffichageCapaciteSalle from "./AffichageCapaciteSalle";
 
 interface Props {
   isDarkMode: boolean;
@@ -778,11 +780,17 @@ const ElevesPage = ({ isDarkMode }: Props) => {
               <ArrowLeft className="h-5 w-5" />
               Retour à la liste
             </button>
+
             <h1 className="text-3xl font-bold">
               {editingStudent ? "Modifier l'élève" : "Inscrire un nouvel élève"}
             </h1>
           </div>
+          <AffichageCapaciteSalle
+            salleId={formData.salle_id}
+            anneeScolaireId={currentYear ? currentYear.id : ""}
+          />
 
+          <br />
           {/* ✅ Formulaire */}
           <div className={`${cardClasses} rounded-lg shadow-sm border p-6`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

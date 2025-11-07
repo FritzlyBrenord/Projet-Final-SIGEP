@@ -67,6 +67,45 @@ interface SequenceDB {
   updated_at?: string;
 }
 
+// ===========================
+// TYPES POUR LES TABLES DE BASE DE DONNÉES
+// ===========================
+
+interface ClasseDB {
+  id: string;
+  annee_scolaire_id: string;
+  nom: string;
+  code: string;
+  niveau: string;
+  capacite_max: number;
+  deleted: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface SalleDB {
+  id: string;
+  annee_scolaire_id: string;
+  nom: string;
+  code: string;
+  capacite: number;
+  equipements: string;
+  deleted: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+interface MatiereDB {
+  id: string;
+  annee_scolaire_id: string;
+  nom: string;
+  code: string;
+  description: string;
+  coefficient: number;
+  deleted: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
 // Types pour l'interface
 export interface Sequence {
   id: string;
@@ -229,27 +268,38 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
   // FONCTIONS DE RÉCUPÉRATION DES DONNÉES
   // ===========================
 
-  // Récupérer toutes les données des 3 tables
+  // Récupérer toutes les données des 6 tables
   const recupererDonneesCompletes = async () => {
     try {
-      const [enseignantsData, affectationsData, sequencesData] =
-        await Promise.all([
-          SelectData("enseignants"),
-          SelectData("professeurs_affectations"),
-          SelectData("sequences"),
-        ]);
+      const [
+        enseignantsData,
+        affectationsData,
+        sequencesData,
+        classesData,
+        sallesData,
+        matieresData,
+      ] = await Promise.all([
+        SelectData("enseignants"),
+        SelectData("professeurs_affectations"),
+        SelectData("sequences"),
+        SelectData("classes"),
+        SelectData("salles"),
+        SelectData("matieres"),
+      ]);
 
       return {
         enseignants: enseignantsData || [],
         affectations: affectationsData || [],
         sequences: sequencesData || [],
+        classes: classesData || [],
+        salles: sallesData || [],
+        matieres: matieresData || [],
       };
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
       throw error;
     }
   };
-
   // Convertir les données DB vers le type Professeur
   const convertToProfesseur = (
     affectation: ProfesseurAffectationDB,
@@ -1137,12 +1187,101 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setIsLoading(true);
 
-      console.log("=== COPIE AVEC NOUVELLE STRUCTURE ===");
-      console.log("Année source:", anneeSourceId);
-      console.log("Année destination:", anneeDestinationId);
+      console.log("=== DÉBUT COPIE PROFESSEURS ===");
+      console.log("📅 Année source:", anneeSourceId);
+      console.log("🎯 Année destination:", anneeDestinationId);
 
       // Récupérer toutes les données
-      const { affectations, sequences } = await recupererDonneesCompletes();
+      const { affectations, sequences, classes, salles, matieres } =
+        await recupererDonneesCompletes();
+
+      // ✅ CORRECTION: Récupérer les classes de l'année destination
+      const classesDestination = classes.filter(
+        (c: any) => c.annee_scolaire_id === anneeDestinationId && !c.deleted
+      );
+
+      console.log("📊 Classes destination:", classesDestination.length);
+      console.log(
+        "Classes destination:",
+        classesDestination.map((c) => ({ id: c.id, nom: c.nom }))
+      );
+
+      // ✅ CORRECTION: Récupérer les salles des classes de l'année destination
+      const classesDestinationIds = classesDestination.map((c) => c.id);
+      const sallesDestination = salles.filter(
+        (s: any) => classesDestinationIds.includes(s.classe_id) && !s.deleted
+      );
+
+      console.log("📊 Salles destination:", sallesDestination.length);
+      console.log(
+        "Salles destination:",
+        sallesDestination.map((s) => ({
+          id: s.id,
+          nom: s.nom,
+          classe_id: s.classe_id,
+        }))
+      );
+
+      // ✅ CORRECTION: Récupérer les matières des salles de l'année destination
+      const sallesDestinationIds = sallesDestination.map((s) => s.id);
+      const matieresDestination = matieres.filter(
+        (m: any) => sallesDestinationIds.includes(m.salle_id) && !m.deleted
+      );
+
+      console.log("📊 Matières destination:", matieresDestination.length);
+      console.log(
+        "Matières destination:",
+        matieresDestination.map((m) => ({
+          id: m.id,
+          nom: m.nom,
+          salle_id: m.salle_id,
+        }))
+      );
+
+      // Vérification critique avec messages plus précis
+      if (classesDestination.length === 0) {
+        throw new Error(
+          "❌ AUCUNE CLASSE trouvée dans l'année destination. " +
+            "Créez d'abord les classes pour l'année " +
+            anneeDestinationId
+        );
+      }
+
+      if (sallesDestination.length === 0) {
+        throw new Error(
+          "❌ AUCUNE SALLE trouvée dans l'année destination. " +
+            "Les classes existent mais n'ont pas de salles. " +
+            "Créez d'abord les salles pour les classes de l'année " +
+            anneeDestinationId
+        );
+      }
+
+      if (matieresDestination.length === 0) {
+        throw new Error(
+          "❌ AUCUNE MATIÈRE trouvée dans l'année destination. " +
+            "Les classes et salles existent mais n'ont pas de matières. " +
+            "Créez d'abord les matières pour les salles de l'année " +
+            anneeDestinationId
+        );
+      }
+
+      // Récupérer les ressources de l'année source
+      const classesSource = classes.filter(
+        (c: any) => c.annee_scolaire_id === anneeSourceId && !c.deleted
+      );
+      const classesSourceIds = classesSource.map((c) => c.id);
+      const sallesSource = salles.filter(
+        (s: any) => classesSourceIds.includes(s.classe_id) && !s.deleted
+      );
+      const sallesSourceIds = sallesSource.map((s) => s.id);
+      const matieresSource = matieres.filter(
+        (m: any) => sallesSourceIds.includes(m.salle_id) && !m.deleted
+      );
+
+      console.log("📊 Ressources source:");
+      console.log("- Classes:", classesSource.length);
+      console.log("- Salles:", sallesSource.length);
+      console.log("- Matières:", matieresSource.length);
 
       // Filtrer les affectations source
       const affectationsSource = affectations.filter(
@@ -1155,10 +1294,14 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
         return;
       }
 
+      console.log(
+        `👨‍🏫 Affectations source trouvées: ${affectationsSource.length}`
+      );
+
       // Vérifier les affectations existantes dans l'année destination
       const affectationsDestination = affectations.filter(
         (a: ProfesseurAffectationDB) =>
-          a.annee_scolaire_id === anneeDestinationId
+          a.annee_scolaire_id === anneeDestinationId && !a.deleted
       );
 
       const enseignantsDejaAffectes = affectationsDestination.map(
@@ -1171,15 +1314,68 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
       let professeursIgnores = 0;
       const erreurs: string[] = [];
 
+      // Fonction pour trouver l'équivalent dans l'année destination
+      const trouverEquivalentDestination = (
+        sourceId: string,
+        sourceData: any[],
+        destData: any[],
+        type: string
+      ): string => {
+        const sourceItem = sourceData.find((item) => item.id === sourceId);
+
+        if (!sourceItem) {
+          console.error(`❌ ${type} source non trouvé:`, sourceId);
+          console.log(
+            `📋 ${type}s source disponibles:`,
+            sourceData.map((s) => ({ id: s.id, nom: s.nom, code: s.code }))
+          );
+          throw new Error(`${type} source non trouvé: ${sourceId}`);
+        }
+
+        // Chercher par NOM dans l'année destination
+        let destItem = destData.find((item) => item.nom === sourceItem.nom);
+
+        // Si pas trouvé par nom, chercher par code
+        if (!destItem) {
+          destItem = destData.find((item) => item.code === sourceItem.code);
+        }
+
+        // Si toujours pas trouvé, chercher par nom similaire
+        if (!destItem) {
+          destItem = destData.find(
+            (item) =>
+              item.nom.toLowerCase().includes(sourceItem.nom.toLowerCase()) ||
+              sourceItem.nom.toLowerCase().includes(item.nom.toLowerCase())
+          );
+        }
+
+        if (!destItem) {
+          const message =
+            `${type} "${sourceItem.nom}" non trouvé dans l'année destination. ` +
+            `Disponibles: ${destData.map((d) => d.nom).join(", ")}`;
+          console.error(`❌ ${message}`);
+          throw new Error(message);
+        }
+
+        console.log(
+          `✅ Correspondance ${type}: "${sourceItem.nom}" -> "${destItem.nom}"`
+        );
+        return destItem.id;
+      };
+
       // Copier chaque affectation
       for (const affectationSource of affectationsSource) {
         try {
+          console.log(
+            `\n--- Traitement enseignant: ${affectationSource.code} ---`
+          );
+
           // Vérifier si l'enseignant a déjà une affectation
           if (
             enseignantsDejaAffectes.includes(affectationSource.enseignant_id)
           ) {
             console.log(
-              `Enseignant ${affectationSource.enseignant_id} déjà affecté - ignoré`
+              `↷ Enseignant ${affectationSource.enseignant_id} déjà affecté - ignoré`
             );
             professeursIgnores++;
             continue;
@@ -1193,6 +1389,10 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
             compteur++;
           }
           codesDejaUtilises.push(nouveauCode);
+
+          console.log(
+            `📝 Création affectation: ${affectationSource.code} -> ${nouveauCode}`
+          );
 
           // Créer la nouvelle affectation
           const nouvelleAffectation: Omit<
@@ -1226,7 +1426,7 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
               insertResult.error?.message ||
               "Erreur lors de l'insertion de l'affectation";
             console.error(
-              `Erreur pour l'enseignant ${affectationSource.enseignant_id}:`,
+              `❌ Erreur pour l'enseignant ${affectationSource.enseignant_id}:`,
               insertResult.error
             );
             erreurs.push(
@@ -1239,22 +1439,61 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
           professeursCopies++;
           enseignantsDejaAffectes.push(affectationSource.enseignant_id);
 
+          console.log(`✅ Affectation créée: ${nouvelleAffectationId}`);
+
           // Copier les séquences
           const sequencesSource = sequences.filter(
             (s: SequenceDB) =>
               s.professeur_affectation_id === affectationSource.id && !s.deleted
           );
 
+          console.log(`📚 ${sequencesSource.length} séquence(s) à copier`);
+
           for (const sequenceSource of sequencesSource) {
             try {
+              console.log(`  - Traitement séquence:`, {
+                classe: sequenceSource.classe,
+                salle: sequenceSource.salle,
+                matiere: sequenceSource.matiere,
+              });
+
+              // Récupérer les IDs CORRECTS pour la nouvelle année
+              const classeDestinationId = trouverEquivalentDestination(
+                sequenceSource.classe,
+                classesSource,
+                classesDestination,
+                "Classe"
+              );
+
+              const salleDestinationId = trouverEquivalentDestination(
+                sequenceSource.salle,
+                sallesSource,
+                sallesDestination,
+                "Salle"
+              );
+
+              const matiereDestinationId = trouverEquivalentDestination(
+                sequenceSource.matiere,
+                matieresSource,
+                matieresDestination,
+                "Matière"
+              );
+
+              console.log(`    ✅ IDs trouvés:`, {
+                classe: classeDestinationId,
+                salle: salleDestinationId,
+                matiere: matiereDestinationId,
+              });
+
+              // Créer la nouvelle séquence avec les IDs de la NOUVELLE année
               const nouvelleSequence: Omit<
                 SequenceDB,
                 "id" | "created_at" | "updated_at"
               > = {
                 professeur_affectation_id: nouvelleAffectationId,
-                classe: sequenceSource.classe,
-                salle: sequenceSource.salle,
-                matiere: sequenceSource.matiere,
+                classe: classeDestinationId,
+                salle: salleDestinationId,
+                matiere: matiereDestinationId,
                 volume_horaire: sequenceSource.volume_horaire,
                 coefficient: sequenceSource.coefficient,
                 deleted: false,
@@ -1264,41 +1503,51 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
                 "sequences",
                 nouvelleSequence
               );
+
               if (sequenceResult === true) {
                 sequenceCopiees++;
+                console.log(
+                  `    ✅ Séquence copiée (${sequenceCopiees} total)`
+                );
               } else {
-                erreurs.push(`Séquence: ${JSON.stringify(sequenceResult)}`);
+                const errorMsg = `Échec insertion séquence: ${JSON.stringify(
+                  sequenceResult
+                )}`;
+                console.error(`    ❌ ${errorMsg}`);
+                erreurs.push(errorMsg);
               }
             } catch (sequenceError) {
-              erreurs.push(`Séquence: ${sequenceError}`);
+              const errorMsg = `Séquence: ${sequenceError}`;
+              console.error(`    ❌ ${errorMsg}`);
+              erreurs.push(errorMsg);
             }
           }
         } catch (affectationError) {
-          erreurs.push(
-            `Affectation ${affectationSource.code}: ${affectationError}`
-          );
-          continue;
+          const errorMsg = `Affectation ${affectationSource.code}: ${affectationError}`;
+          console.error(`❌ ${errorMsg}`);
+          erreurs.push(errorMsg);
         }
       }
 
+      // Recharger les données
       await rechargerProfesseurs();
 
-      const messageResume = [
-        `Copie terminée:`,
-        `- ${professeursCopies} professeurs copiés`,
-        `- ${sequenceCopiees} séquences copiées`,
-        `- ${professeursIgnores} professeurs ignorés`,
-        erreurs.length > 0 ? `- ${erreurs.length} erreurs` : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-
-      console.log(messageResume);
+      // Résumé final
+      console.log("\n=== RÉSUMÉ FINAL DE LA COPIE ===");
+      console.log(`✅ ${professeursCopies} professeur(s) copié(s)`);
+      console.log(`✅ ${sequenceCopiees} séquence(s) copiée(s)`);
+      console.log(`↷ ${professeursIgnores} professeur(s) ignoré(s)`);
+      console.log(`❌ ${erreurs.length} erreur(s)`);
 
       if (erreurs.length > 0) {
-        console.warn("Erreurs:", erreurs);
+        console.warn("Détails des erreurs:", erreurs);
         handleError(
-          `Copie partiellement réussie. ${professeursCopies} professeurs copiés, ${erreurs.length} erreurs.`
+          `Copie terminée avec ${erreurs.length} erreur(s). ` +
+            `${professeursCopies} professeur(s) et ${sequenceCopiees} séquence(s) copié(s) avec succès.`
+        );
+      } else {
+        handleError(
+          `🎉 Copie réussie ! ${professeursCopies} professeur(s) et ${sequenceCopiees} séquence(s) copié(s).`
         );
       }
     } catch (err) {
@@ -1306,14 +1555,13 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
         err instanceof Error
           ? err.message
           : "Erreur lors de la copie des professeurs";
-      console.error("Erreur globale:", err);
-      handleError(errorMessage);
+      console.error("❌ ERREUR GLOBALE:", err);
+      handleError(`❌ Échec de la copie: ${errorMessage}`);
       throw err;
     } finally {
       setIsLoading(false);
     }
   };
-
   // Initialisation
   useEffect(() => {
     rechargerProfesseurs();
