@@ -614,20 +614,21 @@ const GestionAnneeScolaire: React.FC<GestionAnneeScolaireProps> = ({
             Créez, modifiez et gérez les configurations des années scolaires
           </p>
         </div>
+        <button
+          onClick={() => setShowGestionMatieres(true)}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+            isDarkMode
+              ? "bg-green-600 text-white hover:bg-green-700"
+              : "bg-green-500 text-white hover:bg-green-600"
+          }`}
+        >
+          <BookOpen className="w-5 h-5" />
+          <span>Gestion Matières & Emploi du temps</span>
+        </button>
+
         {(currentSession.role === "Administrateur" || isSuperAdmin) && (
           <div className="flex gap-4">
             {/* ✅ Bouton Gestion Matières */}
-            <button
-              onClick={() => setShowGestionMatieres(true)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                isDarkMode
-                  ? "bg-green-600 text-white hover:bg-green-700"
-                  : "bg-green-500 text-white hover:bg-green-600"
-              }`}
-            >
-              <BookOpen className="w-5 h-5" />
-              <span>Gestion Matières & Emploi du temps</span>
-            </button>
 
             <button
               onClick={handleCreateNewYear}
