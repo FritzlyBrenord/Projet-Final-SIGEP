@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
     extendSession,
     performAutoLogout,
   } = useOnlinePresence({
-    inactivityTimeout: 1 * 60 * 1000,
+    inactivityTimeout: 30 * 60 * 1000,
   });
 
   const {
