@@ -175,7 +175,7 @@ const GestionUtilisateur = ({ isDarkMode }: Props) => {
     setTimeout(() => setNotification(null), 5000);
   };
 
-  // ✅ Récupérer les statuts de présence
+  // Dans votre composant GestionUtilisateur - correction de l'useEffect
   useEffect(() => {
     const fetchPresenceStatuses = async () => {
       if (listeUtilisateurs.length === 0) return;
@@ -184,7 +184,11 @@ const GestionUtilisateur = ({ isDarkMode }: Props) => {
         .map((u) => u.email_connexion)
         .filter(Boolean);
 
+      if (emails.length === 0) return;
+
       try {
+        console.log("Fetching presence for emails:", emails); // Debug
+
         const response = await fetch("/api/presence/status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -193,11 +197,21 @@ const GestionUtilisateur = ({ isDarkMode }: Props) => {
 
         if (response.ok) {
           const data = await response.json();
+          console.log("Presence data received:", data); // Debug
+
           const statusMap = new Map<string, UserPresenceStatus>();
           data.statuses.forEach((status: UserPresenceStatus) => {
             statusMap.set(status.email, status);
           });
           setPresenceStatuses(statusMap);
+
+          // Debug: compter les utilisateurs en ligne
+          const onlineCount = Array.from(statusMap.values()).filter(
+            (s) => s.isOnline
+          ).length;
+          console.log(`Users online: ${onlineCount}/${statusMap.size}`);
+        } else {
+          console.error("Error response:", await response.text());
         }
       } catch (error) {
         console.error("Erreur récupération statuts:", error);
@@ -205,9 +219,27 @@ const GestionUtilisateur = ({ isDarkMode }: Props) => {
     };
 
     fetchPresenceStatuses();
-    const interval = setInterval(fetchPresenceStatuses, 30000);
+    const interval = setInterval(fetchPresenceStatuses, 30000); // Toutes les 30 secondes
     return () => clearInterval(interval);
   }, [listeUtilisateurs]);
+
+  // Correction du calcul des stats
+  const stats = useMemo(() => {
+    const total = listeUtilisateurs.length;
+    const active = listeUtilisateurs.filter((u) => !u.isbloquer).length;
+    const blocked = listeUtilisateurs.filter((u) => u.isbloquer).length;
+
+    // Compter les utilisateurs en ligne de manière plus fiable
+    const online = Array.from(presenceStatuses.values()).filter(
+      (s) => s.isOnline
+    ).length;
+
+    console.log(
+      `Stats - Total: ${total}, Online: ${online}, Active: ${active}, Blocked: ${blocked}`
+    ); // Debug
+
+    return { total, active, blocked, online };
+  }, [listeUtilisateurs, presenceStatuses]);
 
   const filteredEmployees = useMemo(() => {
     return employes.filter((emp) =>
@@ -216,17 +248,6 @@ const GestionUtilisateur = ({ isDarkMode }: Props) => {
         .includes(employeeSearch.toLowerCase())
     );
   }, [employes, employeeSearch]);
-
-  // ✅ Stats avec utilisateurs en ligne
-  const stats = useMemo(() => {
-    const total = listeUtilisateurs.length;
-    const active = listeUtilisateurs.filter((u) => !u.isbloquer).length;
-    const blocked = listeUtilisateurs.filter((u) => u.isbloquer).length;
-    const online = Array.from(presenceStatuses.values()).filter(
-      (s) => s.isOnline
-    ).length;
-    return { total, active, blocked, online };
-  }, [listeUtilisateurs, presenceStatuses]);
 
   const generateEmail = (nom: string, prenom: string) =>
     `${prenom.toLowerCase()}.${nom.toLowerCase()}@imfp.com`;

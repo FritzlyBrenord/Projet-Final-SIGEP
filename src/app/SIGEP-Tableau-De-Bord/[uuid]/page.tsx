@@ -441,7 +441,7 @@ const Dashboard: React.FC = () => {
   const confirmLogout = async () => {
     setShowLogoutModal(false);
     await Logout();
-    redirect("/");
+    redirect("/?reason=user_logout");
   };
 
   const activeYear = currentYear ? { label: currentYear.year } : null;
@@ -501,7 +501,9 @@ const Dashboard: React.FC = () => {
           />
         );
       case "Élèves":
-        return <ElevesPage isDarkMode={isDarkMode} />;
+        return (
+          <ElevesPage isSuperAdmin={isUserSuperAdmin} isDarkMode={isDarkMode} />
+        );
       case "Notes":
         return <NotesPage isDarkMode={isDarkMode} />;
       case "Professeurs":
@@ -680,7 +682,7 @@ const Dashboard: React.FC = () => {
                         >
                           {isUserSuperAdmin
                             ? "Super Admin"
-                            : "Gestion Scolaire"}
+                            : currentSession.role}
                         </p>
                       </div>
                     )}
@@ -898,7 +900,7 @@ const Dashboard: React.FC = () => {
                             >
                               <Calendar className="w-4 h-4" />
                               <span className="font-medium">
-                                {activeYear?.label || "Aucune année"}
+                                {activeYear?.label || <Spinner />}
                               </span>
                               <span className="text-xs bg-white/20 px-2 py-1 rounded-full">
                                 Actuelle

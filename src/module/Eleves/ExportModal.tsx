@@ -18,6 +18,9 @@ import { saveAs } from "file-saver";
 import { useAnneeScolaire } from "@/Context/ContextAnneeScolaire";
 import { EntetIMFP } from "../AnneeAcademique/module";
 import { useRecentActivities } from "@/Context/RecentActivitiesContext";
+// Assurez-vous que ces imports sont présents
+
+import html2canvas from "html2canvas"; // À installer si pas déjà fait
 
 interface Student {
   id: string;
@@ -527,80 +530,199 @@ const ExportModal: React.FC<ExportModalProps> = ({
     return html;
   };
 
-  // Télécharger le fichier HTML
-  const downloadHTML = () => {
-    const html = generateHTMLTable();
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `liste_eleves_${
-      new Date().toISOString().split("T")[0]
-    }.html`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-
   // Générer et télécharger PDF
-  const downloadPDF = () => {
+  const downloadPDF = async () => {
+    try {
+      console.log("🚀 Début de la génération du PDF...");
+
+      // Étape 1: Vérifier les données
+      const filteredStudents = getFilteredStudents();
+      if (filteredStudents.length === 0) {
+        alert("Aucun élève à exporter");
+        return;
+      }
+      console.log(`📊 ${filteredStudents.length} élèves à exporter`);
+
+      // Étape 2: Générer le HTML
+      console.log("📝 Génération du HTML...");
+      const htmlContent = generateHTMLTable();
+      console.log("HTML généré avec succès, longueur:", htmlContent.length);
+
+      // Étape 3: Créer un conteneur mieux configuré
+      const printContainer = document.createElement("div");
+      printContainer.id = "pdf-export-container";
+      printContainer.style.position = "fixed";
+      printContainer.style.left = "0";
+      printContainer.style.top = "0";
+      printContainer.style.width = "210mm";
+      printContainer.style.minHeight = "297mm";
+      printContainer.style.padding = "20px";
+      printContainer.style.backgroundColor = "white";
+      printContainer.style.zIndex = "9999";
+      printContainer.style.boxSizing = "border-box";
+      printContainer.innerHTML = htmlContent;
+
+      document.body.appendChild(printContainer);
+      console.log("📦 Conteneur HTML ajouté au DOM");
+
+      // Étape 4: Attendre le rendu
+      await new Promise((resolve) => {
+        printContainer.onload = resolve;
+        setTimeout(resolve, 2000); // Augmenter le temps d'attente
+      });
+
+      // Étape 5: Vérifier que le contenu est bien rendu
+      console.log("👀 Vérification du rendu...");
+      const hasContent = printContainer.innerHTML.length > 0;
+      console.log("Contenu présent:", hasContent);
+      console.log("Hauteur du conteneur:", printContainer.scrollHeight);
+
+      if (!hasContent) {
+        throw new Error("Le conteneur HTML est vide");
+      }
+
+      // Étape 6: Configuration html2canvas
+      console.log("📸 Début de la conversion html2canvas...");
+      const canvas = await html2canvas(printContainer, {
+        scale: 1, // Commencer avec scale 1 pour debug
+        useCORS: true,
+        logging: true, // Activer les logs pour debug
+        backgroundColor: "#ffffff",
+        width: printContainer.scrollWidth,
+        height: printContainer.scrollHeight,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: printContainer.scrollWidth,
+        windowHeight: printContainer.scrollHeight,
+      });
+      console.log("✅ html2canvas réussi");
+
+      // Étape 7: Nettoyage
+      document.body.removeChild(printContainer);
+      console.log("🧹 Conteneur nettoyé");
+
+      // Étape 8: Création du PDF
+      console.log("📄 Création du PDF...");
+      const imgData = canvas.toDataURL("image/png", 1.0);
+      const pdf = new jsPDF("p", "mm", "a4");
+
+      const imgWidth = 210;
+      const pageHeight = 295;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Pages supplémentaires si nécessaire
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Étape 9: Sauvegarde
+      const fileName = `liste_eleves_${
+        new Date().toISOString().split("T")[0]
+      }.pdf`;
+      pdf.save(fileName);
+      console.log("💾 PDF sauvegardé:", fileName);
+
+      // Étape 10: Historique
+      addActivity({
+        action: "export",
+        module: "Gestion Élèves",
+        title: "PDF généré",
+        details: `Un PDF de la liste des élèves a été généré avec ${filteredStudents.length} élève(s).`,
+      });
+    } catch (error) {
+      console.error("❌ ERREUR DÉTAILLÉE:", error);
+      console.error(
+        "Type d erreur:",
+        error instanceof Error ? error.constructor.name : "Unknown"
+      );
+      console.error("Message:", error instanceof Error ? error.message : error);
+      console.error(
+        "Stack:",
+        error instanceof Error ? error.stack : "No stack"
+      );
+
+      // Nettoyage en cas d'erreur
+      const container = document.getElementById("pdf-export-container");
+      if (container) {
+        document.body.removeChild(container);
+      }
+
+      alert(
+        `Erreur détaillée: ${
+          error instanceof Error ? error.message : "Erreur inconnue"
+        }. Utilisation de la méthode alternative...`
+      );
+      downloadPDFFallback();
+    }
+  };
+  const downloadPDFFallback = () => {
+    console.log("🔄 Utilisation de la méthode de secours...");
+
     const filteredStudents = getFilteredStudents();
     const selectedColumns = [
       ...availableColumns.filter((col) => col.isSelected),
       ...customColumns.filter((col) => col.isSelected),
     ];
 
-    const doc = new jsPDF("l", "mm", "a4"); // Paysage pour plus d'espace
+    const doc = new jsPDF("p", "mm", "a4");
 
-    // En-tête de l'établissement
-    doc.setFontSize(18);
+    // En-tête simplifié
+    doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
-    doc.text(etablissementInfo.nom, 14, 20);
+    doc.text("LISTE DES ÉLÈVES", 105, 20, { align: "center" });
 
+    // Informations de base
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text(`Adresse: ${etablissementInfo.adresse}`, 14, 30);
-    doc.text(`Téléphone: ${etablissementInfo.telephone}`, 14, 35);
+    let yPosition = 35;
+    doc.text(`Date: ${new Date().toLocaleDateString("fr-FR")}`, 14, yPosition);
+    doc.text(`Nombre d'élèves: ${filteredStudents.length}`, 14, yPosition + 5);
 
-    // Informations sur l'export
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("Informations sur l'export", 14, 45);
+    if (selectedClass) {
+      doc.text(`Classe: ${classSelector(selectedClass)}`, 14, yPosition + 10);
+      yPosition += 5;
+    }
+    if (selectedSalle) {
+      doc.text(
+        `Salle: ${salleSelector(selectedSalle, selectedClass)}`,
+        14,
+        yPosition + 10
+      );
+      yPosition += 5;
+    }
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      `Date d'export: ${new Date().toLocaleDateString("fr-FR")}`,
-      14,
-      52
-    );
-    doc.text(`Nombre d'élèves: ${filteredStudents.length}`, 14, 57);
-
-    if (selectedClass) doc.text(`Classe: ${selectedClass}`, 14, 62);
-    if (selectedSalle) doc.text(`Salle: ${selectedSalle}`, 14, 67);
-    if (selectedStatus) doc.text(`Statut: ${selectedStatus}`, 14, 72);
-
-    // Préparer les données du tableau
+    // Préparer les données pour le tableau
     const headers = selectedColumns.map((col) => col.label);
     const data = filteredStudents.map((student) =>
       selectedColumns.map((col) => {
-        if (col.isCustom) {
-          return "";
-        }
+        if (col.isCustom) return "";
 
         let value = student[col.key as keyof Student];
 
-        // Formatage spécial pour certains champs
+        // Utiliser le même formatage que le HTML
         if (col.key === "sexe") {
           value = value === "M" ? "Masculin" : "Féminin";
         } else if (col.key === "status") {
           value =
             String(value).charAt(0).toUpperCase() + String(value).slice(1);
-        } else if (col.key === "dateNaissance") {
+        } else if (
+          col.key === "dateNaissance" ||
+          col.key === "dateInscription"
+        ) {
           value = new Date(String(value)).toLocaleDateString("fr-FR");
-        } else if (col.key === "dateInscription") {
-          value = new Date(String(value)).toLocaleDateString("fr-FR");
+        } else if (col.key === "salle") {
+          value = `${salleSelector(value, student.classesDemandee)}`;
+        } else if (col.key === "classesDemandee") {
+          value = `${classSelector(value)}`;
         }
 
         return String(value || "");
@@ -611,38 +733,25 @@ const ExportModal: React.FC<ExportModalProps> = ({
     autoTable(doc, {
       head: [headers],
       body: data,
-      startY: selectedClass || selectedSalle || selectedStatus ? 80 : 70,
-      styles: {
-        fontSize: 8,
-        cellPadding: 2,
-      },
+      startY: yPosition + 15,
+      styles: { fontSize: 8 },
       headStyles: {
         fillColor: [52, 73, 94],
         textColor: 255,
         fontStyle: "bold",
       },
-      alternateRowStyles: {
-        fillColor: [248, 249, 250],
-      },
-      margin: { left: 14, right: 14 },
     });
 
-    // Pied de page
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text(
-        `Page ${i} sur ${pageCount} - Document généré le ${new Date().toLocaleDateString(
-          "fr-FR"
-        )} par le système SIGEP`,
-        14,
-        doc.internal.pageSize.height - 10
-      );
-    }
+    doc.save(
+      `liste_eleves_${new Date().toISOString().split("T")[0]}_fallback.pdf`
+    );
 
-    doc.save(`liste_eleves_${new Date().toISOString().split("T")[0]}.pdf`);
+    addActivity({
+      action: "export",
+      module: "Gestion Élèves",
+      title: "PDF généré (méthode secours)",
+      details: `PDF généré avec méthode alternative - ${filteredStudents.length} élève(s).`,
+    });
   };
 
   // Générer et télécharger Excel
@@ -1028,16 +1137,6 @@ const ExportModal: React.FC<ExportModalProps> = ({
               >
                 <Printer className="h-4 w-4" />
                 Imprimer
-              </button>
-
-              <button
-                onClick={downloadHTML}
-                disabled={getFilteredStudents().length === 0}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Télécharger en HTML"
-              >
-                <Download className="h-4 w-4" />
-                HTML
               </button>
             </div>
 

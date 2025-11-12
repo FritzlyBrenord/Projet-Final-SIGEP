@@ -62,7 +62,7 @@ export default function StudentSearchModal({
     <div className={isDarkMode ? "dark" : ""}>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-40 animate-fade-in"
+        className="fixed inset-0 bg-black/50 bg-opacity-50 backdrop-blur-sm z-40 animate-fade-in"
         onClick={handleClose}
       />
 

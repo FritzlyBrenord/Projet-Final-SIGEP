@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Vérifier si l'utilisateur a une session active (< 2 minutes)
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const twoMinutesAgo = new Date(Date.now() - 1 * 60 * 1000).toISOString();
 
     const { data, error } = await supabase
       .from('user_presence')

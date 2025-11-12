@@ -166,7 +166,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
   const [eleves, setEleves] = useState<EleveAffiche[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { currentYear } = useAnneeScolaire();
+  const { currentYear, getYearNameById } = useAnneeScolaire();
 
   const toEleveAffiche = (eleveData: any): EleveAffiche => ({
     id: eleveData.id,
@@ -1185,7 +1185,9 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
 
           return {
             annee_scolaire_id: inscription.annee_scolaire_id,
-            annee_scolaire_libelle: annee?.year || "Année inconnue",
+            annee_scolaire_libelle: getYearNameById(
+              inscription.annee_scolaire_id
+            ),
             date_inscription: inscription.date_inscription,
             statut: inscription.statut,
             classe_nom: classe?.nom || "Classe inconnue",

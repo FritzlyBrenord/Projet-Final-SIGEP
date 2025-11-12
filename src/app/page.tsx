@@ -35,7 +35,7 @@ interface SecurityAlert {
 
 function LoginPageContent() {
   const router = useRouter();
-  const { uuid } = Uuid();
+  const { uuid, rafrachieUUID } = Uuid();
   const { addActivity } = useRecentActivities();
   const searchParams = useSearchParams();
   const {
@@ -238,11 +238,7 @@ function LoginPageContent() {
               "fr-FR"
             );
 
-            setLoginError(
-              `🚫 Le compte Super Admin est déjà connecté depuis ${connectedAt} (IP: ${
-                session.ip_address || "inconnue"
-              }). Une seule session autorisée.`
-            );
+            setLoginError(`🚫 Le compte Super Admin est déjà connecté `);
             setSecurityAlert({
               type: "error",
               message: "Super Admin déjà connecté sur un autre appareil",
@@ -306,8 +302,19 @@ function LoginPageContent() {
 
         // Redirection (code existant OK)
         setAttemptCount(0);
-        const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
-        router.replace(redirectPath);
+        rafrachieUUID();
+        setTimeout(() => {
+          // Récupérer le NOUVEL UUID pour l'URL
+          const newUuid = localStorage.getItem("uuid");
+          if (newUuid) {
+            const redirectPath = `/SIGEP-Tableau-De-Bord/${newUuid}`;
+            console.log("🔐 Redirection avec nouvel UUID:", newUuid);
+            router.replace(redirectPath);
+          } else {
+            console.error("❌ UUID non disponible pour la redirection");
+            router.replace("/?reason=security_error");
+          }
+        }, 100);
 
         addActivity({
           action: "connexion",
@@ -370,9 +377,7 @@ function LoginPageContent() {
             "fr-FR"
           );
 
-          setLoginError(
-            `🚫 Ce compte est déjà connecté depuis ${connectedAt} (IP: ${session.ip_address}). Contactez l'administrateur pour forcer la déconnexion.`
-          );
+          setLoginError(`🚫 Ce compte est déjà connecté `);
           setIsLoading(false);
           return;
         }
@@ -414,9 +419,19 @@ function LoginPageContent() {
       }
 
       setAttemptCount(0);
-      const redirectPath = `/SIGEP-Tableau-De-Bord/${uuid}`;
-      router.replace(redirectPath);
-
+      rafrachieUUID();
+      setTimeout(() => {
+        // Récupérer le NOUVEL UUID pour l'URL
+        const newUuid = localStorage.getItem("uuid");
+        if (newUuid) {
+          const redirectPath = `/SIGEP-Tableau-De-Bord/${newUuid}`;
+          console.log("🔐 Redirection avec nouvel UUID:", newUuid);
+          router.replace(redirectPath);
+        } else {
+          console.error("❌ UUID non disponible pour la redirection");
+          router.replace("/?reason=security_error");
+        }
+      }, 100);
       addActivity({
         action: "connexion",
         module: "Authentification",

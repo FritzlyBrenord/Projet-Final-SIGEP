@@ -188,6 +188,7 @@ interface AnneeScolaireContextType {
   getClassNameById: (classId: string) => string;
   getSubjectNameById: (subjectId: string) => string;
   getRoomNameById: (roomId: string) => string;
+  getYearNameById: (yearId: string) => string;
 
   // Actions Emplois du Temps
   loadEmploisDuTemps: (salleId: string) => Promise<ScheduleItem[]>;
@@ -871,6 +872,27 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
     [currentYear]
   );
 
+  const getYearNameById = useCallback(
+    (yearId: string): string => {
+      if (!yearId) return "Année inconnue";
+
+      // Chercher dans les années scolaires chargées
+      const year = schoolYears.find((y) => y.id === yearId);
+      if (year) {
+        return year.year;
+      }
+
+      // Si pas trouvé, chercher dans currentYear (au cas où)
+      if (currentYear && currentYear.id === yearId) {
+        return currentYear.year;
+      }
+
+      console.warn(`Année scolaire avec ID ${yearId} non trouvée`);
+      return "Année inconnue";
+    },
+    [schoolYears, currentYear]
+  );
+
   const getSubjectNameById = useCallback(
     (subjectId: string): string => {
       if (!currentYear) return "Matière non trouvée";
@@ -1147,6 +1169,7 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
         createEmploiDuTemps,
         updateEmploiDuTemps,
         deleteEmploiDuTemps,
+        getYearNameById,
         //class ,salle, matiere
         getClassNameById,
         getSubjectNameById,

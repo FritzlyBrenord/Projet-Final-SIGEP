@@ -786,6 +786,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
   };
 
   // Suppression d'une salle
+
   const handleRemoveSalle = async (classeId: string, salleId: string) => {
     const classe = localSchoolYear.classes.find((c) => c.id === classeId);
     const salle = classe?.salles.find((s) => s.id === salleId);
@@ -801,9 +802,19 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     }
 
     try {
-      const success = await deleteSalle(salleId);
+      // Vérifier si la salle existe dans la base de données
+      // Les salles qui viennent d'être créées localement ont un ID qui commence par "salle_"
+      const isLocalSalle = salleId.startsWith("salle_");
+
+      let success = true;
+
+      // Supprimer de la base de données seulement si ce n'est pas une salle locale
+      if (!isLocalSalle) {
+        success = await deleteSalle(salleId);
+      }
 
       if (success) {
+        // Mettre à jour l'état local dans tous les cas
         setLocalSchoolYear((prev) => ({
           ...prev,
           classes: prev.classes.map((classe) =>

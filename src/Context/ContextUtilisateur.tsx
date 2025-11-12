@@ -18,6 +18,7 @@ import {
   VerifierUtilisateurAuth,
 } from "@/Config/SupabaseData";
 import { Employer } from "@/types/EmployerType";
+import Uuid from "@/utils/UUid/Uuid";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 // Interface pour l'utilisateur
@@ -92,6 +93,7 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
     isAuthenticated: false,
     canAccess: false,
   });
+  const { rafrachieUUID } = Uuid();
 
   const isValidAuthUser = (authUser: any): boolean => {
     return authUser && authUser.user && typeof authUser.user.email === "string";
@@ -679,6 +681,12 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
+      // ✅ SUPPRIMER COMPLÈTEMENT L'UUID
+      localStorage.removeItem("uuid");
+      document.cookie =
+        "client_uuid=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict";
+
+      // Supprimer les autres sessions
       document.cookie =
         "superadmin_session=; path=/; max-age=0; secure; samesite=strict";
       document.cookie =
@@ -696,13 +704,18 @@ export const ContextUtilisateur: React.FC<{ children: React.ReactNode }> = ({
           canAccess: false,
         });
 
-        console.log("✅ Déconnexion complète");
+        console.log("✅ Déconnexion complète - UUID supprimé");
         return true;
       }
 
       return false;
     } catch (error) {
       console.error("❌ Erreur déconnexion:", error);
+
+      // ✅ FORCER LA SUPPRESSION DE L'UUID MÊME EN CAS D'ERREUR
+      localStorage.removeItem("uuid");
+      document.cookie =
+        "client_uuid=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; secure; samesite=strict";
 
       document.cookie =
         "superadmin_session=; path=/; max-age=0; secure; samesite=strict";

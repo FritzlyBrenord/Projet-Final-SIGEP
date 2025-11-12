@@ -1310,18 +1310,6 @@ const CalendrierScolaire = ({ darkMode }: Props) => {
                   : "Ajouter Événement"}
               </span>
             </button>
-
-            <button
-              onClick={viewMode === "agenda" ? printAgenda : printCalendar}
-              className={`p-2 rounded-lg transition-colors ${
-                darkMode
-                  ? "bg-gray-700 hover:bg-gray-600"
-                  : "bg-gray-200 hover:bg-gray-300"
-              }`}
-              title="Imprimer"
-            >
-              <Printer className="h-5 w-5" />
-            </button>
           </div>
         </div>
       </header>

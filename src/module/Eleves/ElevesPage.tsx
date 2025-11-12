@@ -43,11 +43,12 @@ import AffichageCapaciteSalle from "./AffichageCapaciteSalle";
 
 interface Props {
   isDarkMode: boolean;
+  isSuperAdmin: boolean;
 }
 
 type ViewType = "list" | "form" | "reinscription";
 
-const ElevesPage = ({ isDarkMode }: Props) => {
+const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
   const {
     eleves,
     ajouterEleve,
@@ -263,41 +264,37 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       );
     }
 
-    // Appliquer le tri
+    // Appliquer le tri - UTILISEZ LA MÊME MÉTHODE QUE LES FILTRES
     if (sortBy) {
-      filtered.sort((a: EleveAffiche, b: EleveAffiche) => {
-        let aValue: string;
-        let bValue: string;
+      // Au lieu de modifier le tableau existant, créez un nouveau tableau trié
+      filtered = [...filtered].sort((a: EleveAffiche, b: EleveAffiche) => {
+        // Pour le nom, prénom et code
+        if (sortBy === "nom" || sortBy === "prenom" || sortBy === "code") {
+          const aValue = a[sortBy].toLowerCase();
+          const bValue = b[sortBy].toLowerCase();
 
-        switch (sortBy) {
-          case "nom":
-            aValue = a.nom.toLowerCase();
-            bValue = b.nom.toLowerCase();
-            break;
-          case "prenom":
-            aValue = a.prenom.toLowerCase();
-            bValue = b.prenom.toLowerCase();
-            break;
-          case "code":
-            aValue = a.code.toLowerCase();
-            bValue = b.code.toLowerCase();
-            break;
-          case "date_naissance":
-            aValue = a.date_naissance;
-            bValue = b.date_naissance;
-            break;
-          default:
-            return 0;
+          if (sortOrder === "asc") {
+            return aValue.localeCompare(bValue);
+          } else {
+            return bValue.localeCompare(aValue);
+          }
         }
 
-        if (sortOrder === "asc") {
-          return aValue.localeCompare(bValue);
-        } else {
-          return bValue.localeCompare(aValue);
+        // Pour la date de naissance (traitement spécial)
+        if (sortBy === "date_naissance") {
+          const aValue = new Date(a.date_naissance).getTime();
+          const bValue = new Date(b.date_naissance).getTime();
+
+          if (sortOrder === "asc") {
+            return aValue - bValue; // Plus ancien → plus récent
+          } else {
+            return bValue - aValue; // Plus récent → plus ancien
+          }
         }
+
+        return 0;
       });
     }
-
     setFilteredStudents(filtered);
     setCurrentPage(1);
   }, [
@@ -343,6 +340,141 @@ const ElevesPage = ({ isDarkMode }: Props) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
     }
+  };
+
+  // Fonction de validation pour nom et prénom
+  const validateName = (value: string) => {
+    // Si la valeur est vide, on retourne true (la validation required s'occupe du reste)
+    if (!value || value.trim() === "") return true;
+
+    // Vérifier la longueur (max 70 caractères)
+    if (value.length > 70) {
+      return false;
+    }
+
+    // Vérifier si c'est uniquement des chiffres
+    if (/^\d+$/.test(value)) {
+      return false; // Uniquement des chiffres → erreur
+    }
+
+    // Compter le nombre de chiffres
+    const digitCount = (value.match(/\d/g) || []).length;
+
+    // Si il y a des chiffres, doit avoir exactement 2 chiffres
+    if (digitCount > 0 && digitCount !== 2) {
+      return false; // Plus ou moins de 2 chiffres → erreur
+    }
+
+    return true; // Valide
+  };
+
+  // Fonction pour formater l'erreur
+  const getNameErrorMessage = (value: string) => {
+    if (!value || value.trim() === "") return "";
+
+    if (value.length > 70) {
+      return "Ne peut pas dépasser 70 caractères";
+    }
+
+    if (/^\d+$/.test(value)) {
+      return "Ne peut pas contenir uniquement des chiffres";
+    }
+
+    const digitCount = (value.match(/\d/g) || []).length;
+    if (digitCount > 0 && digitCount !== 2) {
+      return "Doit contenir exactement 2 chiffres si des chiffres sont présents";
+    }
+
+    return "";
+  };
+
+  // Fonction pour formater et valider le téléphone
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
+    // Si c'est Haïti
+    if (formData.pays_naissance === "Haïti") {
+      // Supprimer tout sauf les chiffres
+      let digits = value.replace(/\D/g, "");
+
+      // Si le numéro commence par 509, on le garde, sinon on ajoute 509
+      if (digits.startsWith("509")) {
+        digits = digits.substring(3); // Enlever le 509 existant
+      }
+
+      // Limiter à 8 chiffres maximum (sans l'indicatif)
+      digits = digits.substring(0, 8);
+
+      // Formater comme (509) XX-XX-XXXX
+      let formattedValue = "(509) ";
+      if (digits.length > 0) {
+        formattedValue += digits.substring(0, 2);
+        if (digits.length > 2) {
+          formattedValue += "-" + digits.substring(2, 4);
+          if (digits.length > 4) {
+            formattedValue += "-" + digits.substring(4, 8);
+          }
+        }
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        telephone_parents: formattedValue,
+      }));
+    } else {
+      // Pour les autres pays, accepter maximum 13 chiffres
+      let digits = value.replace(/\D/g, "");
+      digits = digits.substring(0, 13);
+
+      setFormData((prev) => ({
+        ...prev,
+        telephone_parents: digits,
+      }));
+    }
+  };
+
+  // Fonction de validation du téléphone
+  const validatePhone = (value: string, pays: string) => {
+    if (!value || value.trim() === "") return false;
+
+    if (pays === "Haiti") {
+      // Pour Haïti: format (509) XX-XX-XXXX avec exactement 8 chiffres
+      const digits = value.replace(/\D/g, "");
+      return (
+        digits.length === 11 &&
+        digits.startsWith("509") &&
+        digits.substring(3).length === 8
+      );
+    } else {
+      // Pour autres pays: maximum 13 chiffres
+      const digits = value.replace(/\D/g, "");
+      return digits.length > 0 && digits.length <= 13;
+    }
+  };
+
+  // Fonction pour obtenir le message d'erreur du téléphone
+  const getPhoneErrorMessage = (value: string, pays: string) => {
+    if (!value || value.trim() === "") return "Ce champ est requis";
+
+    if (pays === "Haïti") {
+      const digits = value.replace(/\D/g, "");
+      if (!digits.startsWith("509")) {
+        return "Le numéro doit commencer par l'indicatif 509";
+      }
+      if (digits.substring(3).length !== 8) {
+        return "Le numéro doit contenir 8 chiffres après l'indicatif";
+      }
+    } else {
+      const digits = value.replace(/\D/g, "");
+      if (digits.length === 0) {
+        return "Veuillez entrer un numéro de téléphone valide";
+      }
+      if (digits.length > 13) {
+        return "Le numéro ne peut pas dépasser 13 chiffres";
+      }
+    }
+
+    return "";
   };
 
   const goToFirstPage = () => setCurrentPage(1);
@@ -428,6 +560,15 @@ const ElevesPage = ({ isDarkMode }: Props) => {
       alert("Le prénom est obligatoire");
       return;
     }
+    if (!validateName(formData.nom) || !validateName(formData.prenom)) {
+      alert("Veuillez corriger les erreurs dans les champs nom et prénom");
+      return;
+    }
+    if (!validatePhone(formData.telephone_parents, formData.pays_naissance)) {
+      alert("Veuillez corriger le numéro de téléphone");
+      return;
+    }
+
     if (!formData.date_naissance) {
       alert("La date de naissance est obligatoire");
       return;
@@ -825,10 +966,18 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   type="text"
                   name="nom"
                   required
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  maxLength={70}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    !validateName(formData.nom) ? "border-red-500" : ""
+                  } ${inputClasses}`}
                   value={formData.nom}
                   onChange={handleInputChange}
                 />
+                {!validateName(formData.nom) && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {getNameErrorMessage(formData.nom)}
+                  </p>
+                )}
               </div>
               <div>
                 <label
@@ -842,10 +991,18 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   type="text"
                   name="prenom"
                   required
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  maxLength={70}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    !validateName(formData.prenom) ? "border-red-500" : ""
+                  } ${inputClasses}`}
                   value={formData.prenom}
                   onChange={handleInputChange}
                 />
+                {!validateName(formData.prenom) && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {getNameErrorMessage(formData.prenom)}
+                  </p>
+                )}
               </div>
               <div>
                 <label
@@ -934,10 +1091,33 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   type="tel"
                   name="telephone_parents"
                   required
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    !validatePhone(
+                      formData.telephone_parents,
+                      formData.pays_naissance
+                    )
+                      ? "border-red-500"
+                      : ""
+                  } ${inputClasses}`}
                   value={formData.telephone_parents}
-                  onChange={handleInputChange}
+                  onChange={handlePhoneChange}
+                  placeholder={
+                    formData.pays_naissance === "Haiti"
+                      ? "(509) XX-XX-XXXX"
+                      : "Numéro de téléphone"
+                  }
                 />
+                {!validatePhone(
+                  formData.telephone_parents,
+                  formData.pays_naissance
+                ) && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {getPhoneErrorMessage(
+                      formData.telephone_parents,
+                      formData.pays_naissance
+                    )}
+                  </p>
+                )}
               </div>
               <div>
                 <label
@@ -945,7 +1125,7 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     isDarkMode ? "text-gray-300" : "text-gray-700"
                   }`}
                 >
-                  NIF parent/tuteur
+                  NIF/CIN parent/tuteur
                 </label>
                 <input
                   type="text"
@@ -1059,7 +1239,11 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     isDarkMode ? "text-gray-300" : "text-gray-700"
                   }`}
                 >
-                  Moyenne générale *
+                  Moyenne générale (
+                  <i className="text-[10px] text-red-500">
+                    Établissement précédent
+                  </i>
+                  ) *
                 </label>
                 <input
                   type="number"
@@ -1408,9 +1592,11 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                     onChange={(e) => setFilterAge(e.target.value)}
                   >
                     <option value="">Tous les âges</option>
-                    <option value="12-14">12-14 ans</option>
-                    <option value="15-17">15-17 ans</option>
-                    <option value="18-20">18-20 ans</option>
+                    <option value="5-10">5-10 ans</option>
+                    <option value="10-15">10-15 ans</option>
+                    <option value="15-20">15-20 ans</option>
+                    <option value="20-25">20-25 ans</option>
+                    <option value="25-30">25-30 ans</option>
                   </select>
                 </div>
 
@@ -1521,12 +1707,25 @@ const ElevesPage = ({ isDarkMode }: Props) => {
                   >
                     Réinitialiser le tri
                   </button>
-                  <button
-                    onClick={getELeveParcours}
-                    className={`w-full flex justify-center gap-2 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses} hover:bg-opacity-80`}
-                  >
-                    <span>Parcours Scolaire</span>
-                  </button>
+                  {currentSession.role === "Administrateur" || isSuperAdmin ? (
+                    <button
+                      onClick={getELeveParcours}
+                      className={`w-full flex justify-center gap-2 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses} hover:bg-opacity-80`}
+                    >
+                      <span>Parcours Scolaire</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() =>
+                        alert(
+                          "Vous ne disposez pas des droits nécessaires pour accéder à cette fonctionnalité avancée."
+                        )
+                      }
+                      className={`w-full flex justify-center gap-2 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses} hover:bg-opacity-80`}
+                    >
+                      <span>Parcours Scolaire</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </>

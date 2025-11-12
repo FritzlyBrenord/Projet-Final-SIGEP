@@ -2308,11 +2308,7 @@ const GestionProfesseurs = ({ isDarkMode = false }: Props) => {
                           className={`text-xs mt-1 ${
                             isDarkMode ? "text-gray-400" : "text-gray-500"
                           }`}
-                        >
-                          Saisissez exactement 10 chiffres. Si le numéro
-                          commence par 0, il sera automatiquement formaté avec
-                          des tirets.
-                        </p>
+                        ></p>
                       </div>
 
                       {/* Système de séquences */}

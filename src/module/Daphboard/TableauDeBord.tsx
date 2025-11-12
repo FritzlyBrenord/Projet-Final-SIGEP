@@ -316,7 +316,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
       color: "amber",
     },
     {
-      title: "Personnels",
+      title: "Employés",
       value: serverTotals?.employes?.toString() || "0",
       change: "-1.5%",
       changeType: "decrease",
@@ -761,120 +761,6 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                   ));
                 })()}
               </div>
-            </div>
-          </div>
-        </div>
-        {/* Activités récentes via RecentActivitiesContext */}
-        <div
-          className={`rounded-2xl p-4 sm:p-6 shadow-lg border ${
-            isDarkMode
-              ? "bg-slate-800 border-slate-700"
-              : "bg-white border-gray-200"
-          }`}
-        >
-          <div className="flex items-center justify-between mb-6 gap-3">
-            <div className="flex items-center space-x-3 min-w-0 flex-1">
-              <div className="p-3 bg-indigo-100 rounded-xl flex-shrink-0">
-                <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" />
-              </div>
-              <div className="min-w-0">
-                <h3
-                  className={`text-lg sm:text-xl font-bold ${
-                    isDarkMode ? "text-white" : "text-gray-900"
-                  }`}
-                >
-                  Journal des Activités Récentes
-                </h3>
-                <p
-                  className={`text-xs sm:text-sm ${
-                    isDarkMode ? "text-gray-400" : "text-gray-600"
-                  }`}
-                >
-                  Dernières opérations et événements
-                </p>
-              </div>
-            </div>
-            <div className="p-2 bg-gray-100 dark:bg-slate-700 rounded-lg flex-shrink-0">
-              <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
-            </div>
-          </div>
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="min-w-[320px] space-y-4">
-              {activities.slice(0, 5).map((a, index) => {
-                const type =
-                  a.action === "suppression"
-                    ? "warning"
-                    : a.action === "ajout" ||
-                      a.action === "connexion" ||
-                      a.action === "reinscription"
-                    ? "success"
-                    : "info";
-                const icon =
-                  type === "success" ? (
-                    <UserCheck className="w-4 h-4" />
-                  ) : type === "warning" ? (
-                    <UserX className="w-4 h-4" />
-                  ) : (
-                    <Activity className="w-4 h-4" />
-                  );
-                const badge = a.module || "Système";
-                const time = new Date(a.created_at).toLocaleString();
-                return (
-                  <div
-                    key={`${a.id}-${index}`}
-                    className={`flex items-center space-x-3 sm:space-x-4 p-3 sm:p-4 rounded-xl transition-all duration-200 hover:transform hover:scale-[1.01] ${
-                      isDarkMode ? "hover:bg-slate-700" : "hover:bg-gray-50"
-                    } border ${
-                      isDarkMode ? "border-slate-700" : "border-gray-200"
-                    }`}
-                  >
-                    <div
-                      className={`p-2 sm:p-3 rounded-xl flex-shrink-0 ${
-                        type === "success"
-                          ? "bg-green-100 text-green-600 dark:bg-green-900/20"
-                          : type === "warning"
-                          ? "bg-amber-100 text-amber-600 dark:bg-amber-900/20"
-                          : "bg-blue-100 text-blue-600 dark:bg-blue-900/20"
-                      }`}
-                    >
-                      {icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span
-                          className={`font-semibold text-sm sm:text-base ${
-                            isDarkMode ? "text-white" : "text-gray-900"
-                          }`}
-                        >
-                          {a.title}
-                        </span>
-                        <span
-                          className={`px-2 py-1 text-xs rounded-full flex-shrink-0 ${
-                            type === "success"
-                              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                              : type === "warning"
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                              : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                          }`}
-                        >
-                          {badge}
-                        </span>
-                      </div>
-                      <p
-                        className={`text-xs sm:text-sm ${
-                          isDarkMode ? "text-gray-400" : "text-gray-600"
-                        }`}
-                      >
-                        {a.details || a.action}
-                      </p>
-                    </div>
-                    <div className="hidden sm:flex items-center text-xs text-gray-500 space-x-2 flex-shrink-0">
-                      <Clock className="w-3 h-3" />
-                      <span className="whitespace-nowrap">{time}</span>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         </div>
