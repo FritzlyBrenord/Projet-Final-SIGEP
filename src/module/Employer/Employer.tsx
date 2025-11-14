@@ -1116,9 +1116,22 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
                           type="tel"
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                           value={formData.telephone}
-                          onChange={(e) =>
-                            handleInputChange("telephone", e.target.value)
-                          }
+                          onChange={(e) => {
+                            // Nettoyer l'entrée pour ne garder que les chiffres
+                            const cleanedValue = e.target.value.replace(
+                              /\D/g,
+                              ""
+                            );
+                            handleInputChange("telephone", cleanedValue);
+                          }}
+                          onKeyPress={(e) => {
+                            // Empêcher la saisie de caractères non numériques
+                            if (!/\d/.test(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          pattern="[0-9]*"
+                          inputMode="numeric"
                         />
                       </div>
 
@@ -1164,11 +1177,11 @@ const GestionEmployes = ({ isDarkMode = false }: Props) => {
                             isDarkMode ? "text-gray-300" : "text-gray-700"
                           }`}
                         >
-                          NIF/CIN
+                          NIF
                         </label>
                         <input
                           type="text"
-                          placeholder="Ex: 0024358933 ou 5784673767"
+                          placeholder="Ex: 0024358933"
                           className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                           value={formData.nif_cin}
                           onChange={(e) =>

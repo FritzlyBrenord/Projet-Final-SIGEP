@@ -320,7 +320,6 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
     });
   };
 
-  // Calcul de la moyenne générale par trimestre pour un élève
   const calculateMoyenneGeneraleTrimestre = (
     eleveId: string,
     trimestre: 1 | 2 | 3
@@ -350,7 +349,10 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
     if (totalCoefficient === 0) return 0;
 
     // Formule: Total des points / Total des coefficients * 0.1 (pour avoir une note sur 10)
-    return (totalPoints / totalCoefficient) * 10;
+    const moyenne = (totalPoints / totalCoefficient) * 10;
+
+    // Retourner la moyenne avec 2 décimales exactes
+    return parseFloat(moyenne.toFixed(2));
   };
 
   // Calcul de la moyenne générale annuelle (moyenne des moyennes des trimestres)
@@ -362,10 +364,13 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
       .filter((moyenne) => moyenne > 0);
 
     if (moyennesTrimestres.length === 0) return 0;
-    return (
+
+    const moyenneAnnuelle =
       moyennesTrimestres.reduce((sum, moyenne) => sum + moyenne, 0) /
-      moyennesTrimestres.length
-    );
+      moyennesTrimestres.length;
+
+    // Retourner avec 2 décimales exactes
+    return parseFloat(moyenneAnnuelle.toFixed(2));
   };
 
   useEffect(() => {

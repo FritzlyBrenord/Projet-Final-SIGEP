@@ -710,34 +710,62 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
         await UpdateData("professeurs_affectations", id, affectationUpdate);
       }
 
-      // 3. Gérer les séquences si fournies
+      // 3. Gérer les séquences si fournies - CORRECTION ICI
       if (professeur.sequences) {
-        // Supprimer les anciennes séquences (suppression logique)
         const sequencesData = await SelectData("sequences");
         const anciennesSequences =
           sequencesData?.filter(
-            (s: SequenceDB) => s.professeur_affectation_id === id
+            (s: SequenceDB) => s.professeur_affectation_id === id && !s.deleted
           ) || [];
 
-        for (const ancienneSequence of anciennesSequences) {
-          await UpdateData("sequences", ancienneSequence.id, { deleted: true });
+        // Créer des maps pour le matching
+        const sequencesExistantesMap = new Map(
+          anciennesSequences.map((seq) => [seq.id, seq])
+        );
+
+        const nouvellesSequencesMap = new Map(
+          professeur.sequences.map((seq, index) => [
+            // Utiliser l'ID existant si disponible, sinon créer une clé temporaire
+            (seq as any).id || `temp-${index}`,
+            seq,
+          ])
+        );
+
+        // Traiter chaque séquence
+        for (const [sequenceId, nouvelleSequence] of nouvellesSequencesMap) {
+          if (sequencesExistantesMap.has(sequenceId)) {
+            // Mettre à jour la séquence existante
+            const sequenceUpdate: any = {
+              classe: nouvelleSequence.classe,
+              salle: nouvelleSequence.salle,
+              matiere: nouvelleSequence.matiere,
+              volume_horaire: nouvelleSequence.volume_horaire,
+              coefficient: nouvelleSequence.coefficient,
+            };
+
+            await UpdateData("sequences", sequenceId, sequenceUpdate);
+            sequencesExistantesMap.delete(sequenceId); // Marquer comme traité
+          } else {
+            // Nouvelle séquence (sans ID ou avec ID temporaire)
+            const nouvelleSequenceDB: Omit<
+              SequenceDB,
+              "id" | "created_at" | "updated_at"
+            > = {
+              professeur_affectation_id: id,
+              classe: nouvelleSequence.classe,
+              salle: nouvelleSequence.salle,
+              matiere: nouvelleSequence.matiere,
+              volume_horaire: nouvelleSequence.volume_horaire,
+              coefficient: nouvelleSequence.coefficient,
+              deleted: false,
+            };
+            await InsertData("sequences", nouvelleSequenceDB);
+          }
         }
 
-        // Ajouter les nouvelles séquences
-        for (const sequence of professeur.sequences) {
-          const nouvelleSequence: Omit<
-            SequenceDB,
-            "id" | "created_at" | "updated_at"
-          > = {
-            professeur_affectation_id: id,
-            classe: sequence.classe,
-            salle: sequence.salle,
-            matiere: sequence.matiere,
-            volume_horaire: sequence.volume_horaire,
-            coefficient: sequence.coefficient,
-            deleted: false,
-          };
-          await InsertData("sequences", nouvelleSequence);
+        // Supprimer les séquences qui n'existent plus dans le nouveau formulaire
+        for (const [sequenceId, ancienneSequence] of sequencesExistantesMap) {
+          await UpdateData("sequences", sequenceId, { deleted: true });
         }
       }
 
@@ -893,13 +921,13 @@ export const ProfesseurProvider: React.FC<{ children: ReactNode }> = ({
       if (result) {
         // Restaurer les séquences associées
         const sequencesData = await SelectData("sequences");
-        const sequences =
+        const anciennesSequences =
           sequencesData?.filter(
-            (s: SequenceDB) => s.professeur_affectation_id === id && s.deleted
+            (s: SequenceDB) => s.professeur_affectation_id === id
           ) || [];
 
-        for (const sequence of sequences) {
-          await UpdateData("sequences", sequence.id, { deleted: false });
+        for (const ancienneSequence of anciennesSequences) {
+          await UpdateData("sequences", ancienneSequence.id, { deleted: true });
         }
 
         await rechargerProfesseurs();

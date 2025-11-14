@@ -598,7 +598,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     const receiptWindow = window.open("", "_blank", "width=800,height=600");
     if (!receiptWindow) return;
 
-    const classeId = getClasseIdById(student.classe_id);
+    const classeNom = getClasseNameById(student.classe_id);
     const salleNom = getSalleNameById(student.classe_id, student.salle_id);
     const balances = getStudentBalanceByType(student.id);
     const currentBalance = balances[typeFrais.id];
@@ -737,7 +737,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
           </div>
           <div class="info-row">
             <span class="info-label">Classe:</span>
-            <span>${classeId} - ${salleNom}</span>
+            <span>${classeNom} - ${salleNom}</span>
           </div>
           <div class="info-row">
             <span class="info-label">N° Fiche:</span>
@@ -813,10 +813,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
           </div>
         </div>
 
-        <div class="footer">
-          <p>Cette fiche fait foi de paiement. Veuillez la conserver précieusement.</p>
-         
-        </div>
+        
       </body>
       </html>
     `);

@@ -153,7 +153,6 @@ const Rapport = ({ darkMode }: Props) => {
   const [filterDate, setFilterDate] = useState("");
   const [filterStatus, setFilterStatus] = useState("tous");
   const [filterClasse, setFilterClasse] = useState("toutes");
-  const [showFilters, setShowFilters] = useState(false);
   const [activityPage, setActivityPage] = useState(1);
   // Impression (workflow par étapes)
   const [showPrintModal, setShowPrintModal] = useState(false);
@@ -171,13 +170,7 @@ const Rapport = ({ darkMode }: Props) => {
       })) || [],
     [currentYear?.classes]
   ) as { value: string; label: string }[];
-  console.log(
-    "Tester",
-    getFraisForClasse(
-      "2e Année Fondamentale",
-      "cc29dfe0-ea88-41c1-8d17-6cd9e4076fe5"
-    )
-  );
+
   // Salles organisées par classe depuis le contexte
   const sallesByClass: Record<string, { value: string; label: string }[]> =
     useMemo(() => {
@@ -676,21 +669,21 @@ const Rapport = ({ darkMode }: Props) => {
             <div class="value">${(
               (admisStudents / totalStudents) *
               100
-            ).toFixed(1)}%</div>
+            ).toFixed(2)}%</div>
           </div>
           <div class="stat-card">
             <div class="label">Taux de Redoublement</div>
             <div class="value">${(
               (redoublantStudents / totalStudents) *
               100
-            ).toFixed(1)}%</div>
+            ).toFixed(2)}%</div>
           </div>
           <div class="stat-card">
             <div class="label">Taux de Réussite</div>
             <div class="value">${(
               (admisStudents / totalStudents) *
               100
-            ).toFixed(1)}%</div>
+            ).toFixed(2)}%</div>
           </div>
         </div>
       </div>
@@ -778,7 +771,7 @@ const Rapport = ({ darkMode }: Props) => {
           <div class="stat-card">
             <div class="label">Taux de Collecte</div>
             <div class="value">${paiementStats.general.pourcentage.toFixed(
-              1
+              2
             )}%</div>
           </div>
         </div>
@@ -806,7 +799,7 @@ const Rapport = ({ darkMode }: Props) => {
                     ? (
                         (typeFrais.total_paye / typeFrais.total_du) *
                         100
-                      ).toFixed(1)
+                      ).toFixed(2)
                     : 0
                 }%</span></div>
               </div>
@@ -851,7 +844,7 @@ const Rapport = ({ darkMode }: Props) => {
                   <div><span>Dû:</span> <span class="value">${totalDu.toLocaleString()} HTG</span></div>
                   <div><span>Payé:</span> <span class="value">${totalPaye.toLocaleString()} HTG</span></div>
                   <div><span>Taux:</span> <span class="value">${
-                    totalDu > 0 ? ((totalPaye / totalDu) * 100).toFixed(1) : 0
+                    totalDu > 0 ? ((totalPaye / totalDu) * 100).toFixed(2) : 0
                   }%</span></div>
                 </div>
               </div>
@@ -901,7 +894,7 @@ const Rapport = ({ darkMode }: Props) => {
               ${laureatDesLaureats.classe} - ${laureatDesLaureats.salle}
             </div>
             <div class="moyenne">${laureatDesLaureats.moyenne.toFixed(
-              1
+              2
             )}/10</div>
           </div>
         </div>
@@ -949,7 +942,7 @@ const Rapport = ({ darkMode }: Props) => {
                           ? "#6b7280"
                           : "#f97316"
                       };">
-                        ${laureat.moyenne.toFixed(1)}/10
+                        ${laureat.moyenne.toFixed(2)}/10
                       </div>
                     </div>
                   </div>
@@ -1493,7 +1486,6 @@ const Rapport = ({ darkMode }: Props) => {
                 </div>
               </div>
 
-              {/* Filtres */}
               <div
                 className={`mb-6 p-4 rounded-lg ${
                   darkMode ? "bg-gray-700" : "bg-gray-100"
@@ -2039,18 +2031,6 @@ const Rapport = ({ darkMode }: Props) => {
 
           <div className="flex flex-col sm:flex-row items-center space-x-4">
             <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                darkMode
-                  ? "bg-gray-700 hover:bg-gray-600"
-                  : "bg-gray-200 hover:bg-gray-300"
-              }`}
-            >
-              <Filter className="h-4 w-4" />
-              <span>Filtres</span>
-            </button>
-
-            <button
               onClick={() => setShowTracability(true)}
               className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
                 darkMode
@@ -2216,7 +2196,7 @@ const Rapport = ({ darkMode }: Props) => {
                 icon={UserCheck}
                 color="bg-green-500"
                 subtitle={`${((activeStudents / totalStudents) * 100).toFixed(
-                  1
+                  2
                 )}%`}
               />
               <StatCard
@@ -2225,7 +2205,7 @@ const Rapport = ({ darkMode }: Props) => {
                 icon={CheckCircle}
                 color="bg-emerald-500"
                 subtitle={`${((admisStudents / totalStudents) * 100).toFixed(
-                  1
+                  2
                 )}%`}
               />
               <StatCard
@@ -2236,7 +2216,7 @@ const Rapport = ({ darkMode }: Props) => {
                 subtitle={`${(
                   (redoublantStudents / totalStudents) *
                   100
-                ).toFixed(1)}%`}
+                ).toFixed(2)}%`}
               />
             </div>
 
@@ -2250,7 +2230,7 @@ const Rapport = ({ darkMode }: Props) => {
               />
               <StatCard
                 title="Taux d'Admission"
-                value={`${((admisStudents / totalStudents) * 100).toFixed(1)}%`}
+                value={`${((admisStudents / totalStudents) * 100).toFixed(2)}%`}
                 icon={TrendingUp}
                 color="bg-purple-500"
               />
@@ -2360,7 +2340,7 @@ const Rapport = ({ darkMode }: Props) => {
               />
               <StatCard
                 title="Taux de Collecte"
-                value={`${paiementStats.general.pourcentage.toFixed(1)}%`}
+                value={`${paiementStats.general.pourcentage.toFixed(2)}%`}
                 icon={TrendingUp}
                 color="bg-purple-500"
               />
@@ -2448,7 +2428,7 @@ const Rapport = ({ darkMode }: Props) => {
                           ? (
                               (typeFrais.total_paye / typeFrais.total_du) *
                               100
-                            ).toFixed(1)
+                            ).toFixed(2)
                           : 0}
                         % payé
                       </p>
@@ -2625,7 +2605,7 @@ const Rapport = ({ darkMode }: Props) => {
                     </div>
                     <div className="text-right">
                       <p className="text-4xl font-bold text-yellow-600">
-                        {laureatDesLaureats.moyenne.toFixed(1)}/10
+                        {laureatDesLaureats.moyenne.toFixed(2)}/10
                       </p>
                       <p className="text-sm text-gray-500">Moyenne générale</p>
                     </div>
@@ -2712,11 +2692,11 @@ const Rapport = ({ darkMode }: Props) => {
                                   laureat.rank === 1
                                     ? "text-yellow-600"
                                     : laureat.rank === 2
-                                    ? "text-gray-600"
+                                    ? "text-green-700"
                                     : "text-orange-600"
                                 }`}
                               >
-                                {laureat.moyenne.toFixed(1)}/10
+                                {laureat.moyenne.toFixed(2)}/10
                               </p>
                               <Star className="h-4 w-4 text-yellow-500 mx-auto" />
                             </div>
@@ -2758,7 +2738,7 @@ const Rapport = ({ darkMode }: Props) => {
                   }`}
                 >
                   📊 <strong>Performance:</strong>{" "}
-                  {((admisStudents / totalStudents) * 100).toFixed(1)}%
+                  {((admisStudents / totalStudents) * 100).toFixed(2)}%
                   d'admission
                 </p>
                 <p
@@ -2767,7 +2747,7 @@ const Rapport = ({ darkMode }: Props) => {
                   }`}
                 >
                   💰 <strong>Finances:</strong>{" "}
-                  {paiementStats.general.pourcentage.toFixed(1)}% collecté
+                  {paiementStats.general.pourcentage.toFixed(2)}% collecté
                 </p>
                 <p
                   className={`text-sm ${

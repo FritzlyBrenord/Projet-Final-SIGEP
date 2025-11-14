@@ -909,6 +909,9 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
 
       setLocalSchoolYear((prev) => ({ ...prev, configurationSaved: true }));
       notify("success", "Configuration des classes et salles enregistrée !");
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (e) {
       notify("error", "Erreur lors de l'enregistrement de la configuration");
     } finally {
@@ -1677,9 +1680,6 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
                       onClick={() => {
                         handleSaveConfiguration();
                         notify("success", "Configuration enregistrée !");
-                        setTimeout(() => {
-                          window.location.reload();
-                        }, 500);
                       }}
                       disabled={isSavingConfig}
                       className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"

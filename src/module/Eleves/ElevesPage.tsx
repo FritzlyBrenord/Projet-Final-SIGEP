@@ -40,6 +40,7 @@ import ParcoursAcademiqueModal from "./ParcoursAcademiqueModal";
 import StudentSearchModal from "./modalRecherche";
 import { SelectData } from "@/Config/SupabaseData";
 import AffichageCapaciteSalle from "./AffichageCapaciteSalle";
+import { notify } from "@/components/Notification";
 
 interface Props {
   isDarkMode: boolean;
@@ -636,6 +637,10 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
           title: "Modification élève",
           details: `L'élève ${payload.nom} ${payload.prenom} a été modifié.`,
         });
+        notify(
+          "success",
+          `L'élève ${payload.nom} ${payload.prenom} a été modifié.`
+        );
         resetForm();
       } else {
         const doublons = await verifierDoublons(payload);
@@ -653,6 +658,11 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
             title: "Inscription élève",
             details: `L'élève ${payload.nom} ${payload.prenom} a été inscrit.`,
           });
+          notify(
+            "success",
+            `L'élève ${payload.nom} ${payload.prenom} a été inscrit.`
+          );
+
           resetForm();
         }
       }
@@ -761,7 +771,8 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
         details: `Le statut de ${student.prenom} ${student.nom} a été changé de "${student.statut}" à "${newStatus}".`,
       });
 
-      alert(
+      notify(
+        "success",
         `Statut changé avec succès : ${student.prenom} ${student.nom} est maintenant "${statusLabels[newStatus]}"`
       );
 
@@ -793,6 +804,12 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
             getEleveNomPrenom(studentId)?.prenom
           } a été supprimé.`,
         });
+        notify(
+          "success",
+          `L'élève ${getEleveNomPrenom(studentId)?.nom} ${
+            getEleveNomPrenom(studentId)?.prenom
+          } a été supprimé.`
+        );
       } catch (error) {
         console.error("Erreur lors de la suppression:", error);
         alert("Erreur lors de la suppression de l'élève");
@@ -838,7 +855,7 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
     const eleveTrouve = eleves.filter((el) => el.code === studentCode);
 
     if (eleveTrouve.length > 0) {
-      alert("Élève trouvé !");
+      notify("success", "Élève trouvé !");
       const idEleve = eleveTrouve[0].id;
       setIdEleve(idEleve);
       setIsOpen(true);
