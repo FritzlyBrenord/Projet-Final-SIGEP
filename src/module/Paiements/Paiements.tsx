@@ -1698,7 +1698,7 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                                   onClick={() => generateReceipt(paiement)}
                                   className="text-blue-600 hover:text-blue-800"
                                 >
-                                  <Receipt className="h-4 w-4" />
+                                  <Printer className="h-4 w-4" />
                                 </button>
                                 <button
                                   onClick={async () => {

@@ -958,25 +958,6 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
                     isDarkMode ? "text-gray-300" : "text-gray-700"
                   }`}
                 >
-                  Sexe *
-                </label>
-                <select
-                  name="sexe"
-                  required
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
-                  value={formData.sexe}
-                  onChange={handleInputChange}
-                >
-                  <option value="M">Masculin</option>
-                  <option value="F">Féminin</option>
-                </select>
-              </div>
-              <div>
-                <label
-                  className={`block text-sm font-medium mb-1 ${
-                    isDarkMode ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
                   Nom *
                 </label>
                 <input
@@ -1020,6 +1001,25 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
                     {getNameErrorMessage(formData.prenom)}
                   </p>
                 )}
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Sexe *
+                </label>
+                <select
+                  name="sexe"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.sexe}
+                  onChange={handleInputChange}
+                >
+                  <option value="M">Masculin</option>
+                  <option value="F">Féminin</option>
+                </select>
               </div>
               <div>
                 <label
