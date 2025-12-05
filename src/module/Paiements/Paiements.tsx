@@ -111,6 +111,10 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     Record<string, string>
   >({});
 
+  // États de pagination
+  const [currentPageConsultation, setCurrentPageConsultation] = useState(1);
+  const [itemsPerPageConsultation, setItemsPerPageConsultation] = useState(10);
+
   const isLoading = isLoadingFrais || isLoadingEleves;
 
   const activeStudents = eleves.filter(
@@ -157,6 +161,34 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     return salle ? salle.label : "";
   };
 
+  // Fonctions de pagination
+  const getPaginatedData = (
+    data: any[],
+    currentPage: number,
+    itemsPerPage: number
+  ) => {
+    if (!data || data.length === 0) return [];
+    if (!isFinite(currentPage) || currentPage < 1)
+      return data.slice(0, itemsPerPage);
+    if (!isFinite(itemsPerPage) || itemsPerPage < 1) return data;
+
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+
+    return data.slice(startIndex, endIndex);
+  };
+
+  const getTotalPages = (totalItems: number, itemsPerPage: number) => {
+    if (!totalItems || totalItems <= 0) return 1;
+    if (!itemsPerPage || itemsPerPage <= 0) return 1;
+
+    const pages = Math.ceil(totalItems / itemsPerPage);
+
+    if (!isFinite(pages) || pages < 1) return 1;
+
+    return pages;
+  };
+
   // Initialiser/mettre à jour les brouillons lorsqu'on change de classe ou de données
   useEffect(() => {
     if (!selectedClasseForConfig) {
@@ -170,6 +202,11 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     });
     setClasseFraisDrafts(drafts);
   }, [selectedClasseForConfig, typesFrais, fraisParClasse, getFraisForClasse]);
+
+  // Réinitialiser la page lors du changement de filtres
+  useEffect(() => {
+    setCurrentPageConsultation(1);
+  }, [searchTerm, filterTypeFrais, filterStatutPaiement]);
 
   // NOUVELLES FONCTIONS pour les fonctionnalités demandées
 
@@ -588,6 +625,206 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
     getFraisForClasse,
     getClasseIdById,
   ]);
+
+  // Composant de pagination
+  const PaginationComponent = ({
+    currentPage,
+    totalPages,
+    onPageChange,
+    totalItems,
+    itemsPerPage,
+    onItemsPerPageChange,
+    showItemsPerPage = true,
+  }: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    totalItems: number;
+    itemsPerPage: number;
+    onItemsPerPageChange?: (items: number) => void;
+    showItemsPerPage?: boolean;
+  }) => {
+    if (totalItems === 0) return null;
+    if (!isFinite(totalPages) || totalPages < 1) return null;
+    if (!isFinite(currentPage) || currentPage < 1) return null;
+    if (!isFinite(itemsPerPage) || itemsPerPage < 1) return null;
+
+    const startItem = (currentPage - 1) * itemsPerPage + 1;
+    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+
+    const inputClasses = isDarkMode
+      ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:ring-blue-400 focus:border-blue-400"
+      : "bg-white border-gray-300 text-gray-900 focus:ring-blue-500 focus:border-blue-500";
+
+    return (
+      <div className="space-y-4">
+        {/* Sélecteur du nombre d'éléments par page */}
+        {onItemsPerPageChange && showItemsPerPage && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <label
+                className={`text-sm font-medium ${
+                  isDarkMode ? "text-gray-300" : "text-gray-600"
+                }`}
+              >
+                Afficher par page :
+              </label>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  const newValue = Number(e.target.value);
+                  if (newValue > 0) {
+                    onItemsPerPageChange(newValue);
+                    onPageChange(1);
+                  }
+                }}
+                className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={15}>15</option>
+                <option value={20}>20</option>
+                <option value={25}>25</option>
+                <option value={30}>30</option>
+              </select>
+            </div>
+
+            <div
+              className={`text-sm ${
+                isDarkMode ? "text-gray-300" : "text-gray-700"
+              }`}
+            >
+              Affichage de <span className="font-semibold">{startItem}</span> à{" "}
+              <span className="font-semibold">{endItem}</span> sur{" "}
+              <span className="font-semibold">{totalItems}</span> résultats
+            </div>
+          </div>
+        )}
+
+        {/* Compteur seul si pas de sélecteur */}
+        {(!onItemsPerPageChange || !showItemsPerPage) && (
+          <div
+            className={`text-sm text-center ${
+              isDarkMode ? "text-gray-300" : "text-gray-700"
+            }`}
+          >
+            Affichage de <span className="font-semibold">{startItem}</span> à{" "}
+            <span className="font-semibold">{endItem}</span> sur{" "}
+            <span className="font-semibold">{totalItems}</span> résultats
+          </div>
+        )}
+
+        {/* Boutons de navigation */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center space-x-2">
+            <button
+              onClick={() => onPageChange(1)}
+              disabled={currentPage === 1}
+              className={`px-3 py-1 text-sm border rounded ${
+                currentPage === 1
+                  ? isDarkMode
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              ««
+            </button>
+
+            <button
+              onClick={() => onPageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className={`px-3 py-1 text-sm border rounded ${
+                currentPage === 1
+                  ? isDarkMode
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Précédent
+            </button>
+
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNumber;
+
+              if (totalPages <= 5) {
+                pageNumber = i + 1;
+              } else if (currentPage <= 3) {
+                pageNumber = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNumber = Math.max(1, totalPages - 4 + i);
+              } else {
+                pageNumber = Math.max(1, currentPage - 2 + i);
+              }
+
+              if (
+                !isFinite(pageNumber) ||
+                pageNumber < 1 ||
+                pageNumber > totalPages
+              ) {
+                return null;
+              }
+
+              return (
+                <button
+                  key={pageNumber}
+                  onClick={() => onPageChange(pageNumber)}
+                  className={`px-3 py-1 text-sm border rounded ${
+                    pageNumber === currentPage
+                      ? isDarkMode
+                        ? "bg-blue-600 border-blue-600 text-white"
+                        : "bg-blue-600 border-blue-600 text-white"
+                      : isDarkMode
+                      ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                      : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              );
+            })}
+
+            <button
+              onClick={() => onPageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1 text-sm border rounded ${
+                currentPage === totalPages
+                  ? isDarkMode
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Suivant
+            </button>
+
+            <button
+              onClick={() => onPageChange(totalPages)}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1 text-sm border rounded ${
+                currentPage === totalPages
+                  ? isDarkMode
+                    ? "border-gray-600 text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 text-gray-400 cursor-not-allowed"
+                  : isDarkMode
+                  ? "border-gray-600 text-gray-300 hover:bg-gray-700"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              »»
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // FONCTION AMÉLIORÉE pour la génération de reçu
   const generateReceipt = (paiement: any) => {
@@ -1556,178 +1793,219 @@ const FraisScolaritePage = ({ isDarkMode = false }: Props) => {
                 </div>
               )}
 
-              {/* Tableau des paiements */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}>
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Élève
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Montant
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Statut
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody
-                    className={`divide-y ${
-                      isDarkMode ? "divide-gray-700" : "divide-gray-200"
-                    }`}
-                  >
-                    {paiements
-                      .filter((paiement) => {
-                        const student = eleves.find(
-                          (s) => s.id === paiement.eleve_id
-                        );
-                        const typeFrais = typesFrais.find(
-                          (t) => t.id === paiement.type_frais_id
-                        );
+              {/* Tableau des paiements avec pagination */}
+              {(() => {
+                // Filtrer les paiements
+                const filteredPaiements = paiements.filter((paiement) => {
+                  const student = eleves.find(
+                    (s) => s.id === paiement.eleve_id
+                  );
+                  const typeFrais = typesFrais.find(
+                    (t) => t.id === paiement.type_frais_id
+                  );
 
-                        // Filtre par type de frais
-                        if (
-                          filterTypeFrais &&
-                          paiement.type_frais_id !== filterTypeFrais
-                        ) {
-                          return false;
-                        }
+                  // Filtre par type de frais
+                  if (
+                    filterTypeFrais &&
+                    paiement.type_frais_id !== filterTypeFrais
+                  ) {
+                    return false;
+                  }
 
-                        // Filtre par statut
-                        if (filterStatutPaiement) {
-                          const isComplete =
-                            paiement.montant_paye >= paiement.montant_du;
-                          const isPartial =
-                            paiement.montant_paye > 0 && !isComplete;
-                          const isUnpaid = paiement.montant_paye === 0;
+                  // Filtre par statut
+                  if (filterStatutPaiement) {
+                    const isComplete =
+                      paiement.montant_paye >= paiement.montant_du;
+                    const isPartial =
+                      paiement.montant_paye > 0 && !isComplete;
+                    const isUnpaid = paiement.montant_paye === 0;
 
-                          if (filterStatutPaiement === "solde" && !isComplete)
-                            return false;
-                          if (filterStatutPaiement === "partiel" && !isPartial)
-                            return false;
-                          if (filterStatutPaiement === "impaye" && !isUnpaid)
-                            return false;
-                        }
+                    if (filterStatutPaiement === "solde" && !isComplete)
+                      return false;
+                    if (filterStatutPaiement === "partiel" && !isPartial)
+                      return false;
+                    if (filterStatutPaiement === "impaye" && !isUnpaid)
+                      return false;
+                  }
 
-                        // Filtre par recherche
-                        if (searchTerm && student) {
-                          const search = searchTerm.toLowerCase();
-                          return (
-                            student.nom.toLowerCase().includes(search) ||
-                            student.prenom.toLowerCase().includes(search) ||
-                            student.code.toLowerCase().includes(search) ||
-                            typeFrais?.nom.toLowerCase().includes(search)
-                          );
-                        }
+                  // Filtre par recherche
+                  if (searchTerm && student) {
+                    const search = searchTerm.toLowerCase();
+                    return (
+                      student.nom.toLowerCase().includes(search) ||
+                      student.prenom.toLowerCase().includes(search) ||
+                      student.code.toLowerCase().includes(search) ||
+                      typeFrais?.nom.toLowerCase().includes(search)
+                    );
+                  }
 
-                        return true;
-                      })
-                      .map((paiement) => {
-                        const student = eleves.find(
-                          (s) => s.id === paiement.eleve_id
-                        );
-                        const typeFrais = typesFrais.find(
-                          (t) => t.id === paiement.type_frais_id
-                        );
-                        if (!student) return null;
+                  return true;
+                });
 
-                        return (
-                          <tr
-                            key={paiement.id}
-                            className={
-                              isDarkMode
-                                ? "hover:bg-gray-700"
-                                : "hover:bg-gray-50"
-                            }
-                          >
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium">
-                                {student.prenom} {student.nom}
-                              </div>
-                              <div className="text-sm text-gray-500">
-                                {student.code}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {typeFrais?.nom || "Type inconnu"}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm">
-                                Payé: {formatCurrency(paiement.montant_paye)}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                Dû: {formatCurrency(paiement.montant_du)}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div
-                                className={`flex items-center gap-1 ${getPaymentStatusColor(
-                                  paiement.montant_du,
-                                  paiement.montant_paye
-                                )}`}
-                              >
-                                {getPaymentStatusIcon(
-                                  paiement.montant_du,
-                                  paiement.montant_paye
-                                )}
-                                {paiement.montant_paye >= paiement.montant_du
-                                  ? "Soldé"
-                                  : paiement.montant_paye > 0
-                                  ? "Partiel"
-                                  : "Non payé"}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm">
-                              {new Date(
-                                paiement.date_paiement
-                              ).toLocaleDateString()}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => generateReceipt(paiement)}
-                                  className="text-blue-600 hover:text-blue-800"
-                                >
-                                  <Printer className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={async () => {
-                                    if (confirm("Supprimer ce paiement?")) {
-                                      try {
-                                        await supprimerPaiement(paiement.id);
-                                      } catch (error) {
-                                        alert(
-                                          `Erreur: ${
-                                            error instanceof Error
-                                              ? error.message
-                                              : "Erreur inconnue"
-                                          }`
-                                        );
-                                      }
-                                    }
-                                  }}
-                                  className="text-red-600 hover:text-red-800"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
+                // Paginer les paiements filtrés
+                const paginatedPaiements = getPaginatedData(
+                  filteredPaiements,
+                  currentPageConsultation,
+                  itemsPerPageConsultation
+                );
+
+                const totalPages = getTotalPages(
+                  filteredPaiements.length,
+                  itemsPerPageConsultation
+                );
+
+                return (
+                  <>
+                    {/* Pagination en haut */}
+                    <PaginationComponent
+                      currentPage={currentPageConsultation}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPageConsultation}
+                      totalItems={filteredPaiements.length}
+                      itemsPerPage={itemsPerPageConsultation}
+                      onItemsPerPageChange={setItemsPerPageConsultation}
+                      showItemsPerPage={true}
+                    />
+
+                    {/* Tableau des paiements */}
+                    <div className="overflow-x-auto my-6">
+                      <table className="min-w-full">
+                        <thead className={isDarkMode ? "bg-gray-700" : "bg-gray-50"}>
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                              Élève
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                              Type
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                              Montant
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                              Statut
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                              Date
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                              Actions
+                            </th>
                           </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
+                        </thead>
+                        <tbody
+                          className={`divide-y ${
+                            isDarkMode ? "divide-gray-700" : "divide-gray-200"
+                          }`}
+                        >
+                          {paginatedPaiements.map((paiement) => {
+                            const student = eleves.find(
+                              (s) => s.id === paiement.eleve_id
+                            );
+                            const typeFrais = typesFrais.find(
+                              (t) => t.id === paiement.type_frais_id
+                            );
+                            if (!student) return null;
+
+                            return (
+                              <tr
+                                key={paiement.id}
+                                className={
+                                  isDarkMode
+                                    ? "hover:bg-gray-700"
+                                    : "hover:bg-gray-50"
+                                }
+                              >
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm font-medium">
+                                    {student.prenom} {student.nom}
+                                  </div>
+                                  <div className="text-sm text-gray-500">
+                                    {student.code}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                  {typeFrais?.nom || "Type inconnu"}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="text-sm">
+                                    Payé: {formatCurrency(paiement.montant_paye)}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Dû: {formatCurrency(paiement.montant_du)}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div
+                                    className={`flex items-center gap-1 ${getPaymentStatusColor(
+                                      paiement.montant_du,
+                                      paiement.montant_paye
+                                    )}`}
+                                  >
+                                    {getPaymentStatusIcon(
+                                      paiement.montant_du,
+                                      paiement.montant_paye
+                                    )}
+                                    {paiement.montant_paye >= paiement.montant_du
+                                      ? "Soldé"
+                                      : paiement.montant_paye > 0
+                                      ? "Partiel"
+                                      : "Non payé"}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                  {new Date(
+                                    paiement.date_paiement
+                                  ).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={() => generateReceipt(paiement)}
+                                      className="text-blue-600 hover:text-blue-800"
+                                    >
+                                      <Printer className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm("Supprimer ce paiement?")) {
+                                          try {
+                                            await supprimerPaiement(paiement.id);
+                                          } catch (error) {
+                                            alert(
+                                              `Erreur: ${
+                                                error instanceof Error
+                                                  ? error.message
+                                                  : "Erreur inconnue"
+                                              }`
+                                            );
+                                          }
+                                        }
+                                      }}
+                                      className="text-red-600 hover:text-red-800"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination en bas */}
+                    <PaginationComponent
+                      currentPage={currentPageConsultation}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPageConsultation}
+                      totalItems={filteredPaiements.length}
+                      itemsPerPage={itemsPerPageConsultation}
+                      showItemsPerPage={false}
+                    />
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
