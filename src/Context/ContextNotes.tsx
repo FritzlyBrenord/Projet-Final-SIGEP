@@ -116,8 +116,6 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
       if (!data.annee_scolaire_id) throw new Error("Année scolaire requise");
       if (!data.eleve_id) throw new Error("Élève requis");
       if (!data.matiere_id) throw new Error("Matière requise");
-      if (data.note < 0 || data.note > 100)
-        throw new Error("La note doit être entre 0 et 100");
 
       // Vérifier si une note existe déjà pour cet élève, matière et trimestre
       const existingNote = await DataObjectExiste("notes", {
@@ -162,7 +160,7 @@ export const NotesProvider: React.FC<{ children: ReactNode }> = ({
     try {
       setIsLoading(true);
 
-      if (data.note !== undefined && (data.note < 0 || data.note > 100)) {
+      if (data.note !== undefined && data.note < 0) {
         throw new Error("La note doit être entre 0 et 100");
       }
 

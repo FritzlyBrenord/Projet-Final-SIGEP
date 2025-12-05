@@ -220,6 +220,38 @@ const GestionMatierePage: React.FC<GestionMatierePageProps> = ({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [showMatiereDropdown, showProfesseurDropdown]); // ✅ Ajouter la dépendance
+
+  // ✅ Auto-sélectionner le professeur unique quand une matière est choisie
+  useEffect(() => {
+    if (scheduleForm.subject && selectedClasse && selectedSalle) {
+      // Récupérer les professeurs qui enseignent cette matière
+      const professeursPourMatiere = professeurs.filter((prof) => {
+        return prof.sequences.some((seq) => {
+          return (
+            seq.classe === selectedClasse &&
+            seq.salle === selectedSalle &&
+            seq.matiere === scheduleForm.subject &&
+            !seq.deleted
+          );
+        });
+      });
+
+      // Si un seul professeur, le sélectionner automatiquement
+      if (professeursPourMatiere.length === 1) {
+        const prof = professeursPourMatiere[0];
+        setSelectedProfesseur({
+          id: prof.id,
+          name: `${prof.prenom} ${prof.nom}`,
+        });
+        setProfesseurSearchTerm(`${prof.prenom} ${prof.nom}`);
+        setScheduleForm((prev) => ({
+          ...prev,
+          professeur: prof.id,
+        }));
+      }
+    }
+  }, [scheduleForm.subject, selectedClasse, selectedSalle, professeurs]);
+
   // Filtrer les classes
   useEffect(() => {
     if (currentYear && schoolYears.length > 0) {
@@ -381,18 +413,144 @@ const GestionMatierePage: React.FC<GestionMatierePageProps> = ({
     );
   };
 
-  // ✅ AJOUTER CETTE NOUVELLE FONCTION POUR LES PROFESSEURS
+  // ✅ FONCTION AMÉLIORÉE POUR FILTRER LES PROFESSEURS
   const getFilteredProfesseurs = () => {
-    if (!professeurSearchTerm) return professeurs;
+    // Obtenir les données de la salle sélectionnée
+    const salleData = getSelectedSalleData();
+    if (!salleData || !selectedClasse) return professeurs;
 
-    const searchLower = professeurSearchTerm.toLowerCase();
-    return professeurs.filter((prof) => {
-      const fullName = `${prof.prenom} ${prof.nom}`.toLowerCase();
-      const reverseName = `${prof.nom} ${prof.prenom}`.toLowerCase();
-      return (
-        fullName.includes(searchLower) || reverseName.includes(searchLower)
-      );
+    // Trouver la classe sélectionnée
+    const classe = filteredClasses.find((c) => c.id === selectedClasse);
+    if (!classe) return professeurs;
+
+    // ✅ LES SÉQUENCES UTILISENT DES IDS, PAS DES NOMS !
+    // seq.classe → ID de classe
+    // seq.salle → ID de salle
+    // seq.matiere → ID de matière
+
+    // 1. Filtrer les professeurs qui ont des séquences dans cette classe et salle
+    let professeursFiltres = professeurs.filter((prof) => {
+      return prof.sequences.some((seq) => {
+        return (
+          seq.classe === selectedClasse &&
+          seq.salle === selectedSalle &&
+          !seq.deleted
+        );
+      });
     });
+
+    // 2. Si une matière est sélectionnée, essayer de filtrer par matière
+    if (scheduleForm.subject) {
+      if (professeursFiltres.length > 0) {
+        // Chercher les professeurs qui enseignent cette matière dans cette classe/salle
+        const profsAvecMatiere = professeursFiltres.filter((prof) => {
+          return prof.sequences.some((seq) => {
+            return (
+              seq.classe === selectedClasse &&
+              seq.salle === selectedSalle &&
+              seq.matiere === scheduleForm.subject &&
+              !seq.deleted
+            );
+          });
+        });
+
+        // Si on trouve des professeurs pour cette matière, les utiliser
+        if (profsAvecMatiere.length > 0) {
+          professeursFiltres = profsAvecMatiere;
+        }
+        // Sinon, garder tous les professeurs de la classe/salle
+      }
+    }
+
+    // 3. Si aucun professeur trouvé avec les filtres stricts, utiliser un fallback
+    if (professeursFiltres.length === 0) {
+      // Fallback: afficher tous les professeurs qui enseignent dans cette classe (sans filtrer par salle)
+      professeursFiltres = professeurs.filter((prof) => {
+        return prof.sequences.some((seq) => {
+          return seq.classe === selectedClasse && !seq.deleted;
+        });
+      });
+
+      // Si toujours aucun, afficher tous les professeurs de l'année scolaire
+      if (professeursFiltres.length === 0) {
+        professeursFiltres = professeurs;
+      }
+    }
+
+    // 4. Appliquer le filtre de recherche par nom si présent
+    if (professeurSearchTerm) {
+      const searchLower = professeurSearchTerm.toLowerCase();
+      professeursFiltres = professeursFiltres.filter((prof) => {
+        const fullName = `${prof.prenom} ${prof.nom}`.toLowerCase();
+        const reverseName = `${prof.nom} ${prof.prenom}`.toLowerCase();
+        return (
+          fullName.includes(searchLower) || reverseName.includes(searchLower)
+        );
+      });
+    }
+
+    return professeursFiltres;
+  };
+
+  // ✅ FONCTION POUR GÉNÉRER LE MESSAGE DE FILTRAGE
+  const getProfesseurFilterMessage = () => {
+    const salleData = getSelectedSalleData();
+    const classe = filteredClasses.find((c) => c.id === selectedClasse);
+
+    if (!salleData || !classe) return "";
+
+    // Vérifier les différents niveaux de filtrage AVEC LES IDS
+    const profsClasseSalle = professeurs.filter((prof) =>
+      prof.sequences.some((seq) => {
+        return seq.classe === selectedClasse && seq.salle === selectedSalle && !seq.deleted;
+      })
+    );
+
+    const profsClasse = professeurs.filter((prof) =>
+      prof.sequences.some((seq) => {
+        return seq.classe === selectedClasse && !seq.deleted;
+      })
+    );
+
+    // Si une matière est sélectionnée
+    if (scheduleForm.subject) {
+      const selectedSubject = salleData.subjects.find(
+        (s) => s.id === scheduleForm.subject
+      );
+
+      if (selectedSubject) {
+        // Vérifier si on a des profs qui enseignent cette matière
+        const profsAvecMatiere = profsClasseSalle.filter((prof) =>
+          prof.sequences.some((seq) => {
+            return (
+              seq.classe === selectedClasse &&
+              seq.salle === selectedSalle &&
+              seq.matiere === scheduleForm.subject &&
+              !seq.deleted
+            );
+          })
+        );
+
+        if (profsAvecMatiere.length > 0) {
+          return `Enseignent "${selectedSubject.name}" dans ${classe.name} - ${salleData.name}`;
+        } else if (profsClasseSalle.length > 0) {
+          return `Aucun prof. pour "${selectedSubject.name}" - Tous les profs. de ${classe.name} - ${salleData.name}`;
+        } else if (profsClasse.length > 0) {
+          return `Tous les professeurs de ${classe.name}`;
+        } else {
+          return `Tous les professeurs disponibles`;
+        }
+      }
+    }
+
+    // Si aucune matière sélectionnée
+    if (profsClasseSalle.length > 0) {
+      return `Professeurs de ${classe.name} - ${salleData.name}`;
+    } else if (profsClasse.length > 0) {
+      return `Tous les professeurs de ${classe.name}`;
+    } else {
+      return `Tous les professeurs disponibles`;
+    }
   };
 
   // ✅ FONCTION POUR SÉLECTIONNER UN PROFESSEUR
@@ -2332,12 +2490,16 @@ const GestionMatierePage: React.FC<GestionMatierePageProps> = ({
                   </label>
                   <select
                     value={scheduleForm.subject}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      // Réinitialiser le professeur quand on change de matière
                       setScheduleForm((prev) => ({
                         ...prev,
                         subject: e.target.value,
-                      }))
-                    }
+                        professeur: "", // Réinitialiser le professeur
+                      }));
+                      setSelectedProfesseur(null);
+                      setProfesseurSearchTerm("");
+                    }}
                     className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
                       isDarkMode
                         ? "bg-gray-700 border-gray-600 text-white"
@@ -2418,14 +2580,31 @@ const GestionMatierePage: React.FC<GestionMatierePageProps> = ({
                           {getFilteredProfesseurs().length > 0 ? (
                             <>
                               <div
-                                className={`px-3 py-2 text-xs font-semibold uppercase sticky top-0 ${
+                                className={`px-3 py-2 text-xs sticky top-0 border-b ${
                                   isDarkMode
-                                    ? "text-gray-400 bg-gray-700"
-                                    : "text-gray-600 bg-gray-50"
+                                    ? "bg-gray-700 border-gray-600"
+                                    : "bg-gray-50 border-gray-200"
                                 }`}
                               >
-                                {getFilteredProfesseurs().length} professeur(s)
-                                trouvé(s)
+                                <div
+                                  className={`font-semibold uppercase ${
+                                    isDarkMode
+                                      ? "text-gray-400"
+                                      : "text-gray-600"
+                                  }`}
+                                >
+                                  {getFilteredProfesseurs().length}{" "}
+                                  professeur(s) trouvé(s)
+                                </div>
+                                <div
+                                  className={`text-xs mt-1 italic ${
+                                    isDarkMode
+                                      ? "text-blue-400"
+                                      : "text-blue-600"
+                                  }`}
+                                >
+                                  {getProfesseurFilterMessage()}
+                                </div>
                               </div>
 
                               {/* Option "Aucun professeur" */}
@@ -2448,49 +2627,85 @@ const GestionMatierePage: React.FC<GestionMatierePageProps> = ({
                               </button>
 
                               {/* Liste des professeurs */}
-                              {getFilteredProfesseurs().map((prof) => (
-                                <button
-                                  key={prof.id}
-                                  type="button"
-                                  onClick={() => handleSelectProfesseur(prof)}
-                                  className={`w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center justify-between ${
-                                    scheduleForm.professeur === prof.id
-                                      ? "bg-blue-100 dark:bg-blue-900/30"
-                                      : ""
-                                  } ${
-                                    isDarkMode ? "text-white" : "text-gray-900"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <Users
-                                      size={16}
-                                      className="text-blue-500"
-                                    />
-                                    <div>
-                                      <p className="font-medium">
-                                        {prof.prenom} {prof.nom}
-                                      </p>
-                                      {prof.email && (
-                                        <p
-                                          className={`text-sm ${
-                                            isDarkMode
-                                              ? "text-gray-400"
-                                              : "text-gray-600"
-                                          }`}
-                                        >
-                                          {prof.email}
+                              {getFilteredProfesseurs().map((prof) => {
+                                // Récupérer les matières enseignées dans cette classe/salle
+                                const salleData = getSelectedSalleData();
+
+                                // Fonction pour convertir l'ID de matière en nom
+                                const getMatiereNameById = (matiereId: string): string => {
+                                  if (!salleData) return matiereId;
+                                  const matiere = salleData.subjects.find((s) => s.id === matiereId);
+                                  return matiere ? matiere.name : matiereId;
+                                };
+
+                                // Récupérer les matières enseignées par ce professeur dans cette classe/salle
+                                const matieresEnseignees = salleData
+                                  ? prof.sequences
+                                      .filter((seq) => {
+                                        return (
+                                          seq.classe === selectedClasse &&
+                                          seq.salle === selectedSalle &&
+                                          !seq.deleted
+                                        );
+                                      })
+                                      .map((seq) => getMatiereNameById(seq.matiere))
+                                  : [];
+
+                                return (
+                                  <button
+                                    key={prof.id}
+                                    type="button"
+                                    onClick={() => handleSelectProfesseur(prof)}
+                                    className={`w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors flex items-center justify-between ${
+                                      scheduleForm.professeur === prof.id
+                                        ? "bg-blue-100 dark:bg-blue-900/30"
+                                        : ""
+                                    } ${
+                                      isDarkMode ? "text-white" : "text-gray-900"
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3 flex-1">
+                                      <Users
+                                        size={16}
+                                        className="text-blue-500 flex-shrink-0"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-medium">
+                                          {prof.prenom} {prof.nom}
                                         </p>
-                                      )}
+                                        {prof.email && (
+                                          <p
+                                            className={`text-xs ${
+                                              isDarkMode
+                                                ? "text-gray-400"
+                                                : "text-gray-600"
+                                            }`}
+                                          >
+                                            {prof.email}
+                                          </p>
+                                        )}
+                                        {matieresEnseignees.length > 0 && (
+                                          <p
+                                            className={`text-xs mt-1 ${
+                                              isDarkMode
+                                                ? "text-green-400"
+                                                : "text-green-600"
+                                            }`}
+                                          >
+                                            📚 {matieresEnseignees.join(", ")}
+                                          </p>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                  {scheduleForm.professeur === prof.id && (
-                                    <Check
-                                      size={16}
-                                      className="text-blue-500"
-                                    />
-                                  )}
-                                </button>
-                              ))}
+                                    {scheduleForm.professeur === prof.id && (
+                                      <Check
+                                        size={16}
+                                        className="text-blue-500"
+                                      />
+                                    )}
+                                  </button>
+                                );
+                              })}
                             </>
                           ) : (
                             <div

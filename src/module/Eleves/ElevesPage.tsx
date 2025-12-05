@@ -1928,7 +1928,7 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
                       isDarkMode ? "text-gray-300" : "text-gray-500"
                     }`}
                   >
-                    Lieu
+                    Lieu de naissance
                   </th>
                   <th
                     className={`px-6 py-3 text-left text-xs font-medium uppercase tracking-wider ${

@@ -26,6 +26,7 @@ import { useEleves } from "../../Context/ContextEleves";
 import { useAnneeScolaire } from "../../Context/ContextAnneeScolaire";
 import { useNotes } from "../../Context/ContextNotes";
 import { useDecisionFinAnnee } from "../../Context/ContextDecisionFinAnnee";
+import { notify } from "@/components/Notification";
 
 // Types - maintenant importés depuis les contextes
 import { Eleve } from "../../types/EleveType";
@@ -594,9 +595,6 @@ const NotesPage = ({ isDarkMode }: Props) => {
 
       // ✅ ÉTAPE 5 : Attendre que toutes les sauvegardes soient terminées
       await Promise.all(promises);
-
-      // ✅ ÉTAPE 6 : Réinitialiser le formulaire UNIQUEMENT après succès
-      setNotesForm({});
 
       // ✅ ÉTAPE 7 : Afficher le message de succès avec le nombre de notes sauvegardées
       alert(`✅ ${validEntries.length} note(s) sauvegardée(s) avec succès!`);

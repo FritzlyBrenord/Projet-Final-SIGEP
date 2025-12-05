@@ -291,7 +291,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
         serverGenderDistribution
           ?.find((g) => g.name.includes("Filles"))
           ?.value?.toString() || "0",
-      change: "+3.2%",
+      change: "",
       changeType: "increase",
       illustration: <StudentGirlIllustration />,
       color: "rose",
@@ -302,7 +302,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
         serverGenderDistribution
           ?.find((g) => g.name.includes("Garçons"))
           ?.value?.toString() || "0",
-      change: "+2.1%",
+      change: "",
       changeType: "increase",
       illustration: <StudentBoyIllustration />,
       color: "blue",
@@ -310,7 +310,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
     {
       title: "Professeurs",
       value: serverTotals?.enseignants?.toString() || "0",
-      change: "+2.1%",
+      change: "",
       changeType: "increase",
       illustration: <TeacherIllustration />,
       color: "amber",
@@ -318,7 +318,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
     {
       title: "Employés",
       value: serverTotals?.employes?.toString() || "0",
-      change: "-1.5%",
+      change: "",
       changeType: "decrease",
       illustration: <EmployeeIllustration />,
       color: "emerald",
@@ -451,7 +451,7 @@ const TableauDeBord = ({ isDarkMode }: Props) => {
                         isDarkMode ? "text-gray-400" : "text-gray-500"
                       }`}
                     >
-                      ce mois
+                      <User className="w-4 h-4 inline-block mr-1" />
                     </span>
                   </div>
                 </div>
