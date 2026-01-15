@@ -536,72 +536,76 @@ const Dashboard: React.FC = () => {
   }
 
   if (!isOnline) {
-    return (
-      <div
-        className={`min-h-screen flex items-center justify-center ${
-          isDarkMode ? "bg-gray-900" : "bg-gray-50"
-        }`}
-      >
-        <div className="text-center px-6 max-w-md">
-          <div className="mb-6">
-            <svg
-              className={`mx-auto h-16 w-16 ${
-                isDarkMode ? "text-gray-600" : "text-gray-400"
+    setTimeout(() => {
+      return (
+        <div
+          className={`min-h-screen flex items-center justify-center ${
+            isDarkMode ? "bg-gray-900" : "bg-gray-50"
+          }`}
+        >
+          <div className="text-center px-6 max-w-md">
+            <div className="mb-6">
+              <svg
+                className={`mx-auto h-16 w-16 ${
+                  isDarkMode ? "text-gray-600" : "text-gray-400"
+                }`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"
+                />
+              </svg>
+            </div>
+
+            <h2
+              className={`text-2xl font-semibold mb-3 ${
+                isDarkMode ? "text-gray-100" : "text-gray-900"
               }`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"
-              />
-            </svg>
-          </div>
+              Pas de connexion internet
+            </h2>
 
-          <h2
-            className={`text-2xl font-semibold mb-3 ${
-              isDarkMode ? "text-gray-100" : "text-gray-900"
-            }`}
-          >
-            Pas de connexion internet
-          </h2>
-
-          <p
-            className={`mb-6 ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}
-          >
-            Impossible de charger les données. Vérifiez votre connexion et
-            réessayez.
-          </p>
-
-          <button
-            onClick={() => window.location.reload()}
-            className={`px-6 py-3 rounded-lg font-medium transition-colors ${
-              isDarkMode
-                ? "bg-blue-600 hover:bg-blue-700 text-white"
-                : "bg-blue-500 hover:bg-blue-600 text-white"
-            }`}
-          >
-            Réessayer
-          </button>
-
-          <div className="flex gap-2">
             <p
-              className={`mt-4 text-sm ${
-                isDarkMode ? "text-gray-500" : "text-gray-500"
+              className={`mb-6 ${
+                isDarkMode ? "text-gray-400" : "text-gray-600"
               }`}
             >
-              Tentative de reconnexion automatique en cours...
+              Impossible de charger les données. Vérifiez votre connexion et
+              réessayez.
             </p>
-            <div className="mt-4">
-              <Spinner />
+
+            <button
+              onClick={() => window.location.reload()}
+              className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                isDarkMode
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "bg-blue-500 hover:bg-blue-600 text-white"
+              }`}
+            >
+              Réessayer
+            </button>
+
+            <div className="flex gap-2">
+              <p
+                className={`mt-4 text-sm ${
+                  isDarkMode ? "text-gray-500" : "text-gray-500"
+                }`}
+              >
+                Tentative de reconnexion automatique en cours...
+              </p>
+              <div className="mt-4">
+                <Spinner />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    );
+      );
+    }, 200000);
   }
 
   if (showWelcome) {
