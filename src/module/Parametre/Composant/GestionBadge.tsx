@@ -31,6 +31,7 @@ import { useContextUtilisateur } from "@/Context/ContextUtilisateur";
 import BadgeClassicCustomizable, {
   BadgeConfig,
   EleveData,
+  AVAILABLE_FIELDS,
 } from "@/module/BadgeCadre/BadgeClassicCustomizable";
 import { badgeModelService, BadgeModel } from "@/services/badgeModelService";
 import {
@@ -101,6 +102,10 @@ export const DEFAULT_BADGE_CONFIG: BadgeConfig = {
   photoBackgroundTransparent: false,
   // Footer
   footerTransparent: false,
+
+  // Contenu Dynamique
+  selectedFields: ["code", "classe_nom", "salle_nom", "groupe_sanguin", "vacation"],
+  vacationValue: "AM",
 };
 
 interface BadgeTemplate {
@@ -439,6 +444,14 @@ const GestionBadge = ({ isDarkMode }: Props) => {
           classe_nom: classe?.name || (eleve as any).classe_nom || "N/A",
           salle_nom: salle?.name || (eleve as any).salle_nom || "N/A",
           groupe_sanguin: (eleve as any).groupe_sanguin,
+          sexe: (eleve as any).sexe,
+          date_naissance: (eleve as any).date_naissance,
+          pays_naissance: (eleve as any).pays_naissance,
+          ville_naissance: (eleve as any).ville_naissance,
+          adresse_actuelle: (eleve as any).adresse_actuelle,
+          telephone_parents: (eleve as any).telephone_parents,
+          nom_prenom_parent: (eleve as any).nom_prenom_parent,
+          nif_parents: (eleve as any).nif_parents,
         };
 
         return {
@@ -573,6 +586,14 @@ const GestionBadge = ({ isDarkMode }: Props) => {
         classe_nom: classe?.name || (eleve as any).classe_nom || "N/A",
         salle_nom: salle?.name || (eleve as any).salle_nom || "N/A",
         groupe_sanguin: (eleve as any).groupe_sanguin,
+        sexe: (eleve as any).sexe,
+        date_naissance: (eleve as any).date_naissance,
+        pays_naissance: (eleve as any).pays_naissance,
+        ville_naissance: (eleve as any).ville_naissance,
+        adresse_actuelle: (eleve as any).adresse_actuelle,
+        telephone_parents: (eleve as any).telephone_parents,
+        nom_prenom_parent: (eleve as any).nom_prenom_parent,
+        nif_parents: (eleve as any).nif_parents,
       };
 
       return {
@@ -1181,6 +1202,75 @@ const GestionBadge = ({ isDarkMode }: Props) => {
                       </select>
                     )}
                   </div>
+                </SettingsGroup>
+
+                {/* 1.5 INFORMATIONS A AFFICHER */}
+                <SettingsGroup
+                  isDarkMode={isDarkMode}
+                  title="Contenu du Badge"
+                  icon={FileCheck}
+                >
+                  <p className="text-[10px] text-gray-500 mb-2">
+                    Sélectionnez jusqu'à 6 informations (Nom et Prénom sont obligatoires).
+                  </p>
+                  
+                  <div className="space-y-1 mb-4 h-32 overflow-y-auto pr-2 custom-scrollbar border border-gray-100 dark:border-gray-700 rounded p-1">
+                    {AVAILABLE_FIELDS.map((field) => {
+                       const isSelected = (badgeConfig.selectedFields || []).includes(field.id);
+                       
+                       return (
+                         <label key={field.id} className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-1 rounded transition-colors w-full">
+                           <input
+                             type="checkbox"
+                             checked={isSelected}
+                             disabled={!isSelected && (badgeConfig.selectedFields?.length || 0) >= 6}
+                             onChange={(e) => {
+                               const currentFields = badgeConfig.selectedFields || [];
+                               let newFields;
+                               
+                               if (e.target.checked) {
+                                  if (currentFields.length < 6) {
+                                    newFields = [...currentFields, field.id];
+                                  } else {
+                                    return; // Max reached
+                                  }
+                               } else {
+                                  newFields = currentFields.filter(id => id !== field.id);
+                               }
+                               
+                               setBadgeConfig({
+                                 ...badgeConfig,
+                                 selectedFields: newFields
+                               });
+                             }}
+                             className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 flex-shrink-0"
+                           />
+                           <span className={`truncate ${isSelected ? "font-semibold text-blue-700 dark:text-blue-400" : ""}`}>
+                            {field.label}
+                           </span>
+                         </label>
+                       );
+                    })}
+                  </div>
+
+                  {/* Vacation Special Input */}
+                  {(badgeConfig.selectedFields || []).includes("vacation") && (
+                    <div className="animate-fadeIn p-2 bg-blue-50 dark:bg-gray-800/50 rounded border border-blue-100 dark:border-gray-700">
+                      <label className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 mb-1 block">
+                        Valeur Vacation
+                      </label>
+                      <input
+                        type="text"
+                        value={badgeConfig.vacationValue || ""}
+                        onChange={(e) => setBadgeConfig({
+                          ...badgeConfig,
+                          vacationValue: e.target.value
+                        })}
+                        placeholder="Ex: AM, PM, Soir..."
+                        className="w-full text-xs p-1.5 rounded border bg-white dark:bg-gray-800"
+                      />
+                    </div>
+                  )}
                 </SettingsGroup>
 
                 {/* 2. STYLE EN-TÊTE (DÉTAILLÉ) */}

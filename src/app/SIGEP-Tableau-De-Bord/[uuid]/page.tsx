@@ -277,15 +277,17 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
-    if (
-      !loading &&
-      schoolYears.length === 0 &&
-      (userPermissions.length > 0 || isUserSuperAdmin)
-    ) {
-      setShowWelcome(true);
-    } else {
-      setShowWelcome(false);
-    }
+    setTimeout(() => {
+      if (
+        !loading &&
+        schoolYears.length === 0 &&
+        (userPermissions.length > 0 || isUserSuperAdmin)
+      ) {
+        setShowWelcome(true);
+      } else {
+        setShowWelcome(false);
+      }
+    }, 200000);
   }, [loading, schoolYears, userPermissions, isUserSuperAdmin]);
 
   useEffect(() => {

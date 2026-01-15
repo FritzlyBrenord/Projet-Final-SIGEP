@@ -50,6 +50,10 @@ export interface BadgeConfig {
   photoBackgroundColor?: string;
   photoBackgroundTransparent?: boolean;
   footerTransparent?: boolean;
+
+  // Contenu Dynamique
+  selectedFields: string[]; // IDs des champs à afficher
+  vacationValue: string; // Valeur manuelle pour la vacation
 }
 
 export interface EleveData {
@@ -60,7 +64,16 @@ export interface EleveData {
   photo_url?: string;
   classe_nom?: string;
   salle_nom?: string;
-  groupe_sanguin?: string;
+  groupe_sanguin?: string; // Ajouté
+  sexe?: "M" | "F";
+  date_naissance?: string;
+  pays_naissance?: string;
+  ville_naissance?: string;
+  adresse_actuelle?: string;
+  telephone_parents?: string;
+  nom_prenom_parent?: string;
+  nif_parents?: string;
+  etablissement_precedent?: string;
 }
 
 interface Props {
@@ -68,6 +81,22 @@ interface Props {
   eleve: EleveData;
   className?: string;
 }
+
+// Définition des champs disponibles pour l'affichage
+export const AVAILABLE_FIELDS: { id: string; label: string; widthMm?: number }[] = [
+  { id: "code", label: "MATRICULE" },
+  { id: "classe_nom", label: "CLASSE" },
+  { id: "salle_nom", label: "SALLE" },
+  { id: "vacation", label: "VACATION" },
+  { id: "groupe_sanguin", label: "G.S" },
+  { id: "sexe", label: "SEXE" },
+  { id: "date_naissance", label: "NÉ(E) LE" },
+  { id: "ville_naissance", label: "LIEU NAISS." },
+  { id: "telephone_parents", label: "TÉL. URG." },
+  { id: "nom_prenom_parent", label: "PARENT" },
+  { id: "adresse_actuelle", label: "ADRESSE" },
+  { id: "nif_parents", label: "NIF RESP." },
+];
 
 // Obtenir les couleurs de texte
 const getCurrentTextColors = (config: BadgeConfig) => ({
@@ -91,6 +120,47 @@ const BadgeClassicCustomizable: React.FC<Props> = ({
   };
 
   const displayClass = formatClassDisplay(eleve.classe_nom || "");
+  
+  // Fonction pour obtenir la valeur à afficher pour un champ donné
+  const getFieldValue = (fieldId: string) => {
+    switch (fieldId) {
+      case "code":
+        return eleve.code;
+      case "classe_nom":
+        return displayClass || "N/A";
+      case "salle_nom":
+        return eleve.salle_nom || "N/A";
+      case "groupe_sanguin":
+        return eleve.groupe_sanguin || "N/A";
+      case "vacation":
+        return config.vacationValue || "AM"; // Valeur par défaut si non définie
+      case "sexe":
+        return eleve.sexe || "N/A";
+      case "date_naissance":
+         // Formattage simple de la date si nécessaire
+         if (!eleve.date_naissance) return "N/A";
+         try {
+           return new Date(eleve.date_naissance).toLocaleDateString('fr-FR');
+         } catch {
+            return eleve.date_naissance;
+         }
+      case "ville_naissance":
+        return eleve.ville_naissance 
+          ? `${eleve.ville_naissance}${eleve.pays_naissance ? `, ${eleve.pays_naissance}` : ''}`
+          : (eleve.pays_naissance || "N/A");
+      case "telephone_parents":
+        return eleve.telephone_parents || "N/A";
+      case "nom_prenom_parent":
+        return eleve.nom_prenom_parent || "N/A";
+      case "adresse_actuelle":
+        return eleve.adresse_actuelle || "N/A";
+      case "nif_parents":
+        return eleve.nif_parents || "N/A";
+      default:
+        return "N/A";
+    }
+  };
+
   // Obtenir le style de background selon le pattern sélectionné
   const getBackgroundStyle = () => {
     // Priorité 1: Image personnalisée uploadée
@@ -197,6 +267,13 @@ const BadgeClassicCustomizable: React.FC<Props> = ({
   const qrValue = `${eleve.nom} ${eleve.prenom} - ${
     eleve.classe_nom || "N/A"
   } - ${eleve.code}`;
+  
+  // Utiliser les champs sélectionnés du config, ou une liste par défaut si vide
+  // Liste par défaut pour rétrocompatibilité
+  const defaultFields = ["code", "classe_nom", "salle_nom", "groupe_sanguin", "vacation"];
+  const fieldsToShow = (config.selectedFields && config.selectedFields.length > 0) 
+    ? config.selectedFields 
+    : defaultFields;
 
   return (
     <div
@@ -305,7 +382,7 @@ const BadgeClassicCustomizable: React.FC<Props> = ({
             {eleve?.nom || ""} {eleve?.prenom || ""}
           </div>
 
-          {/* INFOS */}
+          {/* INFOS DYNAMIQUES */}
           <div
             className="absolute left-[6mm] right-[6mm] text-[5pt] space-y-[1mm]"
             style={{
@@ -313,28 +390,17 @@ const BadgeClassicCustomizable: React.FC<Props> = ({
               top: `calc(${config.headerHeight}% + 38mm)`,
             }}
           >
-            <div className="flex">
-              <div className="w-[14mm] font-medium">MATRICULE:</div>
-              <div className="font-semibold">{eleve.code}</div>
-            </div>
-            <div className="flex">
-              <div className="w-[14mm] font-medium">Classe:</div>
-              <div className="font-semibold">{displayClass || "N/A"}</div>
-            </div>
-            <div className="flex">
-              <div className="w-[14mm] font-medium">Salle:</div>
-              <div className="font-semibold">{eleve.salle_nom || "N/A"}</div>
-            </div>
-            <div className="flex">
-              <div className="w-[14mm] font-medium">G.S:</div>
-              <div className="font-semibold">
-                {eleve.groupe_sanguin || "N/A"}
-              </div>
-            </div>
-            <div className="flex">
-              <div className="w-[14mm] font-medium">VACATION:</div>
-              <div className="font-semibold">AM</div>
-            </div>
+            {fieldsToShow.map(fieldId => {
+              const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId);
+              if (!fieldDef) return null;
+              
+              return (
+                <div key={fieldId} className="flex">
+                  <div className="w-[14mm] font-medium uppercase">{fieldDef.label}:</div>
+                  <div className="font-semibold">{getFieldValue(fieldId)}</div>
+                </div>
+              );
+            })}
           </div>
 
           {/* ANNÉE */}
@@ -499,7 +565,7 @@ const BadgeClassicCustomizable: React.FC<Props> = ({
               </div>
             </div>
 
-            {/* Section centrale - Informations */}
+            {/* Section centrale - Informations Dynamiques */}
             <div className="flex-1 flex flex-col justify-center text-[5pt] space-y-[1.2mm] pt-2">
               <div
                 className="text-[7pt] font-extrabold mb-[1.5mm] uppercase tracking-tight border-b pb-[0.5mm]"
@@ -515,47 +581,24 @@ const BadgeClassicCustomizable: React.FC<Props> = ({
                 style={{ color: currentInfoTextColor }}
                 className="space-y-[1mm]"
               >
-                <div className="flex items-baseline">
-                  <div className="w-[18mm] font-bold opacity-70 text-[4.5pt] uppercase">
-                    MATRICULE
-                  </div>
-                  <div className="font-bold text-[5.5pt]">{eleve.code}</div>
-                </div>
-                <div className="flex items-baseline">
-                  <div className="w-[18mm] font-bold opacity-70 text-[4.5pt] uppercase">
-                    CLASSE
-                  </div>
-                  <div className="font-bold text-[5.5pt]">
-                    {formatClassDisplay(eleve.classe_nom) || "N/A"}
-                  </div>
-                </div>
-                <div className="flex items-baseline">
-                  <div className="w-[18mm] font-bold opacity-70 text-[4.5pt] uppercase">
-                    SALLE
-                  </div>
-                  <div className="font-bold text-[5.5pt]">
-                    {eleve.salle_nom || "N/A"}
-                  </div>
-                </div>
-                <div className="flex items-baseline">
-                  <div className="w-[18mm] font-bold opacity-70 text-[4.5pt] uppercase">
-                    G.S
-                  </div>
-                  <div className="font-bold text-[5.5pt]">
-                    {eleve.groupe_sanguin || "N/A"}
-                  </div>
-                </div>
-                <div className="flex items-baseline">
-                  <div className="w-[18mm] font-bold opacity-70 text-[4.5pt] uppercase">
-                    VACATION
-                  </div>
-                  <div className="font-bold text-[5.5pt]">AM</div>
-                </div>
+                {fieldsToShow.map(fieldId => {
+                  const fieldDef = AVAILABLE_FIELDS.find(f => f.id === fieldId);
+                  if (!fieldDef) return null;
+                  
+                  return (
+                    <div key={fieldId} className="flex items-baseline">
+                      <div className="w-[18mm] font-bold opacity-70 text-[4.5pt] uppercase">
+                        {fieldDef.label}
+                      </div>
+                      <div className="font-bold text-[5.5pt]">{getFieldValue(fieldId)}</div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* Section droite - QR Code et signature */}
-            <div className="flex flex-col items-center justify-between py-[1mm] w-[22mm]">
+            <div className="flex flex-col items-center justify-between py-[mm] w-[22mm]">
               {config.showQRCode ? (
                 <div className="bg-white border-[0.3mm] border-gray-300 p-[1mm]">
                   <div style={{ height: "13mm", width: "13mm" }}>
