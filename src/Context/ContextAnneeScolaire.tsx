@@ -52,6 +52,7 @@ export interface Classe {
   id: string;
   name: string;
   salles: Salle[];
+  shortName?: string;
 }
 
 export interface SchoolYear {
@@ -262,6 +263,22 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
     [CLASSES_ORDER]
   );
 
+  // Formatage lisible des noms de classes
+  const formatClassDisplay = (rawName: string): string => {
+    if (!rawName) return rawName;
+
+    // Gérer les formes comme "1ère Année Fondamentale" ou "5e Année Fondamentale"
+    const fondamentaleRegex = /^(\d+(?:er|ère|e))\s+Année\s+Fondamentale$/i;
+    const m = rawName.match(fondamentaleRegex);
+    if (m) {
+      // Exemple: "1ère" ou "5e" -> "1ère A.F" / "5e A.F"
+      return `${m[1]} A.F`;
+    }
+
+    // Par défaut, retourner tel quel (NSIV, NSIII, NSII, NSI, etc.)
+    return rawName;
+  };
+
   // Utilitaires
   const resetError = () => setError(null);
 
@@ -412,6 +429,7 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
             return {
               id: classeDB.id,
               name: classeDB.nom,
+              shortName: formatClassDisplay(classeDB.nom),
               salles,
             };
           })
@@ -867,7 +885,9 @@ export const AnneeScolaireProvider: React.FC<{ children: ReactNode }> = ({
     (classId: string): string => {
       if (!currentYear) return "Classe non trouvée";
       const classe = currentYear.classes.find((c) => c.id === classId);
-      return classe ? classe.name : "Classe non trouvée";
+      if (!classe) return "Classe non trouvée";
+      // Retourner le shortName si présent, sinon le nom complet
+      return classe.shortName || classe.name;
     },
     [currentYear]
   );

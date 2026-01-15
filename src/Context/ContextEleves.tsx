@@ -23,6 +23,7 @@ import {
   DeleteData,
   DataExsite,
 } from "@/Config/SupabaseData";
+import { UploadImagePublic, getPublicImageUrl } from "@/Config/SupabaseData";
 
 export interface ParcoursAcademique {
   // Informations personnelles de l'élève
@@ -41,6 +42,8 @@ export interface ParcoursAcademique {
     telephone_parents: string;
     adresse_parents: string;
     nif_parents: string;
+    groupe_sanguin?: string;
+    nom_prenom_parent: string;
     etablissement_precedent: string;
     photo_url?: string;
     created_at?: string;
@@ -156,6 +159,7 @@ export interface ElevesContextType {
   reinscrireEleve: (data: ReinscriptionData) => Promise<void>;
   getHistoriqueEleve: (eleveId: string) => Promise<EleveInscription[]>;
   getParcoursAcademique: (eleveId: string) => Promise<ParcoursAcademique>;
+  uploadPhoto: (file: File) => Promise<string>;
 }
 
 const ElevesContext = createContext<ElevesContextType | undefined>(undefined);
@@ -186,6 +190,8 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
     moyenne_generale: eleveData.moyenne_generale,
     etablissement_precedent: eleveData.etablissement_precedent,
     photo_url: eleveData.photo_url,
+    groupe_sanguin: eleveData.groupe_sanguin,
+    nom_prenom_parent: eleveData.nom_prenom_parent,
     deleted: eleveData.deleted,
     created_at: eleveData.created_at,
     updated_at: eleveData.updated_at,
@@ -248,6 +254,25 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
       setIsLoading(false);
     }
   }, [currentYear]);
+
+  // Upload d'une photo dans Supabase via les helpers de SupabaseData
+  const uploadPhoto = async (file: File): Promise<string> => {
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}_${Math.random()
+        .toString(36)
+        .substring(2)}.${fileExt}`;
+
+      const uploaded = await UploadImagePublic(fileName, file, "photo_eleves");
+      if (!uploaded) throw new Error("Erreur lors de l'upload de l'image");
+
+      const publicUrl = await getPublicImageUrl(fileName, "photo_eleves");
+      return publicUrl;
+    } catch (err) {
+      console.error("Erreur uploadPhoto:", err);
+      throw err;
+    }
+  };
 
   const genererNouveauCode = async (
     nom?: string,
@@ -352,6 +377,8 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         moyenne_generale: data.moyenne_generale,
         etablissement_precedent: data.etablissement_precedent,
         photo_url: data.photo_url,
+        groupe_sanguin: data.groupe_sanguin,
+        nom_prenom_parent: data.nom_prenom_parent,
         deleted: false,
       };
 
@@ -422,6 +449,8 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         "moyenne_generale",
         "etablissement_precedent",
         "photo_url",
+        "groupe_sanguin",
+        "nom_prenom_parent",
       ];
 
       const inscriptionFields: Array<keyof EleveFormData> = [
@@ -825,6 +854,8 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         moyenne_generale: data.moyenne_generale,
         etablissement_precedent: data.etablissement_precedent,
         photo_url: data.photo_url,
+        groupe_sanguin: data.groupe_sanguin,
+        nom_prenom_parent: data.nom_prenom_parent,
         deleted: false,
       };
 
@@ -1272,6 +1303,8 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
           adresse_parents: eleve.adresse_parents,
           nif_parents: eleve.nif_parents,
           etablissement_precedent: eleve.etablissement_precedent,
+          groupe_sanguin: eleve.groupe_sanguin,
+          nom_prenom_parent: eleve.nom_prenom_parent || "",
           photo_url: eleve.photo_url,
           created_at: eleve.created_at,
         },
@@ -1311,6 +1344,7 @@ export const ElevesProvider: React.FC<{ children: ReactNode }> = ({
         ajouterNouvelEleve,
         reinscrireEleve,
         getHistoriqueEleve,
+        uploadPhoto,
       }}
     >
       {children}

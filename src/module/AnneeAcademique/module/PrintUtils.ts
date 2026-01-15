@@ -73,16 +73,18 @@ export const EntetIMFP = (titre: string): string => {
       
       .logo {
         width: 90px;
-        height: 90px;
+        max-width: 90px;
         border-radius: 8px;
         overflow: hidden;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: block;
       }
-      
+
       .logo img {
         width: 100%;
-        height: 100%;
+        height: auto; /* Ne définir que la largeur pour préserver le ratio */
         object-fit: contain;
+        display: block;
       }
       
       .document-title {
@@ -109,7 +111,8 @@ export const EntetIMFP = (titre: string): string => {
         }
         .logo {
           width: 70px;
-          height: 70px;
+          max-width: 70px;
+          /* hauteur non définie pour éviter déformation */
         }
       }
       
@@ -120,7 +123,7 @@ export const EntetIMFP = (titre: string): string => {
         }
         .logo {
           width: 80px;
-          height: 80px;
+          max-width: 80px;
         }
       }
     </style>
@@ -181,7 +184,7 @@ export const EntetIMFPSimple = (titre: string): string => {
       <div>
         <img src="/logo.png" alt="Logo IMFP" style="
           width: 120px; 
-          height: 120px; 
+          
           object-fit: contain;
           border-radius: 6px;
           padding: 4px;

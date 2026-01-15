@@ -31,6 +31,7 @@ interface Student {
   pays_naissance: string;
   region_naissance: string;
   ville_naissance: string;
+
   section_naissance?: string;
   sexe: "M" | "F";
   adresseActuelle: string;
@@ -44,6 +45,9 @@ interface Student {
   status: "actif" | "inactif" | "suspendu";
   dateInscription: string;
   observations?: string;
+  groupe_sanguin?: string;
+  nom_prenom_parent: string;
+  photoUrl?: string;
 }
 
 interface ExportColumn {
@@ -217,6 +221,27 @@ const ExportModal: React.FC<ExportModalProps> = ({
       isSelected: false,
       isCustom: false,
     },
+    {
+      id: "groupe_sanguin",
+      label: "Groupe Sanguin",
+      key: "groupe_sanguin",
+      isSelected: false,
+      isCustom: false,
+    },
+    {
+      id: "nom_prenom_parent",
+      label: "Parent/Tuteur",
+      key: "nom_prenom_parent",
+      isSelected: true,
+      isCustom: false,
+    },
+    {
+      id: "photo",
+      label: "Photo",
+      key: "photoUrl",
+      isSelected: false,
+      isCustom: false,
+    },
   ]);
 
   const [customColumns, setCustomColumns] = useState<ExportColumn[]>([]);
@@ -244,15 +269,20 @@ const ExportModal: React.FC<ExportModalProps> = ({
     }, [currentYear?.classes]);
 
   const classSelector = (idClass: any) => {
-    return classes.find((item) => item.value === idClass)?.label;
-  };
-  const salleSelector = (idSalle: any, idClass?: any) => {
-    const classId = idClass || selectedClass;
-    return sallesByClass[classId]?.find((item) => item.value === idSalle)
-      ?.label;
+    return (
+      classes.find((item) => item.value === idClass)?.label || idClass || ""
+    );
   };
 
-  // Filtrer et trier les étudiants selon les critères sélectionnés
+  const salleSelector = (idSalle: any, idClass?: any) => {
+    const classId = idClass || selectedClass;
+    return (
+      sallesByClass[classId]?.find((item) => item.value === idSalle)?.label ||
+      idSalle ||
+      ""
+    );
+  };
+
   const getFilteredStudents = () => {
     let filtered = students;
 
@@ -272,11 +302,10 @@ const ExportModal: React.FC<ExportModalProps> = ({
       );
     }
 
-    // Appliquer le tri
     if (sortBy) {
       filtered.sort((a, b) => {
-        let aValue: string;
-        let bValue: string;
+        let aValue = "";
+        let bValue = "";
 
         switch (sortBy) {
           case "nom":
@@ -507,6 +536,13 @@ const ExportModal: React.FC<ExportModalProps> = ({
                           )}`;
                         } else if (col.key === "classesDemandee") {
                           value = `${classSelector(value)}`;
+                        } else if (col.key === "photoUrl") {
+                          // Afficher l'image si disponible
+                          if (value) {
+                            return `<td><img src="${value}" style="width:60px;height:60px;object-fit:cover;border-radius:4px;"/></td>`;
+                          } else {
+                            return `<td>-</td>`;
+                          }
                         }
 
                         return `<td>${value || ""}</td>`;
@@ -533,105 +569,109 @@ const ExportModal: React.FC<ExportModalProps> = ({
   // Générer et télécharger PDF
   const downloadPDF = async () => {
     try {
-      console.log("🚀 Début de la génération du PDF...");
-
-      // Étape 1: Vérifier les données
       const filteredStudents = getFilteredStudents();
       if (filteredStudents.length === 0) {
         alert("Aucun élève à exporter");
         return;
       }
-      console.log(`📊 ${filteredStudents.length} élèves à exporter`);
 
-      // Étape 2: Générer le HTML
-      console.log("📝 Génération du HTML...");
+      // Générer le HTML et l'ajouter au DOM
       const htmlContent = generateHTMLTable();
-      console.log("HTML généré avec succès, longueur:", htmlContent.length);
-
-      // Étape 3: Créer un conteneur mieux configuré
       const printContainer = document.createElement("div");
       printContainer.id = "pdf-export-container";
       printContainer.style.position = "fixed";
       printContainer.style.left = "0";
       printContainer.style.top = "0";
-      printContainer.style.width = "210mm";
-      printContainer.style.minHeight = "297mm";
-      printContainer.style.padding = "20px";
+      printContainer.style.width = "215.9mm"; // Letter width
+      printContainer.style.minHeight = "279.4mm"; // Letter height
+      printContainer.style.padding = "10mm"; // small inner margin
       printContainer.style.backgroundColor = "white";
       printContainer.style.zIndex = "9999";
       printContainer.style.boxSizing = "border-box";
-      printContainer.innerHTML = htmlContent;
-
+      // Forcer des images non déformées
+      const enhancedHtml = htmlContent.replace(
+        "</style>",
+        `img { max-width: 100%; height: auto; object-fit: contain; }\n</style>`
+      );
+      printContainer.innerHTML = enhancedHtml;
       document.body.appendChild(printContainer);
-      console.log("📦 Conteneur HTML ajouté au DOM");
 
-      // Étape 4: Attendre le rendu
-      await new Promise((resolve) => {
-        printContainer.onload = resolve;
-        setTimeout(resolve, 2000); // Augmenter le temps d'attente
-      });
+      // Calculs pour une meilleure résolution et découpage en pages
+      const pageWidthMm = 215.9;
+      const pageHeightMm = 279.4;
+      const marginMm = 10;
+      const pxPerMm = 96 / 25.4; // approx at 96dpi
+      const scale = Math.max(2, window.devicePixelRatio || 2);
 
-      // Étape 5: Vérifier que le contenu est bien rendu
-      console.log("👀 Vérification du rendu...");
-      const hasContent = printContainer.innerHTML.length > 0;
-      console.log("Contenu présent:", hasContent);
-      console.log("Hauteur du conteneur:", printContainer.scrollHeight);
-
-      if (!hasContent) {
-        throw new Error("Le conteneur HTML est vide");
-      }
-
-      // Étape 6: Configuration html2canvas
-      console.log("📸 Début de la conversion html2canvas...");
-      const canvas = await html2canvas(printContainer, {
-        scale: 1, // Commencer avec scale 1 pour debug
+      // Render avec html2canvas à plus haute résolution
+      const canvas = await html2canvas(printContainer as HTMLElement, {
+        scale,
         useCORS: true,
-        logging: true, // Activer les logs pour debug
         backgroundColor: "#ffffff",
-        width: printContainer.scrollWidth,
-        height: printContainer.scrollHeight,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: printContainer.scrollWidth,
-        windowHeight: printContainer.scrollHeight,
+        allowTaint: false,
+        logging: false,
       });
-      console.log("✅ html2canvas réussi");
 
-      // Étape 7: Nettoyage
-      document.body.removeChild(printContainer);
-      console.log("🧹 Conteneur nettoyé");
+      // Supprimer le container du DOM rapidement
+      if (printContainer && printContainer.parentNode)
+        printContainer.parentNode.removeChild(printContainer);
 
-      // Étape 8: Création du PDF
-      console.log("📄 Création du PDF...");
-      const imgData = canvas.toDataURL("image/png", 1.0);
-      const pdf = new jsPDF("p", "mm", "a4");
+      const pdf = new jsPDF("p", "mm", "letter");
 
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageWidthPx = Math.floor(pageWidthMm * pxPerMm * scale);
+      const pageInnerHeightPx = Math.floor(
+        (pageHeightMm - marginMm * 2) * pxPerMm * scale
+      );
 
-      let heightLeft = imgHeight;
-      let position = 0;
+      let renderedHeight = canvas.height;
+      let positionY = 0;
+      let pageIndex = 0;
 
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      while (positionY < renderedHeight) {
+        const tmpCanvas = document.createElement("canvas");
+        tmpCanvas.width = canvas.width;
+        tmpCanvas.height = Math.min(
+          pageInnerHeightPx,
+          renderedHeight - positionY
+        );
+        const ctx = tmpCanvas.getContext("2d");
+        if (ctx) {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, tmpCanvas.width, tmpCanvas.height);
+          ctx.drawImage(
+            canvas,
+            0,
+            positionY,
+            canvas.width,
+            tmpCanvas.height,
+            0,
+            0,
+            tmpCanvas.width,
+            tmpCanvas.height
+          );
+        }
 
-      // Pages supplémentaires si nécessaire
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight + 10;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        const imgData = tmpCanvas.toDataURL("image/png", 1.0);
+
+        const imgWidthMm = pageWidthMm - marginMm * 2;
+        const imgHeightMm = (tmpCanvas.height / tmpCanvas.width) * imgWidthMm;
+
+        if (pageIndex > 0) pdf.addPage();
+        pdf.addImage(
+          imgData,
+          "PNG",
+          marginMm,
+          marginMm,
+          imgWidthMm,
+          imgHeightMm
+        );
+
+        positionY += tmpCanvas.height;
+        pageIndex += 1;
       }
 
-      // Étape 9: Sauvegarde
-      const fileName = `liste_eleves_${
-        new Date().toISOString().split("T")[0]
-      }.pdf`;
-      pdf.save(fileName);
-      console.log("💾 PDF sauvegardé:", fileName);
+      pdf.save(`liste_eleves_${new Date().toISOString().split("T")[0]}.pdf`);
 
-      // Étape 10: Historique
       addActivity({
         action: "export",
         module: "Gestion Élèves",
@@ -639,27 +679,12 @@ const ExportModal: React.FC<ExportModalProps> = ({
         details: `Un PDF de la liste des élèves a été généré avec ${filteredStudents.length} élève(s).`,
       });
     } catch (error) {
-      console.error("❌ ERREUR DÉTAILLÉE:", error);
-      console.error(
-        "Type d erreur:",
-        error instanceof Error ? error.constructor.name : "Unknown"
-      );
-      console.error("Message:", error instanceof Error ? error.message : error);
-      console.error(
-        "Stack:",
-        error instanceof Error ? error.stack : "No stack"
-      );
-
-      // Nettoyage en cas d'erreur
+      console.error("Erreur génération PDF:", error);
       const container = document.getElementById("pdf-export-container");
-      if (container) {
-        document.body.removeChild(container);
-      }
-
+      if (container && container.parentNode)
+        container.parentNode.removeChild(container);
       alert(
-        `Erreur détaillée: ${
-          error instanceof Error ? error.message : "Erreur inconnue"
-        }. Utilisation de la méthode alternative...`
+        `Erreur lors de la génération du PDF. Utilisation de la méthode de secours.`
       );
       downloadPDFFallback();
     }
@@ -673,7 +698,8 @@ const ExportModal: React.FC<ExportModalProps> = ({
       ...customColumns.filter((col) => col.isSelected),
     ];
 
-    const doc = new jsPDF("p", "mm", "a4");
+    const margin = 10; // mm
+    const doc = new jsPDF("p", "mm", "letter");
 
     // En-tête simplifié
     doc.setFontSize(16);
@@ -723,6 +749,8 @@ const ExportModal: React.FC<ExportModalProps> = ({
           value = `${salleSelector(value, student.classesDemandee)}`;
         } else if (col.key === "classesDemandee") {
           value = `${classSelector(value)}`;
+        } else if (col.key === "photoUrl") {
+          value = value ? String(value) : "";
         }
 
         return String(value || "");
@@ -734,6 +762,7 @@ const ExportModal: React.FC<ExportModalProps> = ({
       head: [headers],
       body: data,
       startY: yPosition + 15,
+      margin: { left: margin, right: margin },
       styles: { fontSize: 8 },
       headStyles: {
         fillColor: [52, 73, 94],
@@ -754,66 +783,142 @@ const ExportModal: React.FC<ExportModalProps> = ({
     });
   };
 
-  // Générer et télécharger Excel
-  const downloadExcel = () => {
+  // Générer et télécharger Excel (essaie d'embarquer les images via exceljs)
+  const downloadExcel = async () => {
     const filteredStudents = getFilteredStudents();
     const selectedColumns = [
       ...availableColumns.filter((col) => col.isSelected),
       ...customColumns.filter((col) => col.isSelected),
     ];
 
-    // Créer un nouveau workbook
-    const wb = XLSX.utils.book_new();
+    const includePhotos = selectedColumns.some((c) => c.key === "photoUrl");
 
-    // Préparer les données
-    const headers = selectedColumns.map((col) => col.label);
-    const data = filteredStudents.map((student) =>
-      selectedColumns.map((col) => {
-        if (col.isCustom) {
-          return "";
-        }
+    try {
+      const ExcelJS: any = await import("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Liste des Élèves");
 
-        let value = student[col.key as keyof Student];
+      sheet.columns = selectedColumns.map((col) => ({
+        header: col.label,
+        key: col.key,
+        width: 20,
+      }));
 
-        // Formatage spécial pour certains champs
-        if (col.key === "sexe") {
-          value = value === "M" ? "Masculin" : "Féminin";
-        } else if (col.key === "status") {
-          value =
-            String(value).charAt(0).toUpperCase() + String(value).slice(1);
-        } else if (col.key === "dateNaissance") {
-          value = new Date(String(value)).toLocaleDateString("fr-FR");
-        } else if (col.key === "dateInscription") {
-          value = new Date(String(value)).toLocaleDateString("fr-FR");
-        }
-        addActivity({
-          action: "export",
-          module: "Gestion Élèves",
-          title: "Pdf généré",
-          details: `Un pdf de la liste des élèves a été généré.`,
+      for (let i = 0; i < filteredStudents.length; i++) {
+        const student = filteredStudents[i] as any;
+        const rowValues: Record<string, any> = {};
+        selectedColumns.forEach((col) => {
+          if (col.isCustom) {
+            rowValues[col.key] = "";
+            return;
+          }
+
+          let value: any = student[col.key as keyof Student];
+          if (col.key === "sexe")
+            value = value === "M" ? "Masculin" : "Féminin";
+          else if (col.key === "status")
+            value =
+              String(value).charAt(0).toUpperCase() + String(value).slice(1);
+          else if (col.key === "dateNaissance" || col.key === "dateInscription")
+            value = new Date(String(value)).toLocaleDateString("fr-FR");
+          else if (col.key === "salle")
+            value = `${salleSelector(value, student.classesDemandee)}`;
+          else if (col.key === "classesDemandee")
+            value = `${classSelector(value)}`;
+          else if (col.key === "photoUrl") {
+            // Ne pas insérer l'URL dans la cellule Excel — l'image sera intégrée séparément
+            value = "";
+          }
+
+          rowValues[col.key] = value ?? "";
         });
 
-        return value || "";
-      })
-    );
+        const row = sheet.addRow(rowValues);
 
-    // Créer la feuille de calcul
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+        if (includePhotos) {
+          const photoColIndex =
+            selectedColumns.findIndex((c) => c.key === "photoUrl") + 1;
+          const photoUrl = String(student.photoUrl || student.photo_url || "");
+          if (photoUrl) {
+            try {
+              const resp = await fetch(photoUrl);
+              const blob = await resp.blob();
+              const arrayBuffer = await blob.arrayBuffer();
+              let ext = (blob.type || "image/png").split("/").pop() || "png";
+              if (!["png", "jpeg", "gif"].includes(ext)) ext = "png";
+              const imageId = workbook.addImage({
+                buffer: arrayBuffer,
+                extension: ext as "png" | "jpeg" | "gif",
+              });
 
-    // Définir la largeur des colonnes
-    const colWidths = headers.map(() => ({ wch: 15 }));
-    ws["!cols"] = colWidths;
+              sheet.getRow(row.number).height = 40;
+              sheet.addImage(imageId, {
+                tl: { col: photoColIndex - 1, row: row.number - 1 },
+                ext: { width: 50, height: 50 },
+              });
+            } catch (err) {
+              console.warn("Impossible de récupérer l'image:", err);
+            }
+          }
+        }
+      }
 
-    // Ajouter la feuille au workbook
-    XLSX.utils.book_append_sheet(wb, ws, "Liste des Élèves");
-
-    // Générer le fichier Excel
-    const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    saveAs(blob, `liste_eleves_${new Date().toISOString().split("T")[0]}.xlsx`);
+      const buf = await workbook.xlsx.writeBuffer();
+      const blobOut = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      saveAs(
+        blobOut,
+        `liste_eleves_${new Date().toISOString().split("T")[0]}.xlsx`
+      );
+      addActivity({
+        action: "export",
+        module: "Gestion Élèves",
+        title: "Excel généré",
+        details: `Excel généré avec ${filteredStudents.length} élèves.`,
+      });
+    } catch (error) {
+      console.error(
+        "Erreur export Excel avec images, fallback vers URL:",
+        error
+      );
+      // Fallback: export avec URLs
+      const wb = XLSX.utils.book_new();
+      const headers = selectedColumns.map((col) => col.label);
+      const data = filteredStudents.map((student) =>
+        selectedColumns.map((col) => {
+          if (col.isCustom) return "";
+          let value: any = student[col.key as keyof Student];
+          if (col.key === "sexe")
+            value = value === "M" ? "Masculin" : "Féminin";
+          else if (col.key === "status")
+            value =
+              String(value).charAt(0).toUpperCase() + String(value).slice(1);
+          else if (col.key === "dateNaissance" || col.key === "dateInscription")
+            value = new Date(String(value)).toLocaleDateString("fr-FR");
+          else if (col.key === "salle")
+            value = `${salleSelector(value, (student as any).classesDemandee)}`;
+          else if (col.key === "classesDemandee")
+            value = `${classSelector(value)}`;
+          else if (col.key === "photoUrl") {
+            // Dans le fallback, ne pas écrire l'URL non plus (préférence: cellule vide)
+            value = "";
+          }
+          return String(value || "");
+        })
+      );
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+      ws["!cols"] = headers.map(() => ({ wch: 20 }));
+      XLSX.utils.book_append_sheet(wb, ws, "Liste des Élèves");
+      const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+      const blob2 = new Blob([excelBuffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      saveAs(
+        blob2,
+        `liste_eleves_${new Date().toISOString().split("T")[0]}.xlsx`
+      );
+    }
   };
 
   // Imprimer directement

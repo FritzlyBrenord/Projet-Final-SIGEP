@@ -25,6 +25,7 @@ import {
 import GestionUtilisateur from "./Composant/GestionUtilisateur";
 import Roles from "./Composant/Roles";
 import Corbeille from "./Composant/Corbeille";
+import GestionBadge from "./Composant/GestionBadge";
 
 interface Props {
   isDarkMode: boolean;
@@ -35,6 +36,7 @@ const AdminSettingsPage = ({ isDarkMode }: Props) => {
   const tabs = [
     { id: "users", label: "Gestion Utilisateurs", icon: Users },
     { id: "permissions", label: "Autorisations", icon: Shield },
+    { id: "badge", label: "Generation Badge", icon: UserCheck },
     { id: "trash", label: "Corbeille", icon: Trash2 },
   ];
 
@@ -98,7 +100,7 @@ const AdminSettingsPage = ({ isDarkMode }: Props) => {
           )}
 
           {activeTab === "permissions" && <Roles isDarkMode={isDarkMode} />}
-
+          {activeTab === "badge" && <GestionBadge isDarkMode={isDarkMode} />}
           {activeTab === "trash" && <Corbeille isDarkMode={isDarkMode} />}
         </div>
       </div>

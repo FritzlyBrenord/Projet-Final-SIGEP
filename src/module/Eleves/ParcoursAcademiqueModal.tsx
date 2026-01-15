@@ -37,6 +37,8 @@ interface ParcoursAcademique {
     telephone_parents: string;
     adresse_parents: string;
     nif_parents: string;
+    groupe_sanguin?: string;
+    nom_prenom_parent: string;
     etablissement_precedent: string;
     photo_url?: string;
     created_at?: string;
@@ -857,6 +859,12 @@ const ParcoursAcademiqueModal: React.FC<Props> = ({
                   parcours.eleve.sexe === "M" ? "Masculin" : "Féminin"
                 }</div>
               </div>
+              <div class="info-item">
+                <div class="info-label">Groupe Sanguin</div>
+                <div class="info-value">${
+                  parcours.eleve.groupe_sanguin || "Non renseigné"
+                }</div>
+              </div>
               <div class="info-item full-width">
                 <div class="info-label">Lieu de Naissance</div>
                 <div class="info-value">${parcours.eleve.ville_naissance}, ${
@@ -866,6 +874,12 @@ const ParcoursAcademiqueModal: React.FC<Props> = ({
               <div class="info-item full-width">
                 <div class="info-label">Adresse Actuelle</div>
                 <div class="info-value">${parcours.eleve.adresse_actuelle}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Parent/Tuteur</div>
+                <div class="info-value">${
+                  parcours.eleve.nom_prenom_parent || "Non renseigné"
+                }</div>
               </div>
               <div class="info-item">
                 <div class="info-label">Téléphone Parents</div>
@@ -1562,6 +1576,29 @@ const ParcoursAcademiqueModal: React.FC<Props> = ({
                         </div>
 
                         <div
+                          className={`${bgCard} border ${borderColor} rounded-lg p-3`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`h-5 w-5 flex items-center justify-center ${textSecondary} mt-1 font-bold text-xs border border-current rounded-full`}
+                            >
+                              AB
+                            </div>
+                            <div>
+                              <p
+                                className={`text-xs ${textSecondary} uppercase mb-1`}
+                              >
+                                Groupe Sanguin
+                              </p>
+                              <p className={`${textPrimary} font-semibold`}>
+                                {parcours.eleve.groupe_sanguin ||
+                                  "Non renseigné"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
                           className={`${bgCard} border ${borderColor} rounded-lg p-3 md:col-span-2`}
                         >
                           <div className="flex items-start gap-3">
@@ -1601,6 +1638,25 @@ const ParcoursAcademiqueModal: React.FC<Props> = ({
                               </p>
                               <p className={`${textPrimary} font-semibold`}>
                                 {parcours.eleve.adresse_actuelle}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div
+                          className={`${bgCard} border ${borderColor} rounded-lg p-3 md:col-span-2`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <User className={`h-5 w-5 ${textSecondary} mt-1`} />
+                            <div>
+                              <p
+                                className={`text-xs ${textSecondary} uppercase mb-1`}
+                              >
+                                Parent/Tuteur
+                              </p>
+                              <p className={`${textPrimary} font-semibold`}>
+                                {parcours.eleve.nom_prenom_parent ||
+                                  "Non renseigné"}
                               </p>
                             </div>
                           </div>

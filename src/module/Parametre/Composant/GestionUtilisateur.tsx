@@ -542,7 +542,7 @@ const GestionUtilisateur = ({ isDarkMode }: Props) => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <div
             className={`${themeClasses.cardBg} border ${themeClasses.border} rounded-xl p-5 hover:shadow-lg transition-all`}
           >
@@ -556,20 +556,6 @@ const GestionUtilisateur = ({ isDarkMode }: Props) => {
               className={`text-sm font-medium ${themeClasses.textSecondary}`}
             >
               Total
-            </div>
-          </div>
-
-          <div
-            className={`${themeClasses.cardBg} border ${themeClasses.border} rounded-xl p-5 hover:shadow-lg transition-all`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <Wifi className="w-8 h-8 text-blue-500" />
-              <div className={`text-3xl font-bold ${themeClasses.text}`}>
-                {stats.online}
-              </div>
-            </div>
-            <div className="text-sm font-medium text-blue-600 dark:text-blue-400">
-              En ligne
             </div>
           </div>
 

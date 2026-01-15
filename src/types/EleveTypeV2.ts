@@ -19,6 +19,8 @@ export interface ElevePermanent {
   moyenne_generale: number;
   etablissement_precedent: string;
   photo_url?: string;
+  groupe_sanguin?: string; // Ajouté
+  nom_prenom_parent: string; // Ajouté (Obligatoire)
   deleted: boolean;
   created_at?: string;
   updated_at?: string;
@@ -69,6 +71,8 @@ export interface EleveFormData {
   moyenne_generale: number;
   etablissement_precedent: string;
   photo_url?: string;
+  groupe_sanguin?: string; // Ajouté
+  nom_prenom_parent: string; // Ajouté
   
   // Données d'inscription
   annee_scolaire_id: string;

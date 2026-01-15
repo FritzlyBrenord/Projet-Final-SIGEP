@@ -60,6 +60,7 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
     rechercherEleves,
     genererNouveauCode,
     rechargerEleves,
+    uploadPhoto,
   } = useEleves();
   const { addActivity } = useRecentActivities();
   const { currentYear } = useAnneeScolaire();
@@ -136,7 +137,30 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
     salle_id: "",
     statut: "inactif",
     observations: "",
+    groupe_sanguin: "",
+    nom_prenom_parent: "",
   });
+
+  // Sélection locale et prévisualisation d'image (upload délégué au contexte)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const handleLocalImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setSelectedFile(file);
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+  };
+
+  const handleRemoveSelectedImage = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setFormData((prev) => ({ ...prev, photo_url: "" }));
+  };
 
   const getEleveNomPrenom = (
     eleveId: string
@@ -606,6 +630,10 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
       alert("La salle est obligatoire");
       return;
     }
+    if (!formData.nom_prenom_parent.trim()) {
+      alert("Le nom et prénom du parent est obligatoire");
+      return;
+    }
 
     if (!validateBirthDate(formData.date_naissance)) {
       alert(
@@ -628,6 +656,19 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
 
     try {
       setIsSubmitting(true);
+
+      // Si une image a été sélectionnée localement, l'uploader via le contexte
+      if (selectedFile) {
+        try {
+          const publicUrl = await uploadPhoto(selectedFile);
+          payload.photo_url = publicUrl;
+        } catch (err) {
+          console.error("Erreur upload image:", err);
+          notify("error", "Erreur lors du téléchargement de la photo");
+          setIsSubmitting(false);
+          return;
+        }
+      }
 
       if (editingStudent) {
         await modifierEleve(editingStudent.id, payload);
@@ -696,6 +737,8 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
       salle_id: "",
       statut: "inactif",
       observations: "",
+      groupe_sanguin: "",
+      nom_prenom_parent: "",
     });
     setEditingStudent(null);
     setCurrentView("list"); // ✅ Retour à la liste
@@ -843,6 +886,8 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
       salle_id: student.salle_id,
       statut: student.statut,
       observations: student.observations_inscription || "",
+      groupe_sanguin: student.groupe_sanguin || "",
+      nom_prenom_parent: student.nom_prenom_parent || "",
     });
     setCurrentView("form"); // ✅ Afficher le formulaire
   };
@@ -952,6 +997,47 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
           {/* ✅ Formulaire */}
           <div className={`${cardClasses} rounded-lg shadow-sm border p-6`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="md:col-span-2 flex flex-col items-center justify-center mb-4">
+                <div className="relative w-32 h-32 mb-2 rounded-full overflow-hidden border-2 border-gray-300">
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt="Prévisualisation"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : formData.photo_url ? (
+                    <img
+                      src={formData.photo_url}
+                      alt="Photo élève"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                      <Users size={48} />
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="cursor-pointer bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                    Choisir
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleLocalImageSelect}
+                    />
+                  </label>
+                  {(previewUrl || formData.photo_url) && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveSelectedImage}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition"
+                    >
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              </div>
               <div>
                 <label
                   className={`block text-sm font-medium mb-1 ${
@@ -1027,6 +1113,30 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
                     isDarkMode ? "text-gray-300" : "text-gray-700"
                   }`}
                 >
+                  Groupe Sanguin
+                </label>
+                <select
+                  name="groupe_sanguin"
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.groupe_sanguin}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Sélectionner</option>
+                  <option value="A">Groupe A</option>
+                  <option value="B">Groupe B</option>
+                  <option value="AB">Groupe AB</option>
+                  <option value="O">Groupe O</option>
+                  <option value="A+">A+</option>
+                  <option value="O-">O-</option>
+                  <option value="O+">O+</option>
+                </select>
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
                   Date de naissance *
                 </label>
                 <input
@@ -1093,6 +1203,23 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
                   required
                   className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
                   value={formData.adresse_actuelle}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div>
+                <label
+                  className={`block text-sm font-medium mb-1 ${
+                    isDarkMode ? "text-gray-300" : "text-gray-700"
+                  }`}
+                >
+                  Nom et Prénom Parent/Tuteur *
+                </label>
+                <input
+                  type="text"
+                  name="nom_prenom_parent"
+                  required
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${inputClasses}`}
+                  value={formData.nom_prenom_parent}
                   onChange={handleInputChange}
                 />
               </div>
@@ -2192,7 +2319,7 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
       {showModal && selectedStudent && (
         <div className="fixed inset-0 bg-black/60 bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div
-            className={`${cardClasses} rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto`}
+            className={`${cardClasses} rounded-lg max-w-6xl w-full max-h-[90vh] overflow-y-auto`}
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -2244,6 +2371,66 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
                     {selectedStudent.prenom} {selectedStudent.nom}
                   </p>
                 </div>
+                  <div>
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Nom & prénom parent / tuteur
+                    </label>
+                    <p
+                      className={`text-sm p-2 rounded ${
+                        isDarkMode
+                          ? "bg-gray-700 text-white"
+                          : "bg-gray-50 text-gray-900"
+                      }`}
+                    >
+                      {selectedStudent.nom_prenom_parent || "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Groupe sanguin
+                    </label>
+                    <p
+                      className={`text-sm p-2 rounded ${
+                        isDarkMode
+                          ? "bg-gray-700 text-white"
+                          : "bg-gray-50 text-gray-900"
+                      }`}
+                    >
+                      {selectedStudent.groupe_sanguin || "-"}
+                    </p>
+                  </div>
+                  <div className="md:col-span-2 flex flex-col items-start gap-2">
+                    <label
+                      className={`block text-sm font-medium mb-1 ${
+                        isDarkMode ? "text-gray-300" : "text-gray-700"
+                      }`}
+                    >
+                      Photo
+                    </label>
+                    {selectedStudent.photo_url ? (
+                      <img
+                        src={selectedStudent.photo_url}
+                        alt={`Photo de ${selectedStudent.prenom} ${selectedStudent.nom}`}
+                        className="w-32 h-32 object-cover rounded border"
+                      />
+                    ) : (
+                      <div
+                        className={`w-32 h-32 flex items-center justify-center rounded border ${
+                          isDarkMode ? "bg-gray-700 text-gray-300" : "bg-gray-50 text-gray-700"
+                        }`}
+                      >
+                        Aucune photo
+                      </div>
+                    )}
+                  </div>
                 <div>
                   <label>Date de naissance</label>
                   <p>
@@ -2475,6 +2662,7 @@ const ElevesPage = ({ isSuperAdmin, isDarkMode }: Props) => {
           dateInscription: e.date_inscription,
           observations: e.observations_inscription,
           photoUrl: e.photo_url,
+          nom_prenom_parent: e.nom_prenom_parent || "",
         }))}
         isDarkMode={isDarkMode}
       />

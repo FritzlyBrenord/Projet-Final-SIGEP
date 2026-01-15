@@ -109,6 +109,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     deleteSalle,
     deleteClasse,
     deleteMatiere,
+    updateSalle,
   } = useAnneeScolaire();
 
   const { copierProfesseursVersNouvelleAnnee } = useProfesseur();
@@ -783,6 +784,64 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
     }));
 
     notify("success", `Salle ${salleName} ajoutée avec succès !`);
+  };
+
+  // Mise à jour du nombre max d'élèves d'une salle
+  const handleUpdateSalle = async (
+    classeId: string,
+    salleId: string,
+    newMax: number
+  ) => {
+    // Vérifier le nombre d'élèves déjà inscrits dans cette salle pour cette année
+    try {
+      const inscriptions = await SelectData("eleves_inscriptions");
+      const inscriptionsActuelles = (inscriptions || []).filter(
+        (i: any) =>
+          i.salle_id === salleId &&
+          i.annee_scolaire_id === localSchoolYear.id &&
+          !i.deleted
+      );
+      const nombreElevesActuels = inscriptionsActuelles.length;
+
+      if (newMax < nombreElevesActuels) {
+        notify(
+          "error",
+          `Impossible de définir la capacité à ${newMax} — il y a déjà ${nombreElevesActuels} élève(s) inscrits dans cette salle.`
+        );
+        return;
+      }
+
+      // Mise à jour optimiste locale
+      setLocalSchoolYear((prev) => ({
+        ...prev,
+        classes: prev.classes.map((c) =>
+          c.id === classeId
+            ? {
+                ...c,
+                salles: c.salles.map((s) =>
+                  s.id === salleId ? { ...s, maxStudents: newMax } : s
+                ),
+              }
+            : c
+        ),
+      }));
+
+      // Si la salle est locale (id commence par 'salle_'), pas besoin d'appeler l'API
+      if (salleId.startsWith("salle_")) {
+        notify("success", "Capacité mise à jour localement");
+        return;
+      }
+
+      const success = await updateSalle(salleId, { capacite: newMax });
+      if (success) {
+        notify("success", "Capacité de la salle mise à jour");
+      } else {
+        notify("error", "Impossible de mettre à jour la capacité");
+      }
+    } catch (error) {
+      console.error("Erreur update salle:", error);
+      notify("error", "Erreur lors de la mise à jour de la salle");
+    }
   };
 
   // Suppression d'une salle
@@ -1636,6 +1695,7 @@ const ConfigurationAnnee: React.FC<ConfigurationAnneeProps> = ({
                       onAddSalle={handleAddSalle}
                       onRemoveClasse={handleRemoveClasse}
                       onRemoveSalle={handleRemoveSalle}
+                      onUpdateSalle={handleUpdateSalle}
                       isDarkMode={isDarkMode}
                       salleExists={salleExists}
                     />
@@ -1715,6 +1775,7 @@ function ClasseSection({
   onAddSalle,
   onRemoveClasse,
   onRemoveSalle,
+  onUpdateSalle,
   isDarkMode,
   salleExists,
 }: {
@@ -1726,6 +1787,7 @@ function ClasseSection({
   ) => void;
   onRemoveClasse: (classeId: string) => void;
   onRemoveSalle: (classeId: string, salleId: string) => void;
+  onUpdateSalle: (classeId: string, salleId: string, newMax: number) => void;
   isDarkMode: boolean;
   salleExists: (classeId: string, salleName: string) => boolean;
 }) {
@@ -1733,6 +1795,8 @@ function ClasseSection({
   const [newSalle, setNewSalle] = useState({ name: "", maxStudents: 30 });
   const [salleError, setSalleError] = useState("");
   const [expandedClasse, setExpandedClasse] = useState(false);
+  const [editingSalleId, setEditingSalleId] = useState<string | null>(null);
+  const [editingMaxValue, setEditingMaxValue] = useState<number>(30);
 
   const handleAddSalle = () => {
     if (!newSalle.name.trim()) {
@@ -1915,22 +1979,67 @@ function ClasseSection({
                   >
                     {salle.name}
                   </span>
-                  <span
-                    className={`text-sm px-2 py-1 rounded-full ${
-                      isDarkMode
-                        ? "bg-gray-600 text-gray-300"
-                        : "bg-gray-200 text-gray-600"
-                    }`}
-                  >
-                    Max: {salle.maxStudents} élèves
-                  </span>
+                  {editingSalleId === salle.id ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={1}
+                        className={`w-24 p-1 border rounded text-sm ${
+                          isDarkMode
+                            ? "bg-gray-700 border-gray-600 text-white"
+                            : "border-gray-300 text-gray-900"
+                        }`}
+                        value={editingMaxValue}
+                        onChange={(e) =>
+                          setEditingMaxValue(parseInt(e.target.value) || 1)
+                        }
+                      />
+                      <button
+                        onClick={() => {
+                          onUpdateSalle(classe.id, salle.id, editingMaxValue);
+                          setEditingSalleId(null);
+                        }}
+                        className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm"
+                      >
+                        <Check size={14} />
+                      </button>
+                      <button
+                        onClick={() => setEditingSalleId(null)}
+                        className="px-3 py-1 rounded border text-sm"
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  ) : (
+                    <span
+                      className={`text-sm px-2 py-1 rounded-full ${
+                        isDarkMode
+                          ? "bg-gray-600 text-gray-300"
+                          : "bg-gray-200 text-gray-600"
+                      }`}
+                    >
+                      Max: {salle.maxStudents} élèves
+                    </span>
+                  )}
                 </div>
-                <button
-                  onClick={() => onRemoveSalle(classe.id, salle.id)}
-                  className="bg-red-600 text-white p-2 rounded hover:bg-red-700 transition-colors"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setEditingSalleId(salle.id);
+                      setEditingMaxValue(salle.maxStudents || 30);
+                    }}
+                    className="p-2 rounded hover:bg-gray-200 transition-colors"
+                    title="Modifier la capacité"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => onRemoveSalle(classe.id, salle.id)}
+                    className="bg-red-600 text-white p-2 rounded hover:bg-red-700 transition-colors"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
